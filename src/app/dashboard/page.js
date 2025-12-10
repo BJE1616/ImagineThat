@@ -147,7 +147,10 @@ export default function DashboardPage() {
                         <p className="text-gray-600 mb-4">
                             Create and upload your business card to start advertising
                         </p>
-                        <button className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                        <button
+                            onClick={() => router.push('/cards')}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                        >
                             Get Started
                         </button>
                     </div>
