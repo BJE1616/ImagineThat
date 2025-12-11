@@ -11,8 +11,13 @@ export default function GamePage() {
     const [flippedCards, setFlippedCards] = useState([])
     const [matchedPairs, setMatchedPairs] = useState([])
     const [moves, setMoves] = useState(0)
+    const [gameMode, setGameMode] = useState('easy')
     const [gameStarted, setGameStarted] = useState(false)
+    const [startTime, setStartTime] = useState(null)
+    const [endTime, setEndTime] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [leaderboard, setLeaderboard] = useState([])
+    const [showLeaderboard, setShowLeaderboard] = useState(false)
 
     useEffect(() => {
         checkUser()
@@ -20,36 +25,69 @@ export default function GamePage() {
 
     const checkUser = async () => {
         try {
-            // Check if user is logged in (optional - game works for everyone)
             const { data: { user: authUser } } = await supabase.auth.getUser()
             setUser(authUser)
-            await loadCards()
+            await loadLeaderboard()
         } catch (error) {
             console.error('Error:', error)
-            await loadCards() // Load cards anyway even if not logged in
+            await loadLeaderboard()
         } finally {
             setLoading(false)
         }
     }
 
-    const loadCards = async () => {
+    const loadLeaderboard = async () => {
         try {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const weekStart = new Date(today)
+            weekStart.setDate(today.getDate() - dayOfWeek)
+            weekStart.setHours(0, 0, 0, 0)
+
+            const { data: leaderboardData, error: leaderboardError } = await supabase
+                .from('leaderboard')
+                .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
+                .order('score', { ascending: true })
+                .limit(20)
+
+            if (leaderboardError) throw leaderboardError
+
+            const userIds = leaderboardData.map(entry => entry.user_id)
+            const { data: usersData, error: usersError } = await supabase
+                .from('users')
+                .select('id, username')
+                .in('id', userIds)
+
+            if (usersError) throw usersError
+
+            const combined = leaderboardData.map(entry => ({
+                ...entry,
+                users: usersData.find(u => u.id === entry.user_id) || { username: 'Unknown' }
+            }))
+
+            setLeaderboard(combined)
+        } catch (error) {
+            console.error('Error loading leaderboard:', error)
+        }
+    }
+
+    const loadCards = async (mode) => {
+        try {
+            const limit = mode === 'easy' ? 6 : 8
+
             const { data, error } = await supabase
                 .from('business_cards')
                 .select('*')
-                .limit(6)
+                .limit(limit)
 
             if (error) throw error
 
-            // Create pairs of cards
             const cardPairs = [...data, ...data].map((card, index) => ({
                 ...card,
-                uniqueId: index,
-                isFlipped: false,
-                isMatched: false
+                uniqueId: index
             }))
 
-            // Shuffle cards
             const shuffled = cardPairs.sort(() => Math.random() - 0.5)
             setCards(shuffled)
         } catch (error) {
@@ -57,12 +95,44 @@ export default function GamePage() {
         }
     }
 
-    const startGame = () => {
+    const startGame = async (mode) => {
+        setGameMode(mode)
         setGameStarted(true)
         setMoves(0)
         setMatchedPairs([])
         setFlippedCards([])
-        loadCards()
+        setStartTime(Date.now())
+        setEndTime(null)
+        await loadCards(mode)
+    }
+
+    const saveScoreDirectly = async (finalMoves, finalTime, finalScore) => {
+        if (!user) return
+
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - dayOfWeek)
+        weekStart.setHours(0, 0, 0, 0)
+
+        try {
+            const { error } = await supabase
+                .from('leaderboard')
+                .insert([{
+                    user_id: user.id,
+                    game_mode: gameMode,
+                    moves: finalMoves,
+                    time_seconds: finalTime,
+                    score: finalScore,
+                    week_start: weekStart.toISOString().split('T')[0]
+                }])
+
+            if (error) throw error
+
+            await loadLeaderboard()
+        } catch (error) {
+            console.error('Error saving score:', error)
+        }
     }
 
     const handleCardClick = (clickedCard) => {
@@ -75,12 +145,28 @@ export default function GamePage() {
         setFlippedCards(newFlipped)
 
         if (newFlipped.length === 2) {
-            setMoves(moves + 1)
+            const newMoves = moves + 1
+            setMoves(newMoves)
 
-            // Check for match
             if (newFlipped[0].id === newFlipped[1].id) {
-                setMatchedPairs([...matchedPairs, newFlipped[0].id])
+                const newMatched = [...matchedPairs, newFlipped[0].id]
+                setMatchedPairs(newMatched)
                 setTimeout(() => setFlippedCards([]), 500)
+
+                const pairsNeeded = gameMode === 'easy' ? 6 : 8
+                if (newMatched.length === pairsNeeded) {
+                    const finalTime = Date.now()
+                    setEndTime(finalTime)
+
+                    if (user) {
+                        setTimeout(() => {
+                            const timeSeconds = Math.floor((finalTime - startTime) / 1000)
+                            const finalScore = (newMoves * 2) + timeSeconds
+
+                            saveScoreDirectly(newMoves, timeSeconds, finalScore)
+                        }, 1000)
+                    }
+                }
             } else {
                 setTimeout(() => setFlippedCards([]), 1000)
             }
@@ -92,7 +178,14 @@ export default function GamePage() {
     }
 
     const isGameComplete = () => {
-        return matchedPairs.length === 6 && gameStarted
+        const pairsNeeded = gameMode === 'easy' ? 6 : 8
+        return matchedPairs.length === pairsNeeded && gameStarted
+    }
+
+    const getElapsedTime = () => {
+        if (!startTime) return 0
+        const end = endTime || Date.now()
+        return Math.floor((end - startTime) / 1000)
     }
 
     if (loading) {
@@ -109,12 +202,18 @@ export default function GamePage() {
                 <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-gray-900">Memory Card Game</h1>
                     <div className="flex gap-4">
+                        <button
+                            onClick={() => setShowLeaderboard(!showLeaderboard)}
+                            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                        >
+                            🏆 Leaderboard
+                        </button>
                         {user ? (
                             <button
                                 onClick={() => router.push('/dashboard')}
                                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                             >
-                                Back to Dashboard
+                                Dashboard
                             </button>
                         ) : (
                             <>
@@ -137,10 +236,45 @@ export default function GamePage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+                {showLeaderboard && (
+                    <div className="bg-white rounded-lg shadow p-6 mb-6">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">🏆 This Week Top 20</h2>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                                <thead className="text-gray-900">
+                                    <tr className="border-b">
+                                        <th className="text-left py-2">Rank</th>
+                                        <th className="text-left py-2">Player</th>
+                                        <th className="text-left py-2">Mode</th>
+                                        <th className="text-left py-2">Moves</th>
+                                        <th className="text-left py-2">Time</th>
+                                        <th className="text-left py-2">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-gray-900">
+                                    {leaderboard.map((entry, index) => (
+                                        <tr key={entry.id} className="border-b">
+                                            <td className="py-2">{index + 1}</td>
+                                            <td className="py-2">{entry.users.username}</td>
+                                            <td className="py-2">{entry.game_mode === 'easy' ? '12 Cards' : '16 Cards'}</td>
+                                            <td className="py-2">{entry.moves}</td>
+                                            <td className="py-2">{entry.time_seconds}s</td>
+                                            <td className="py-2 font-bold">{entry.score}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {leaderboard.length === 0 && (
+                                <p className="text-center text-gray-500 py-4">No scores yet this week!</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {!user && !gameStarted && (
                     <div className="bg-blue-100 border border-blue-400 text-blue-700 px-6 py-4 rounded-lg mb-6">
                         <p className="text-center">
-                            <strong>Want to advertise your business?</strong>
+                            <strong>Want to compete for prizes?</strong>
                             <button
                                 onClick={() => router.push('/auth/register')}
                                 className="ml-2 underline hover:text-blue-900"
@@ -153,36 +287,50 @@ export default function GamePage() {
 
                 {!gameStarted && (
                     <div className="text-center py-12">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                            Match the Business Cards!
-                        </h2>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Choose Your Challenge!</h2>
                         <p className="text-lg text-gray-600 mb-8">
-                            Find matching pairs of business cards. Click two cards to flip them over.
+                            Match all pairs. Lower score wins! Score = (Moves × 2) + Seconds
                         </p>
-                        <button
-                            onClick={startGame}
-                            className="px-8 py-4 bg-indigo-600 text-white text-lg rounded-md hover:bg-indigo-700"
-                        >
-                            Start Game
-                        </button>
+                        <div className="flex gap-4 justify-center">
+                            <button
+                                onClick={() => startGame('easy')}
+                                className="px-8 py-4 bg-green-600 text-white text-lg rounded-md hover:bg-green-700"
+                            >
+                                Easy Mode<br />
+                                <span className="text-sm">12 Cards</span>
+                            </button>
+                            <button
+                                onClick={() => startGame('challenge')}
+                                className="px-8 py-4 bg-red-600 text-white text-lg rounded-md hover:bg-red-700"
+                            >
+                                Challenge<br />
+                                <span className="text-sm">16 Cards</span>
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 {gameStarted && (
                     <>
                         <div className="bg-white rounded-lg shadow p-6 mb-6">
-                            <div className="flex justify-between items-center">
-                                <div className="text-lg">
+                            <div className="flex justify-between items-center flex-wrap gap-4">
+                                <div className="text-lg text-gray-900">
+                                    <span className="font-bold">Mode:</span> {gameMode === 'easy' ? '12 Cards' : '16 Cards'}
+                                </div>
+                                <div className="text-lg text-gray-900">
                                     <span className="font-bold">Moves:</span> {moves}
                                 </div>
-                                <div className="text-lg">
-                                    <span className="font-bold">Matches:</span> {matchedPairs.length} / 6
+                                <div className="text-lg text-gray-900">
+                                    <span className="font-bold">Time:</span> {getElapsedTime()}s
+                                </div>
+                                <div className="text-lg text-gray-900">
+                                    <span className="font-bold">Matches:</span> {matchedPairs.length} / {gameMode === 'easy' ? 6 : 8}
                                 </div>
                                 <button
-                                    onClick={startGame}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                                    onClick={() => setGameStarted(false)}
+                                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
                                 >
-                                    New Game
+                                    Quit
                                 </button>
                             </div>
                         </div>
@@ -190,56 +338,47 @@ export default function GamePage() {
                         {isGameComplete() && (
                             <div className="bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-lg mb-6 text-center">
                                 <h3 className="text-2xl font-bold mb-2">🎉 Congratulations!</h3>
-                                <p className="text-lg mb-4">You completed the game in {moves} moves!</p>
-                                {!user && (
+                                <p className="text-lg mb-2">
+                                    Moves: {moves} | Time: {getElapsedTime()}s | Score: {(moves * 2) + getElapsedTime()}
+                                </p>
+                                {user ? (
+                                    <p className="text-base">Score saved to leaderboard!</p>
+                                ) : (
                                     <p className="text-base">
-                                        <strong>Love the game?</strong>{' '}
                                         <button
                                             onClick={() => router.push('/auth/register')}
-                                            className="underline hover:text-green-900"
+                                            className="underline"
                                         >
-                                            Sign up to advertise your business!
-                                        </button>
+                                            Sign up
+                                        </button> to save your score!
                                     </p>
                                 )}
                             </div>
                         )}
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className={`grid gap-4 ${gameMode === 'easy' ? 'grid-cols-3 md:grid-cols-4' : 'grid-cols-4'}`}>
                             {cards.map((card) => (
                                 <div
                                     key={card.uniqueId}
                                     onClick={() => handleCardClick(card)}
-                                    className="relative h-48 cursor-pointer"
+                                    className="relative h-40 cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
-                                        <div className="w-full h-full bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow">
-                                            <span className="text-6xl text-white">?</span>
+                                        <div className="w-full h-full bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
+                                            <span className="text-5xl text-white">?</span>
                                         </div>
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
                                             <div className="w-full h-full rounded-lg shadow-lg overflow-hidden">
-                                                <img
-                                                    src={card.image_url}
-                                                    alt="Business Card"
-                                                    className="w-full h-full object-cover"
-                                                />
+                                                <img src={card.image_url} alt="Card" className="w-full h-full object-cover" />
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-full h-full rounded-lg p-4 flex flex-col justify-between border-2 shadow-lg"
+                                                className="w-full h-full rounded-lg p-3 flex flex-col justify-between border-2 shadow-lg"
                                                 style={{ backgroundColor: card.card_color || '#fff' }}
                                             >
-                                                <div>
-                                                    <h3 className="font-bold text-lg mb-2" style={{ color: '#1F2937' }}>{card.title}</h3>
-                                                    {card.message && (
-                                                        <p className="text-sm line-clamp-2" style={{ color: '#4B5563' }}>{card.message}</p>
-                                                    )}
-                                                </div>
-                                                <div className="text-xs space-y-1" style={{ color: '#6B7280' }}>
-                                                    <p>{card.phone}</p>
-                                                    <p>{card.email}</p>
-                                                </div>
+                                                <h3 className="font-bold text-sm" style={{ color: '#1F2937' }}>{card.title}</h3>
+                                                <p className="text-xs" style={{ color: '#6B7280' }}>{card.phone}</p>
                                             </div>
                                         )
                                     )}
