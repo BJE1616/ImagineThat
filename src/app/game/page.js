@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -19,6 +19,8 @@ export default function GamePage() {
     const [leaderboard, setLeaderboard] = useState([])
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [weeklyPrize, setWeeklyPrize] = useState(null)
+    const trackedGameViews = useRef(new Set())
+    const trackedFlipViews = useRef(new Set())
 
     useEffect(() => {
         checkUser()
@@ -103,9 +105,71 @@ export default function GamePage() {
         }
     }
 
+    // Track game views (when card appears in game)
+    const trackGameView = async (cardUserId) => {
+        if (!cardUserId || trackedGameViews.current.has(cardUserId)) return
+
+        trackedGameViews.current.add(cardUserId)
+
+        try {
+            // Find active campaign for this card's owner
+            const { data: campaign } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_game')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .single()
+
+            if (campaign) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_game: (campaign.views_from_game || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaign.id)
+            }
+        } catch (error) {
+            // Silently fail - don't disrupt game
+        }
+    }
+
+    // Track flip views (when card is flipped)
+    const trackFlipView = async (cardUserId, cardUniqueId) => {
+        const trackKey = `${cardUserId}-${cardUniqueId}`
+        if (!cardUserId || trackedFlipViews.current.has(trackKey)) return
+
+        trackedFlipViews.current.add(trackKey)
+
+        try {
+            const { data: campaign } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_flips')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .single()
+
+            if (campaign) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_flips: (campaign.views_from_flips || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaign.id)
+            }
+        } catch (error) {
+            // Silently fail - don't disrupt game
+        }
+    }
+
     const loadCards = async (mode) => {
         try {
             const limit = mode === 'easy' ? 6 : 8
+
+            // Reset view tracking for new game
+            trackedGameViews.current = new Set()
+            trackedFlipViews.current = new Set()
 
             const { data, error } = await supabase
                 .from('business_cards')
@@ -121,6 +185,13 @@ export default function GamePage() {
 
             const shuffled = cardPairs.sort(() => Math.random() - 0.5)
             setCards(shuffled)
+
+            // Track game views for each unique card owner
+            const uniqueOwners = new Set(data.map(card => card.user_id).filter(Boolean))
+            uniqueOwners.forEach(ownerId => {
+                trackGameView(ownerId)
+            })
+
         } catch (error) {
             console.error('Error loading cards:', error)
         }
@@ -172,6 +243,11 @@ export default function GamePage() {
         if (flippedCards.some(card => card.uniqueId === clickedCard.uniqueId)) return
         if (matchedPairs.includes(clickedCard.id)) return
 
+        // Track flip view
+        if (clickedCard.user_id) {
+            trackFlipView(clickedCard.user_id, clickedCard.uniqueId)
+        }
+
         const newFlipped = [...flippedCards, clickedCard]
         setFlippedCards(newFlipped)
 
@@ -221,51 +297,17 @@ export default function GamePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-xl text-gray-600">Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-medium">Loading...</p>
+                </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <header className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-gray-900">Memory Card Game</h1>
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => setShowLeaderboard(!showLeaderboard)}
-                            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-                        >
-                            🏆 Leaderboard
-                        </button>
-                        {user ? (
-                            <button
-                                onClick={() => router.push('/dashboard')}
-                                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                            >
-                                Dashboard
-                            </button>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={() => router.push('/auth/login')}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                                >
-                                    Login
-                                </button>
-                                <button
-                                    onClick={() => router.push('/auth/register')}
-                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                                >
-                                    Sign Up
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </header>
-
+        <div className="min-h-screen bg-slate-900">
             <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
                 {/* Weekly Prize Banner */}
                 {weeklyPrize && (
@@ -316,48 +358,58 @@ export default function GamePage() {
                     </div>
                 )}
 
+                {/* Leaderboard Toggle */}
+                <div className="flex justify-center mb-6">
+                    <button
+                        onClick={() => setShowLeaderboard(!showLeaderboard)}
+                        className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                    >
+                        🏆 {showLeaderboard ? 'Hide' : 'Show'} Leaderboard
+                    </button>
+                </div>
+
                 {showLeaderboard && (
-                    <div className="bg-white rounded-lg shadow p-6 mb-6">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">🏆 This Week Top 20</h2>
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
+                        <h2 className="text-2xl font-bold text-white mb-4">🏆 This Week's Top 20</h2>
                         <div className="overflow-x-auto">
                             <table className="min-w-full">
-                                <thead className="text-gray-900">
-                                    <tr className="border-b">
-                                        <th className="text-left py-2">Rank</th>
-                                        <th className="text-left py-2">Player</th>
-                                        <th className="text-left py-2">Mode</th>
-                                        <th className="text-left py-2">Moves</th>
-                                        <th className="text-left py-2">Time</th>
-                                        <th className="text-left py-2">Score</th>
+                                <thead>
+                                    <tr className="border-b border-slate-700">
+                                        <th className="text-left py-2 text-slate-400">Rank</th>
+                                        <th className="text-left py-2 text-slate-400">Player</th>
+                                        <th className="text-left py-2 text-slate-400">Mode</th>
+                                        <th className="text-left py-2 text-slate-400">Moves</th>
+                                        <th className="text-left py-2 text-slate-400">Time</th>
+                                        <th className="text-left py-2 text-slate-400">Score</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-gray-900">
+                                <tbody>
                                     {leaderboard.map((entry, index) => (
-                                        <tr key={entry.id} className="border-b">
-                                            <td className="py-2">{index + 1}</td>
-                                            <td className="py-2">{entry.users.username}</td>
-                                            <td className="py-2">{entry.game_mode === 'easy' ? '12 Cards' : '16 Cards'}</td>
-                                            <td className="py-2">{entry.moves}</td>
-                                            <td className="py-2">{entry.time_seconds}s</td>
-                                            <td className="py-2 font-bold">{entry.score}</td>
+                                        <tr key={entry.id} className="border-b border-slate-700/50">
+                                            <td className="py-2 text-white">{index + 1}</td>
+                                            <td className="py-2 text-white">{entry.users.username}</td>
+                                            <td className="py-2 text-slate-300">{entry.game_mode === 'easy' ? '12 Cards' : '16 Cards'}</td>
+                                            <td className="py-2 text-slate-300">{entry.moves}</td>
+                                            <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
+                                            <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                             {leaderboard.length === 0 && (
-                                <p className="text-center text-gray-500 py-4">No scores yet this week!</p>
+                                <p className="text-center text-slate-400 py-4">No scores yet this week!</p>
                             )}
                         </div>
                     </div>
                 )}
 
                 {!user && !gameStarted && (
-                    <div className="bg-blue-100 border border-blue-400 text-blue-700 px-6 py-4 rounded-lg mb-6">
+                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-6 py-4 rounded-lg mb-6">
                         <p className="text-center">
                             <strong>Want to compete for prizes?</strong>
                             <button
                                 onClick={() => router.push('/auth/register')}
-                                className="ml-2 underline hover:text-blue-900"
+                                className="ml-2 underline hover:text-amber-300"
                             >
                                 Sign up now!
                             </button>
@@ -367,24 +419,24 @@ export default function GamePage() {
 
                 {!gameStarted && (
                     <div className="text-center py-12">
-                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Choose Your Challenge!</h2>
-                        <p className="text-lg text-gray-600 mb-8">
+                        <h2 className="text-3xl font-bold text-white mb-4">Choose Your Challenge!</h2>
+                        <p className="text-lg text-slate-400 mb-8">
                             Match all pairs. Lower score wins! Score = (Moves × 2) + Seconds
                         </p>
                         <div className="flex gap-4 justify-center">
                             <button
                                 onClick={() => startGame('easy')}
-                                className="px-8 py-4 bg-green-600 text-white text-lg rounded-md hover:bg-green-700"
+                                className="px-8 py-4 bg-green-600 text-white text-lg font-bold rounded-lg hover:bg-green-500 transition-all"
                             >
                                 Easy Mode<br />
-                                <span className="text-sm">12 Cards</span>
+                                <span className="text-sm font-normal">12 Cards</span>
                             </button>
                             <button
                                 onClick={() => startGame('challenge')}
-                                className="px-8 py-4 bg-red-600 text-white text-lg rounded-md hover:bg-red-700"
+                                className="px-8 py-4 bg-red-600 text-white text-lg font-bold rounded-lg hover:bg-red-500 transition-all"
                             >
                                 Challenge<br />
-                                <span className="text-sm">16 Cards</span>
+                                <span className="text-sm font-normal">16 Cards</span>
                             </button>
                         </div>
                     </div>
@@ -392,23 +444,23 @@ export default function GamePage() {
 
                 {gameStarted && (
                     <>
-                        <div className="bg-white rounded-lg shadow p-6 mb-6">
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
                             <div className="flex justify-between items-center flex-wrap gap-4">
-                                <div className="text-lg text-gray-900">
-                                    <span className="font-bold">Mode:</span> {gameMode === 'easy' ? '12 Cards' : '16 Cards'}
+                                <div className="text-lg text-white">
+                                    <span className="text-slate-400">Mode:</span> {gameMode === 'easy' ? '12 Cards' : '16 Cards'}
                                 </div>
-                                <div className="text-lg text-gray-900">
-                                    <span className="font-bold">Moves:</span> {moves}
+                                <div className="text-lg text-white">
+                                    <span className="text-slate-400">Moves:</span> {moves}
                                 </div>
-                                <div className="text-lg text-gray-900">
-                                    <span className="font-bold">Time:</span> {getElapsedTime()}s
+                                <div className="text-lg text-white">
+                                    <span className="text-slate-400">Time:</span> {getElapsedTime()}s
                                 </div>
-                                <div className="text-lg text-gray-900">
-                                    <span className="font-bold">Matches:</span> {matchedPairs.length} / {gameMode === 'easy' ? 6 : 8}
+                                <div className="text-lg text-white">
+                                    <span className="text-slate-400">Matches:</span> {matchedPairs.length} / {gameMode === 'easy' ? 6 : 8}
                                 </div>
                                 <button
                                     onClick={() => setGameStarted(false)}
-                                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all"
                                 >
                                     Quit
                                 </button>
@@ -416,7 +468,7 @@ export default function GamePage() {
                         </div>
 
                         {isGameComplete() && (
-                            <div className="bg-green-100 border border-green-400 text-green-700 px-6 py-4 rounded-lg mb-6 text-center">
+                            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-4 rounded-xl mb-6 text-center">
                                 <h3 className="text-2xl font-bold mb-2">🎉 Congratulations!</h3>
                                 <p className="text-lg mb-2">
                                     Moves: {moves} | Time: {getElapsedTime()}s | Score: {(moves * 2) + getElapsedTime()}
@@ -444,7 +496,6 @@ export default function GamePage() {
                                     className="relative h-40 cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
-                                        // Card Back - Show custom image if available
                                         weeklyPrize?.card_back_image_url ? (
                                             <div className="w-full h-full rounded-lg shadow-lg overflow-hidden border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center">
                                                 <img
@@ -459,7 +510,6 @@ export default function GamePage() {
                                             </div>
                                         )
                                     ) : (
-                                        // Card Front - Show business card
                                         card.card_type === 'uploaded' && card.image_url ? (
                                             <div className="w-full h-full rounded-lg shadow-lg overflow-hidden">
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-cover" />

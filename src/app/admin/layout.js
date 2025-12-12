@@ -75,12 +75,15 @@ export default function AdminLayout({ children }) {
     }
 
     const navItems = [
+        { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
         { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+        { href: '/admin/advertisers', label: 'Advertisers', icon: '📢' },
         { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
         { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
         { href: '/admin/payments', label: 'Payment History', icon: '💰' },
         { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
         { href: '/admin/users', label: 'User Management', icon: '👥' },
+        { href: '/admin/settings', label: 'Platform Settings', icon: '⚙️' },
     ]
 
     return (
@@ -117,8 +120,8 @@ export default function AdminLayout({ children }) {
                                 <Link
                                     href={item.href}
                                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${pathname === item.href
-                                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                            : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                                         }`}
                                 >
                                     <span className="text-xl">{item.icon}</span>

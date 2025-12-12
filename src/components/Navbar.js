@@ -9,6 +9,7 @@ export default function Navbar() {
     const router = useRouter()
     const pathname = usePathname()
     const [user, setUser] = useState(null)
+    const [userData, setUserData] = useState(null)
     const [isAdmin, setIsAdmin] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
 
@@ -22,13 +23,14 @@ export default function Navbar() {
             setUser(authUser)
 
             if (authUser) {
-                const { data: userData } = await supabase
+                const { data: userDataResult } = await supabase
                     .from('users')
-                    .select('is_admin')
+                    .select('username, first_name, last_name, is_admin')
                     .eq('id', authUser.id)
                     .single()
 
-                setIsAdmin(userData?.is_admin || false)
+                setUserData(userDataResult)
+                setIsAdmin(userDataResult?.is_admin || false)
             }
         } catch (error) {
             console.error('Error checking user:', error)
@@ -38,8 +40,17 @@ export default function Navbar() {
     const handleLogout = async () => {
         await supabase.auth.signOut()
         setUser(null)
+        setUserData(null)
         setIsAdmin(false)
         router.push('/game')
+    }
+
+    const getDisplayName = () => {
+        if (!userData) return ''
+        if (userData.first_name) {
+            return userData.first_name
+        }
+        return userData.username || ''
     }
 
     // Don't show navbar on admin pages (admin has its own sidebar)
@@ -95,6 +106,18 @@ export default function Navbar() {
                             </Link>
                         )}
 
+                        {user && (
+                            <Link
+                                href="/advertise"
+                                className={`px-3 py-2 rounded-lg font-medium transition-all ${pathname === '/advertise'
+                                        ? 'bg-amber-500/20 text-amber-400'
+                                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                                    }`}
+                            >
+                                📢 Advertise
+                            </Link>
+                        )}
+
                         {isAdmin && (
                             <Link
                                 href="/admin"
@@ -108,12 +131,20 @@ export default function Navbar() {
                     {/* User Section */}
                     <div className="hidden md:flex items-center gap-4">
                         {user ? (
-                            <button
-                                onClick={handleLogout}
-                                className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all"
-                            >
-                                Logout
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg border border-slate-600">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
+                                        {getDisplayName().charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-white font-medium">{getDisplayName()}</span>
+                                </div>
+                                <button
+                                    onClick={handleLogout}
+                                    className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all"
+                                >
+                                    Logout
+                                </button>
+                            </div>
                         ) : (
                             <>
                                 <Link
@@ -144,6 +175,16 @@ export default function Navbar() {
                 {/* Mobile Menu */}
                 {menuOpen && (
                     <div className="md:hidden py-4 border-t border-slate-700">
+                        {/* Mobile User Info */}
+                        {user && userData && (
+                            <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-slate-700/50 rounded-lg mx-2">
+                                <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
+                                    {getDisplayName().charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-white font-medium">Logged in as {getDisplayName()}</span>
+                            </div>
+                        )}
+
                         <div className="flex flex-col gap-2">
                             <Link
                                 href="/game"
@@ -179,6 +220,19 @@ export default function Navbar() {
                                         }`}
                                 >
                                     🃏 My Cards
+                                </Link>
+                            )}
+
+                            {user && (
+                                <Link
+                                    href="/advertise"
+                                    onClick={() => setMenuOpen(false)}
+                                    className={`px-3 py-2 rounded-lg font-medium ${pathname === '/advertise'
+                                            ? 'bg-amber-500/20 text-amber-400'
+                                            : 'text-slate-300'
+                                        }`}
+                                >
+                                    📢 Advertise
                                 </Link>
                             )}
 
