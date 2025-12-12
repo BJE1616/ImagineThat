@@ -18,9 +18,11 @@ export default function GamePage() {
     const [loading, setLoading] = useState(true)
     const [leaderboard, setLeaderboard] = useState([])
     const [showLeaderboard, setShowLeaderboard] = useState(false)
+    const [weeklyPrize, setWeeklyPrize] = useState(null)
 
     useEffect(() => {
         checkUser()
+        loadWeeklyPrize()
     }, [])
 
     const checkUser = async () => {
@@ -34,6 +36,35 @@ export default function GamePage() {
         } finally {
             setLoading(false)
         }
+    }
+
+    const loadWeeklyPrize = async () => {
+        try {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const weekStart = new Date(today)
+            weekStart.setDate(today.getDate() - dayOfWeek)
+            weekStart.setHours(0, 0, 0, 0)
+
+            const { data, error } = await supabase
+                .from('weekly_prizes')
+                .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('is_active', true)
+                .single()
+
+            if (data) {
+                setWeeklyPrize(data)
+            }
+        } catch (error) {
+            console.log('No prize set for this week')
+        }
+    }
+
+    const getOrdinal = (n) => {
+        const s = ['th', 'st', 'nd', 'rd']
+        const v = n % 100
+        return n + (s[(v - 20) % 10] || s[v] || s[0])
     }
 
     const loadLeaderboard = async () => {
@@ -236,6 +267,55 @@ export default function GamePage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+                {/* Weekly Prize Banner */}
+                {weeklyPrize && (
+                    <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-6 mb-6 text-center shadow-lg">
+                        <p className="text-white font-bold mb-2">🏆 This Week's Prize 🏆</p>
+                        {weeklyPrize.is_surprise ? (
+                            <>
+                                <p className="text-3xl font-bold text-white mb-2">🎁 Surprise Prize! 🎁</p>
+                                <p className="text-white">Play to find out what you could win!</p>
+                            </>
+                        ) : (
+                            <>
+                                {weeklyPrize.prize_type === 'cash' && (
+                                    <>
+                                        <p className="text-3xl font-bold text-white mb-2">${weeklyPrize.total_prize_pool}</p>
+                                        {weeklyPrize.number_of_winners === 1 ? (
+                                            <p className="text-white">Winner takes all!</p>
+                                        ) : (
+                                            <p className="text-white">Split among top {weeklyPrize.number_of_winners} players</p>
+                                        )}
+                                    </>
+                                )}
+                                {weeklyPrize.prize_type === 'merchandise' && (
+                                    <>
+                                        <p className="text-3xl font-bold text-white mb-2">🎽 Merchandise Prizes!</p>
+                                        <div className="text-white">
+                                            {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
+                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                                {weeklyPrize.prize_type === 'custom' && (
+                                    <>
+                                        <p className="text-3xl font-bold text-white mb-2">🎁 Special Prize!</p>
+                                        <div className="text-white">
+                                            {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
+                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </>
+                        )}
+                        {weeklyPrize.announcement_text && (
+                            <p className="text-white mt-3 italic">"{weeklyPrize.announcement_text}"</p>
+                        )}
+                    </div>
+                )}
+
                 {showLeaderboard && (
                     <div className="bg-white rounded-lg shadow p-6 mb-6">
                         <h2 className="text-2xl font-bold text-gray-900 mb-4">🏆 This Week Top 20</h2>
@@ -364,10 +444,22 @@ export default function GamePage() {
                                     className="relative h-40 cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
-                                        <div className="w-full h-full bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
-                                            <span className="text-5xl text-white">?</span>
-                                        </div>
+                                        // Card Back - Show custom image if available
+                                        weeklyPrize?.card_back_image_url ? (
+                                            <div className="w-full h-full rounded-lg shadow-lg overflow-hidden border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center">
+                                                <img
+                                                    src={weeklyPrize.card_back_image_url}
+                                                    alt="Card back"
+                                                    className="max-w-full max-h-full object-contain p-2"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-full bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
+                                                <span className="text-5xl text-white">?</span>
+                                            </div>
+                                        )
                                     ) : (
+                                        // Card Front - Show business card
                                         card.card_type === 'uploaded' && card.image_url ? (
                                             <div className="w-full h-full rounded-lg shadow-lg overflow-hidden">
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-cover" />

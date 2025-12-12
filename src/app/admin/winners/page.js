@@ -1,0 +1,326 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+
+export default function AdminWinnersPage() {
+    const [leaderboard, setLeaderboard] = useState([])
+    const [payments, setPayments] = useState({})
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(null)
+    const [weekOffset, setWeekOffset] = useState(0)
+    const [currentWeek, setCurrentWeek] = useState('')
+
+    useEffect(() => {
+        loadWeekData()
+    }, [weekOffset])
+
+    const getWeekStart = (offset = 0) => {
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - dayOfWeek - (offset * 7))
+        weekStart.setHours(0, 0, 0, 0)
+        return weekStart
+    }
+
+    const formatWeekRange = (weekStart) => {
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 6)
+        const options = { month: 'short', day: 'numeric' }
+        return `${weekStart.toLocaleDateString('en-US', options)} - ${weekEnd.toLocaleDateString('en-US', options)}, ${weekStart.getFullYear()}`
+    }
+
+    const loadWeekData = async () => {
+        setLoading(true)
+        try {
+            const weekStart = getWeekStart(weekOffset)
+            const weekStartStr = weekStart.toISOString().split('T')[0]
+            setCurrentWeek(formatWeekRange(weekStart))
+
+            const { data: leaderboardData, error: leaderboardError } = await supabase
+                .from('leaderboard')
+                .select('*')
+                .eq('week_start', weekStartStr)
+                .order('score', { ascending: true })
+                .limit(20)
+
+            if (leaderboardError) throw leaderboardError
+
+            if (leaderboardData && leaderboardData.length > 0) {
+                const userIds = leaderboardData.map(entry => entry.user_id)
+                const { data: usersData, error: usersError } = await supabase
+                    .from('users')
+                    .select('id, username, email, first_name, last_name')
+                    .in('id', userIds)
+
+                if (usersError) throw usersError
+
+                const combined = leaderboardData.map(entry => ({
+                    ...entry,
+                    user: usersData.find(u => u.id === entry.user_id) || { username: 'Unknown', email: '' }
+                }))
+
+                setLeaderboard(combined)
+
+                const { data: paymentsData } = await supabase
+                    .from('prize_payments')
+                    .select('*')
+                    .eq('week_start', weekStartStr)
+                    .in('leaderboard_id', leaderboardData.map(e => e.id))
+
+                const paymentsMap = {}
+                paymentsData?.forEach(p => {
+                    paymentsMap[p.leaderboard_id] = p
+                })
+                setPayments(paymentsMap)
+            } else {
+                setLeaderboard([])
+                setPayments({})
+            }
+        } catch (error) {
+            console.error('Error loading data:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const togglePaymentStatus = async (entry, rank) => {
+        setSaving(entry.id)
+        const weekStartStr = getWeekStart(weekOffset).toISOString().split('T')[0]
+
+        try {
+            const existingPayment = payments[entry.id]
+
+            if (existingPayment) {
+                const newStatus = existingPayment.status === 'paid' ? 'pending' : 'paid'
+                const { error } = await supabase
+                    .from('prize_payments')
+                    .update({
+                        status: newStatus,
+                        paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existingPayment.id)
+
+                if (error) throw error
+
+                setPayments(prev => ({
+                    ...prev,
+                    [entry.id]: { ...existingPayment, status: newStatus }
+                }))
+            } else {
+                const { data, error } = await supabase
+                    .from('prize_payments')
+                    .insert([{
+                        leaderboard_id: entry.id,
+                        user_id: entry.user_id,
+                        week_start: weekStartStr,
+                        rank: rank,
+                        prize_amount: getPrizeAmount(rank),
+                        status: 'paid',
+                        paid_at: new Date().toISOString()
+                    }])
+                    .select()
+                    .single()
+
+                if (error) throw error
+
+                setPayments(prev => ({
+                    ...prev,
+                    [entry.id]: data
+                }))
+            }
+        } catch (error) {
+            console.error('Error updating payment:', error)
+            alert('Error updating payment status. The prize_payments table may need to be created.')
+        } finally {
+            setSaving(null)
+        }
+    }
+
+    const getPrizeAmount = (rank) => {
+        const prizes = { 1: 100, 2: 75, 3: 50, 4: 25, 5: 25 }
+        return prizes[rank] || 0
+    }
+
+    const getRankBadge = (rank) => {
+        if (rank === 1) return { emoji: '🥇', color: 'bg-amber-500 text-slate-900' }
+        if (rank === 2) return { emoji: '🥈', color: 'bg-slate-400 text-slate-900' }
+        if (rank === 3) return { emoji: '🥉', color: 'bg-amber-700 text-white' }
+        return { emoji: rank.toString(), color: 'bg-slate-600 text-slate-300' }
+    }
+
+    if (loading) {
+        return (
+            <div className="p-8">
+                <div className="animate-pulse space-y-6">
+                    <div className="h-8 bg-slate-700 rounded w-64"></div>
+                    <div className="h-96 bg-slate-800 rounded-xl"></div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="p-8">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold text-white">Weekly Winners</h1>
+                    <p className="text-slate-400 mt-1">Manage prize payments for top players</p>
+                </div>
+            </div>
+
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={() => setWeekOffset(prev => prev + 1)}
+                        className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors"
+                    >
+                        ← Previous Week
+                    </button>
+                    <div className="text-center">
+                        <p className="text-white font-semibold text-lg">{currentWeek}</p>
+                        <p className="text-slate-400 text-sm">
+                            {weekOffset === 0 ? 'Current Week' : `${weekOffset} week${weekOffset > 1 ? 's' : ''} ago`}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setWeekOffset(prev => Math.max(0, prev - 1))}
+                        disabled={weekOffset === 0}
+                        className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Next Week →
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b border-slate-700">
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Rank</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Player</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Email</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Mode</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Moves</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Time</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Score</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Prize</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Status</th>
+                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboard.length > 0 ? (
+                                leaderboard.map((entry, index) => {
+                                    const rank = index + 1
+                                    const badge = getRankBadge(rank)
+                                    const payment = payments[entry.id]
+                                    const isPaid = payment?.status === 'paid'
+                                    const prizeAmount = getPrizeAmount(rank)
+
+                                    return (
+                                        <tr key={entry.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                                            <td className="py-4 px-6">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${badge.color}`}>
+                                                    {rank <= 3 ? badge.emoji : rank}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                <p className="text-white font-medium">{entry.user.username}</p>
+                                                {entry.user.first_name && (
+                                                    <p className="text-slate-400 text-sm">{entry.user.first_name} {entry.user.last_name}</p>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-6 text-slate-300">{entry.user.email}</td>
+                                            <td className="py-4 px-6">
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${entry.game_mode === 'easy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                                    }`}>
+                                                    {entry.game_mode === 'easy' ? '12 Cards' : '16 Cards'}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-6 text-slate-300">{entry.moves}</td>
+                                            <td className="py-4 px-6 text-slate-300">{entry.time_seconds}s</td>
+                                            <td className="py-4 px-6">
+                                                <span className="text-amber-400 font-bold text-lg">{entry.score}</span>
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                {prizeAmount > 0 ? (
+                                                    <span className="text-green-400 font-semibold">${prizeAmount}</span>
+                                                ) : (
+                                                    <span className="text-slate-500">—</span>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                {prizeAmount > 0 ? (
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${isPaid
+                                                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                        }`}>
+                                                        {isPaid ? '✓ Paid' : 'Pending'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-500">—</span>
+                                                )}
+                                            </td>
+                                            <td className="py-4 px-6">
+                                                {prizeAmount > 0 && (
+                                                    <button
+                                                        onClick={() => togglePaymentStatus(entry, rank)}
+                                                        disabled={saving === entry.id}
+                                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isPaid
+                                                                ? 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                                                                : 'bg-green-600 text-white hover:bg-green-500'
+                                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                    >
+                                                        {saving === entry.id ? 'Saving...' : isPaid ? 'Mark Unpaid' : 'Mark Paid'}
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan="10" className="py-12 text-center text-slate-400">
+                                        <p className="text-lg">No games played this week</p>
+                                        <p className="text-sm mt-1">Winners will appear here when players complete games</p>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {leaderboard.length > 0 && (
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                        <p className="text-slate-400 text-sm">Total Players</p>
+                        <p className="text-2xl font-bold text-white">{leaderboard.length}</p>
+                    </div>
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                        <p className="text-slate-400 text-sm">Prizes Pending</p>
+                        <p className="text-2xl font-bold text-amber-400">
+                            ${leaderboard.slice(0, 5).reduce((sum, _, i) => {
+                                const payment = payments[leaderboard[i]?.id]
+                                return payment?.status === 'paid' ? sum : sum + getPrizeAmount(i + 1)
+                            }, 0)}
+                        </p>
+                    </div>
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                        <p className="text-slate-400 text-sm">Prizes Paid</p>
+                        <p className="text-2xl font-bold text-green-400">
+                            ${leaderboard.slice(0, 5).reduce((sum, _, i) => {
+                                const payment = payments[leaderboard[i]?.id]
+                                return payment?.status === 'paid' ? sum + getPrizeAmount(i + 1) : sum
+                            }, 0)}
+                        </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
