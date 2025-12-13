@@ -16,9 +16,16 @@ export default function AdvertisePage() {
         matrix_payout: '200'
     })
     const [paymentMethod, setPaymentMethod] = useState('stripe')
-    const [joinMatrix, setJoinMatrix] = useState(true)
     const [existingCampaign, setExistingCampaign] = useState(null)
     const [message, setMessage] = useState('')
+
+    // Multi-step flow
+    const [step, setStep] = useState(1) // 1: Payment, 2: Matrix question, 3: Referral
+    const [campaignId, setCampaignId] = useState(null)
+    const [joinMatrix, setJoinMatrix] = useState(false)
+    const [referredBy, setReferredBy] = useState('')
+    const [referrerName, setReferrerName] = useState(null)
+    const [referrerNotFound, setReferrerNotFound] = useState(false)
 
     useEffect(() => {
         checkUser()
@@ -35,7 +42,6 @@ export default function AdvertisePage() {
 
             setUser(authUser)
 
-            // Get user data
             const { data: userDataResult } = await supabase
                 .from('users')
                 .select('*')
@@ -44,7 +50,6 @@ export default function AdvertisePage() {
 
             setUserData(userDataResult)
 
-            // Check for existing active campaign
             const { data: campaignData } = await supabase
                 .from('ad_campaigns')
                 .select('*')
@@ -54,7 +59,6 @@ export default function AdvertisePage() {
 
             setExistingCampaign(campaignData)
 
-            // Get settings
             const { data: settingsData } = await supabase
                 .from('admin_settings')
                 .select('*')
@@ -74,18 +78,85 @@ export default function AdvertisePage() {
         }
     }
 
-    const findMatrixSpotForUser = async (newUserId) => {
+    const lookupReferrer = async (username) => {
+        if (!username || username.length < 2) {
+            setReferrerName(null)
+            setReferrerNotFound(false)
+            return
+        }
+
+        if (username.toLowerCase() === userData?.username?.toLowerCase()) {
+            setReferrerName(null)
+            setReferrerNotFound(true)
+            return
+        }
+
         try {
-            // Get user's referrer
-            const { data: userData } = await supabase
+            // First, find the user (use maybeSingle to avoid error if not found)
+            const { data: userResult, error: userError } = await supabase
                 .from('users')
-                .select('referred_by')
-                .eq('id', newUserId)
-                .single()
+                .select('id, username, first_name')
+                .ilike('username', username)
+                .maybeSingle()
 
-            const referrerId = userData?.referred_by
+            if (userError || !userResult) {
+                setReferrerName(null)
+                setReferrerNotFound(true)
+                return
+            }
 
-            // If user has a referrer, try to place them in referrer's matrix
+            // User found - now check if they have an active matrix
+            const { data: matrixData } = await supabase
+                .from('matrix_entries')
+                .select('id')
+                .eq('user_id', userResult.id)
+                .eq('is_active', true)
+                .eq('is_completed', false)
+                .maybeSingle()
+
+            if (matrixData) {
+                // User has active matrix - can be a referrer
+                setReferrerName(userResult.first_name || userResult.username)
+                setReferrerNotFound(false)
+            } else {
+                // User exists but no active matrix - still allow, they'll be auto-placed
+                setReferrerName(userResult.first_name || userResult.username)
+                setReferrerNotFound(false)
+            }
+        } catch (error) {
+            console.error('Referrer lookup error:', error)
+            setReferrerName(null)
+            setReferrerNotFound(true)
+        }
+    }
+
+    const handleReferralChange = (e) => {
+        const value = e.target.value
+        setReferredBy(value)
+        if (value.length >= 2) {
+            lookupReferrer(value)
+        } else {
+            setReferrerName(null)
+            setReferrerNotFound(false)
+        }
+    }
+
+    const findMatrixSpotForUser = async (newUserId, referrerUsername) => {
+        try {
+            let referrerId = null
+
+            if (referrerUsername) {
+                const { data: referrer } = await supabase
+                    .from('users')
+                    .select('id')
+                    .ilike('username', referrerUsername)
+                    .single()
+
+                if (referrer) {
+                    referrerId = referrer.id
+                }
+            }
+
             if (referrerId) {
                 const { data: referrerMatrix } = await supabase
                     .from('matrix_entries')
@@ -96,7 +167,6 @@ export default function AdvertisePage() {
                     .single()
 
                 if (referrerMatrix) {
-                    // Try to place in spot 2 or 3
                     if (!referrerMatrix.spot_2) {
                         await supabase
                             .from('matrix_entries')
@@ -112,6 +182,7 @@ export default function AdvertisePage() {
                                 message: 'They\'ve been added to your matrix in spot 2!'
                             }])
 
+                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
                         await checkMatrixCompletion(referrerMatrix.id)
                         return { placed: true, spot: 2 }
                     } else if (!referrerMatrix.spot_3) {
@@ -129,13 +200,13 @@ export default function AdvertisePage() {
                                 message: 'They\'ve been added to your matrix in spot 3!'
                             }])
 
+                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
                         await checkMatrixCompletion(referrerMatrix.id)
                         return { placed: true, spot: 3 }
                     }
                 }
             }
 
-            // Find oldest waiting matrix with empty spots
             const { data: waitingMatrices } = await supabase
                 .from('matrix_entries')
                 .select('*')
@@ -145,7 +216,6 @@ export default function AdvertisePage() {
 
             if (waitingMatrices && waitingMatrices.length > 0) {
                 for (const matrix of waitingMatrices) {
-                    // Skip if this is the user's own matrix
                     if (matrix.user_id === newUserId) continue
 
                     const spots = [
@@ -164,26 +234,28 @@ export default function AdvertisePage() {
                                 .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
                                 .eq('id', matrix.id)
 
-                            // Send notification
-                            const notifType = spot.num <= 3 ? 'free_referral' : 'matrix_growth'
-                            const notifTitle = spot.num <= 3
-                                ? '🎉 You got a free referral!'
-                                : '🔷 Your matrix is growing!'
-                            const notifMessage = spot.num <= 3
-                                ? 'Someone was auto-placed in your matrix. Keep growing your team!'
-                                : 'A new advertiser joined your matrix!'
-
-                            await supabase
-                                .from('notifications')
-                                .insert([{
-                                    user_id: matrix.user_id,
-                                    type: notifType,
-                                    title: notifTitle,
-                                    message: notifMessage
-                                }])
+                            if (spot.num <= 3) {
+                                await supabase
+                                    .from('notifications')
+                                    .insert([{
+                                        user_id: matrix.user_id,
+                                        type: 'free_referral',
+                                        title: '🎉 You got a free referral!',
+                                        message: `Someone was auto-placed in your matrix spot ${spot.num}!`
+                                    }])
+                            } else {
+                                await supabase
+                                    .from('notifications')
+                                    .insert([{
+                                        user_id: matrix.user_id,
+                                        type: 'matrix_growth',
+                                        title: '🔷 Your matrix is growing!',
+                                        message: `Spot ${spot.num} has been filled in your matrix!`
+                                    }])
+                            }
 
                             await checkMatrixCompletion(matrix.id)
-                            return { placed: true, spot: spot.num }
+                            return { placed: true, spot: spot.num, wasAutoPlaced: true }
                         }
                     }
                 }
@@ -191,7 +263,7 @@ export default function AdvertisePage() {
 
             return { placed: false }
         } catch (error) {
-            console.error('Error placing user in matrix:', error)
+            console.error('Error finding matrix spot:', error)
             return { placed: false }
         }
     }
@@ -206,22 +278,11 @@ export default function AdvertisePage() {
 
             if (matrix && matrix.spot_2 && matrix.spot_3 && matrix.spot_4 &&
                 matrix.spot_5 && matrix.spot_6 && matrix.spot_7) {
-
-                // Get payout amount from settings
-                const { data: settingsData } = await supabase
-                    .from('admin_settings')
-                    .select('setting_value')
-                    .eq('setting_key', 'matrix_payout')
-                    .single()
-
-                const payoutAmount = settingsData?.setting_value || '200'
-
                 await supabase
                     .from('matrix_entries')
                     .update({
                         is_completed: true,
                         completed_at: new Date().toISOString(),
-                        payout_amount: parseFloat(payoutAmount),
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', matrixId)
@@ -232,7 +293,7 @@ export default function AdvertisePage() {
                         user_id: matrix.user_id,
                         type: 'matrix_complete',
                         title: '🎉 Matrix Complete!',
-                        message: `Congratulations! Your matrix is full! You've earned $${payoutAmount}!`
+                        message: `Congratulations! Your matrix is complete. Your payout of $${matrix.payout_amount || settings.matrix_payout} is being processed!`
                     }])
             }
         } catch (error) {
@@ -240,76 +301,85 @@ export default function AdvertisePage() {
         }
     }
 
+    // Step 1: Process Payment
     const handlePurchase = async () => {
         setProcessing(true)
         setMessage('')
 
         try {
-            console.log('Starting purchase for user:', user.id)
-
-            // Step 1: Create ad campaign
-            console.log('Creating campaign...')
-            const campaignResult = await supabase
+            const { data: campaign, error: campaignError } = await supabase
                 .from('ad_campaigns')
                 .insert([{
                     user_id: user.id,
                     payment_method: paymentMethod,
-                    amount_paid: parseFloat(settings.ad_price),
+                    amount_paid: parseInt(settings.ad_price),
                     views_guaranteed: parseInt(settings.guaranteed_views),
-                    status: 'active'
+                    views_from_game: 0,
+                    views_from_flips: 0,
+                    bonus_views: 0,
+                    status: 'active' // For testing - change to 'pending_payment' for real payments
                 }])
                 .select()
                 .single()
 
-            console.log('Campaign result:', campaignResult)
+            if (campaignError) throw campaignError
 
-            if (campaignResult.error) {
-                console.error('Campaign error details:', campaignResult.error)
-                setMessage('Error creating campaign: ' + (campaignResult.error.message || campaignResult.error.details || 'Unknown error'))
-                return
-            }
+            setCampaignId(campaign.id)
 
-            const campaign = campaignResult.data
-
-            // Step 2: If user wants to join matrix, create their matrix entry
-            if (joinMatrix) {
-                console.log('Creating matrix entry...')
-                const matrixResult = await supabase
-                    .from('matrix_entries')
-                    .insert([{
-                        user_id: user.id,
-                        campaign_id: campaign.id,
-                        spot_1: user.id,
-                        is_active: true
-                    }])
-                    .select()
-                    .single()
-
-                console.log('Matrix result:', matrixResult)
-
-                if (matrixResult.error) {
-                    console.error('Matrix error details:', matrixResult.error)
-                    // Campaign was created, but matrix failed - still continue
-                    setMessage('Campaign created, but matrix join failed: ' + matrixResult.error.message)
-                } else {
-                    // Step 3: Place user in someone else's matrix
-                    console.log('Placing user in matrix...')
-                    await findMatrixSpotForUser(user.id)
-                }
-            }
-
-            setMessage('🎉 Campaign created successfully! Redirecting...')
-
-            setTimeout(() => {
-                router.push('/dashboard')
-            }, 2000)
+            // Move to step 2: Ask about matrix
+            setStep(2)
 
         } catch (error) {
-            console.error('Full error object:', error)
-            console.error('Error name:', error?.name)
-            console.error('Error message:', error?.message)
-            console.error('Error stack:', error?.stack)
-            setMessage('Error: ' + (error?.message || 'Unknown error occurred'))
+            setMessage('Error: ' + error.message)
+        } finally {
+            setProcessing(false)
+        }
+    }
+
+    // Step 2: Handle matrix choice
+    const handleMatrixChoice = (wantsMatrix) => {
+        setJoinMatrix(wantsMatrix)
+        if (wantsMatrix) {
+            setStep(3) // Go to referral step
+        } else {
+            // Skip matrix, go to dashboard
+            finishWithoutMatrix()
+        }
+    }
+
+    const finishWithoutMatrix = () => {
+        setMessage('✓ Campaign created! Redirecting to dashboard...')
+        setTimeout(() => router.push('/dashboard'), 2000)
+    }
+
+    // Step 3: Handle referral and create matrix
+    const handleJoinMatrix = async () => {
+        setProcessing(true)
+
+        try {
+            // Create their own matrix
+            const { error: matrixError } = await supabase
+                .from('matrix_entries')
+                .insert([{
+                    user_id: user.id,
+                    campaign_id: campaignId,
+                    spot_1: user.id,
+                    is_active: true,
+                    is_completed: false,
+                    payout_amount: parseInt(settings.matrix_payout),
+                    payout_status: 'pending'
+                }])
+
+            if (matrixError) throw matrixError
+
+            // Place them in someone else's matrix
+            await findMatrixSpotForUser(user.id, referredBy)
+
+            setMessage('✓ You joined the matrix! Redirecting to dashboard...')
+            setTimeout(() => router.push('/dashboard'), 2000)
+
+        } catch (error) {
+            setMessage('Error: ' + error.message)
         } finally {
             setProcessing(false)
         }
@@ -319,8 +389,8 @@ export default function AdvertisePage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium">Loading...</p>
+                    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 text-sm">Loading...</p>
                 </div>
             </div>
         )
@@ -329,10 +399,10 @@ export default function AdvertisePage() {
     if (existingCampaign) {
         return (
             <div className="min-h-screen bg-slate-900 py-12 px-4">
-                <div className="max-w-2xl mx-auto">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 text-center">
-                        <span className="text-6xl mb-4 block">📢</span>
-                        <h1 className="text-2xl font-bold text-white mb-4">You Already Have an Active Campaign</h1>
+                <div className="max-w-md mx-auto">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
+                        <span className="text-4xl mb-4 block">📢</span>
+                        <h2 className="text-xl font-bold text-white mb-2">Active Campaign Running</h2>
                         <p className="text-slate-400 mb-6">
                             You can only have one active ad campaign at a time. Your current campaign is still running!
                         </p>
@@ -348,56 +418,23 @@ export default function AdvertisePage() {
         )
     }
 
-    return (
-        <div className="min-h-screen bg-slate-900 py-12 px-4">
-            <div className="max-w-4xl mx-auto">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-white">Start Advertising</h1>
-                    <p className="text-slate-400 mt-2">Get your business card seen by thousands!</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Package Details */}
-                    <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-6">
-                        <h2 className="text-xl font-bold text-white mb-4">📦 Ad Package</h2>
-
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                                <span className="text-slate-300">Guaranteed Views</span>
-                                <span className="text-white font-bold">{parseInt(settings.guaranteed_views).toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                                <span className="text-slate-300">Your Card in Memory Game</span>
-                                <span className="text-green-400">✓ Included</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                                <span className="text-slate-300">Bonus Views Possible</span>
-                                <span className="text-green-400">✓ Yes</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                                <span className="text-slate-300">View Tracking Dashboard</span>
-                                <span className="text-green-400">✓ Included</span>
-                            </div>
-                            <div className="flex justify-between items-center py-3">
-                                <span className="text-slate-300 text-lg font-medium">Total Price</span>
-                                <span className="text-amber-400 font-bold text-2xl">${settings.ad_price}</span>
-                            </div>
+    // STEP 2: Matrix Question
+    if (step === 2) {
+        return (
+            <div className="min-h-screen bg-slate-900 py-12 px-4">
+                <div className="max-w-md mx-auto">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
+                        <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-3xl">✓</span>
                         </div>
-                    </div>
+                        <h2 className="text-2xl font-bold text-green-400 mb-2">Payment Verified!</h2>
+                        <p className="text-slate-400 mb-6">Your ad campaign is now active.</p>
 
-                    {/* Matrix Bonus */}
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                        <h2 className="text-xl font-bold text-white mb-4">🔷 Referral Matrix (Free Bonus!)</h2>
-
-                        <p className="text-slate-400 mb-4">
-                            Join our referral matrix and earn money back!
-                        </p>
-
-                        <div className="bg-slate-700/50 rounded-lg p-4 mb-4">
-                            <div className="text-center mb-4">
-                                <p className="text-slate-300 text-sm">Fill 7 spots and earn:</p>
-                                <p className="text-green-400 font-bold text-3xl">${settings.matrix_payout}</p>
-                            </div>
+                        <div className="bg-slate-700/50 rounded-lg p-4 mb-6">
+                            <h3 className="text-lg font-bold text-white mb-2">🔷 Join the Referral Matrix?</h3>
+                            <p className="text-slate-400 text-sm mb-4">
+                                Fill 6 spots and earn <span className="text-green-400 font-bold">${settings.matrix_payout}</span> back!
+                            </p>
 
                             {/* Mini Matrix Preview */}
                             <div className="flex justify-center mb-2">
@@ -415,20 +452,131 @@ export default function AdvertisePage() {
                             </div>
                         </div>
 
-                        <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => handleMatrixChoice(false)}
+                                className="flex-1 py-3 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600 transition-all"
+                            >
+                                No Thanks
+                            </button>
+                            <button
+                                onClick={() => handleMatrixChoice(true)}
+                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
+                            >
+                                Yes, Join!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // STEP 3: Referral Question
+    if (step === 3) {
+        return (
+            <div className="min-h-screen bg-slate-900 py-12 px-4">
+                <div className="max-w-md mx-auto">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                        <h2 className="text-xl font-bold text-white mb-2 text-center">Who Referred You?</h2>
+                        <p className="text-slate-400 text-sm mb-6 text-center">
+                            Enter their username to be placed in their matrix, or skip to be auto-placed.
+                        </p>
+
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Referrer's Username (Optional)
+                            </label>
                             <input
-                                type="checkbox"
-                                checked={joinMatrix}
-                                onChange={(e) => setJoinMatrix(e.target.checked)}
-                                className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500"
+                                type="text"
+                                value={referredBy}
+                                onChange={handleReferralChange}
+                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                placeholder="Enter username"
                             />
-                            <span className="text-slate-300">Yes, I want to join the referral matrix!</span>
-                        </label>
+                            {referrerName && (
+                                <p className="text-green-400 text-sm mt-2">
+                                    ✓ You'll be placed under {referrerName}'s matrix
+                                </p>
+                            )}
+                            {referrerNotFound && referredBy.length >= 2 && (
+                                <p className="text-amber-400 text-sm mt-2">
+                                    ⚠ User not found or doesn't have an active matrix
+                                </p>
+                            )}
+                        </div>
+
+                        {message && (
+                            <div className="mb-4 px-4 py-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-center">
+                                {message}
+                            </div>
+                        )}
+
+                        <div className="flex gap-4">
+                            <button
+                                onClick={handleJoinMatrix}
+                                disabled={processing}
+                                className="flex-1 py-3 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600 transition-all disabled:opacity-50"
+                            >
+                                {processing ? 'Processing...' : 'Skip (Auto-place me)'}
+                            </button>
+                            <button
+                                onClick={handleJoinMatrix}
+                                disabled={processing || (referredBy && !referrerName)}
+                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                            >
+                                {processing ? 'Processing...' : 'Join Matrix'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // STEP 1: Payment
+    return (
+        <div className="min-h-screen bg-slate-900 py-12 px-4">
+            <div className="max-w-4xl mx-auto">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl font-bold text-white">Start Advertising</h1>
+                    <p className="text-slate-400 mt-2">Get your business card seen by thousands!</p>
+                </div>
+
+                {/* Package Details */}
+                <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-6 mb-8">
+                    <h2 className="text-xl font-bold text-white mb-4">📦 Ad Package</h2>
+
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
+                            <span className="text-slate-300">Guaranteed Views</span>
+                            <span className="text-white font-bold">{parseInt(settings.guaranteed_views).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
+                            <span className="text-slate-300">Your Card in Memory Game</span>
+                            <span className="text-green-400">✓ Included</span>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
+                            <span className="text-slate-300">Bonus Views Possible</span>
+                            <span className="text-green-400">✓ Yes</span>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
+                            <span className="text-slate-300">View Tracking Dashboard</span>
+                            <span className="text-green-400">✓ Included</span>
+                        </div>
+                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
+                            <span className="text-slate-300">Optional Referral Matrix</span>
+                            <span className="text-green-400">✓ Included</span>
+                        </div>
+                        <div className="flex justify-between items-center py-3">
+                            <span className="text-slate-300 text-lg font-medium">Total Price</span>
+                            <span className="text-amber-400 font-bold text-2xl">${settings.ad_price}</span>
+                        </div>
                     </div>
                 </div>
 
                 {/* Payment Method */}
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mt-8">
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
                     <h2 className="text-xl font-bold text-white mb-4">💳 Payment Method</h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

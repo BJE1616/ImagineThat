@@ -13,12 +13,15 @@ export default function GamePage() {
     const [moves, setMoves] = useState(0)
     const [gameMode, setGameMode] = useState('easy')
     const [gameStarted, setGameStarted] = useState(false)
+    const [gameComplete, setGameComplete] = useState(false)
     const [startTime, setStartTime] = useState(null)
     const [endTime, setEndTime] = useState(null)
     const [loading, setLoading] = useState(true)
-    const [leaderboard, setLeaderboard] = useState([])
+    const [easyLeaderboard, setEasyLeaderboard] = useState([])
+    const [challengeLeaderboard, setChallengeLeaderboard] = useState([])
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [weeklyPrize, setWeeklyPrize] = useState(null)
+    const [elapsedTime, setElapsedTime] = useState(0)
     const trackedGameViews = useRef(new Set())
     const trackedFlipViews = useRef(new Set())
 
@@ -31,10 +34,10 @@ export default function GamePage() {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser()
             setUser(authUser)
-            await loadLeaderboard()
+            await loadLeaderboards()
         } catch (error) {
             console.error('Error:', error)
-            await loadLeaderboard()
+            await loadLeaderboards()
         } finally {
             setLoading(false)
         }
@@ -69,7 +72,7 @@ export default function GamePage() {
         return n + (s[(v - 20) % 10] || s[v] || s[0])
     }
 
-    const loadLeaderboard = async () => {
+    const loadLeaderboards = async () => {
         try {
             const today = new Date()
             const dayOfWeek = today.getDay()
@@ -77,31 +80,59 @@ export default function GamePage() {
             weekStart.setDate(today.getDate() - dayOfWeek)
             weekStart.setHours(0, 0, 0, 0)
 
-            const { data: leaderboardData, error: leaderboardError } = await supabase
+            // Load Easy mode leaderboard
+            const { data: easyData, error: easyError } = await supabase
                 .from('leaderboard')
                 .select('*')
                 .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('game_mode', 'easy')
                 .order('score', { ascending: true })
-                .limit(20)
+                .limit(10)
 
-            if (leaderboardError) throw leaderboardError
+            if (easyError) throw easyError
 
-            const userIds = leaderboardData.map(entry => entry.user_id)
-            const { data: usersData, error: usersError } = await supabase
-                .from('users')
-                .select('id, username')
-                .in('id', userIds)
+            // Load Challenge mode leaderboard
+            const { data: challengeData, error: challengeError } = await supabase
+                .from('leaderboard')
+                .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('game_mode', 'challenge')
+                .order('score', { ascending: true })
+                .limit(10)
 
-            if (usersError) throw usersError
+            if (challengeError) throw challengeError
 
-            const combined = leaderboardData.map(entry => ({
+            // Get user info for both leaderboards
+            const allUserIds = [
+                ...easyData.map(entry => entry.user_id),
+                ...challengeData.map(entry => entry.user_id)
+            ]
+            const uniqueUserIds = [...new Set(allUserIds)]
+
+            let usersData = []
+            if (uniqueUserIds.length > 0) {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, username')
+                    .in('id', uniqueUserIds)
+
+                if (!error) usersData = data || []
+            }
+
+            const easyWithUsers = easyData.map(entry => ({
                 ...entry,
                 users: usersData.find(u => u.id === entry.user_id) || { username: 'Unknown' }
             }))
 
-            setLeaderboard(combined)
+            const challengeWithUsers = challengeData.map(entry => ({
+                ...entry,
+                users: usersData.find(u => u.id === entry.user_id) || { username: 'Unknown' }
+            }))
+
+            setEasyLeaderboard(easyWithUsers)
+            setChallengeLeaderboard(challengeWithUsers)
         } catch (error) {
-            console.error('Error loading leaderboard:', error)
+            console.error('Error loading leaderboards:', error)
         }
     }
 
@@ -112,25 +143,42 @@ export default function GamePage() {
         trackedGameViews.current.add(cardUserId)
 
         try {
-            // Find active campaign for this card's owner
-            const { data: campaign } = await supabase
+            const { data: activeCampaign } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_game')
                 .eq('user_id', cardUserId)
                 .eq('status', 'active')
                 .single()
 
-            if (campaign) {
+            if (activeCampaign) {
                 await supabase
                     .from('ad_campaigns')
                     .update({
-                        views_from_game: (campaign.views_from_game || 0) + 1,
+                        views_from_game: (activeCampaign.views_from_game || 0) + 1,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', campaign.id)
+                    .eq('id', activeCampaign.id)
+            } else {
+                const { data: anyCampaign } = await supabase
+                    .from('ad_campaigns')
+                    .select('id, bonus_views')
+                    .eq('user_id', cardUserId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single()
+
+                if (anyCampaign) {
+                    await supabase
+                        .from('ad_campaigns')
+                        .update({
+                            bonus_views: (anyCampaign.bonus_views || 0) + 1,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', anyCampaign.id)
+                }
             }
         } catch (error) {
-            // Silently fail - don't disrupt game
+            // Silently fail
         }
     }
 
@@ -142,24 +190,42 @@ export default function GamePage() {
         trackedFlipViews.current.add(trackKey)
 
         try {
-            const { data: campaign } = await supabase
+            const { data: activeCampaign } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_flips')
                 .eq('user_id', cardUserId)
                 .eq('status', 'active')
                 .single()
 
-            if (campaign) {
+            if (activeCampaign) {
                 await supabase
                     .from('ad_campaigns')
                     .update({
-                        views_from_flips: (campaign.views_from_flips || 0) + 1,
+                        views_from_flips: (activeCampaign.views_from_flips || 0) + 1,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', campaign.id)
+                    .eq('id', activeCampaign.id)
+            } else {
+                const { data: anyCampaign } = await supabase
+                    .from('ad_campaigns')
+                    .select('id, bonus_views')
+                    .eq('user_id', cardUserId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single()
+
+                if (anyCampaign) {
+                    await supabase
+                        .from('ad_campaigns')
+                        .update({
+                            bonus_views: (anyCampaign.bonus_views || 0) + 1,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', anyCampaign.id)
+                }
             }
         } catch (error) {
-            // Silently fail - don't disrupt game
+            // Silently fail
         }
     }
 
@@ -167,27 +233,73 @@ export default function GamePage() {
         try {
             const limit = mode === 'easy' ? 6 : 8
 
-            // Reset view tracking for new game
             trackedGameViews.current = new Set()
             trackedFlipViews.current = new Set()
 
-            const { data, error } = await supabase
-                .from('business_cards')
-                .select('*')
-                .limit(limit)
+            const { data: activeCampaigns, error: campaignError } = await supabase
+                .from('ad_campaigns')
+                .select('user_id')
+                .eq('status', 'active')
 
-            if (error) throw error
+            if (campaignError) throw campaignError
 
-            const cardPairs = [...data, ...data].map((card, index) => ({
-                ...card,
-                uniqueId: index
-            }))
+            const activeAdvertiserIds = [...new Set(activeCampaigns?.map(c => c.user_id) || [])]
+
+            let cardsData = []
+
+            if (activeAdvertiserIds.length > 0) {
+                const { data, error } = await supabase
+                    .from('business_cards')
+                    .select('*')
+                    .in('user_id', activeAdvertiserIds)
+
+                if (error) throw error
+                cardsData = data || []
+            }
+
+            if (cardsData.length < limit) {
+                const existingIds = cardsData.map(c => c.id)
+
+                let query = supabase
+                    .from('business_cards')
+                    .select('*')
+                    .limit(limit - cardsData.length)
+
+                if (existingIds.length > 0) {
+                    query = query.not('id', 'in', `(${existingIds.join(',')})`)
+                }
+
+                const { data: additionalCards, error } = await query
+
+                if (!error && additionalCards) {
+                    cardsData = [...cardsData, ...additionalCards]
+                }
+            }
+
+            if (cardsData.length === 0) {
+                alert('No business cards available yet. Check back soon!')
+                setGameStarted(false)
+                return
+            }
+
+            let selectedCards = []
+            while (selectedCards.length < limit) {
+                const shuffled = [...cardsData].sort(() => Math.random() - 0.5)
+                selectedCards = [...selectedCards, ...shuffled].slice(0, limit)
+            }
+
+            // Create pairs with unique pair IDs to handle duplicate cards
+            const cardPairs = []
+            selectedCards.forEach((card, pairIndex) => {
+                // Each card appears twice, with a unique pairId
+                cardPairs.push({ ...card, uniqueId: pairIndex * 2, pairId: pairIndex })
+                cardPairs.push({ ...card, uniqueId: pairIndex * 2 + 1, pairId: pairIndex })
+            })
 
             const shuffled = cardPairs.sort(() => Math.random() - 0.5)
             setCards(shuffled)
 
-            // Track game views for each unique card owner
-            const uniqueOwners = new Set(data.map(card => card.user_id).filter(Boolean))
+            const uniqueOwners = new Set(selectedCards.map(card => card.user_id).filter(Boolean))
             uniqueOwners.forEach(ownerId => {
                 trackGameView(ownerId)
             })
@@ -200,6 +312,7 @@ export default function GamePage() {
     const startGame = async (mode) => {
         setGameMode(mode)
         setGameStarted(true)
+        setGameComplete(false)
         setMoves(0)
         setMatchedPairs([])
         setFlippedCards([])
@@ -208,7 +321,18 @@ export default function GamePage() {
         await loadCards(mode)
     }
 
-    const saveScoreDirectly = async (finalMoves, finalTime, finalScore) => {
+    const playAgain = () => {
+        setGameStarted(false)
+        setGameComplete(false)
+        setMoves(0)
+        setMatchedPairs([])
+        setFlippedCards([])
+        setCards([])
+        setStartTime(null)
+        setEndTime(null)
+    }
+
+    const saveScoreDirectly = async (finalMoves, finalTime, finalScore, mode) => {
         if (!user) return
 
         const today = new Date()
@@ -222,7 +346,7 @@ export default function GamePage() {
                 .from('leaderboard')
                 .insert([{
                     user_id: user.id,
-                    game_mode: gameMode,
+                    game_mode: mode,
                     moves: finalMoves,
                     time_seconds: finalTime,
                     score: finalScore,
@@ -231,19 +355,18 @@ export default function GamePage() {
 
             if (error) throw error
 
-            await loadLeaderboard()
+            await loadLeaderboards()
         } catch (error) {
             console.error('Error saving score:', error)
         }
     }
 
     const handleCardClick = (clickedCard) => {
-        if (!gameStarted) return
+        if (!gameStarted || gameComplete) return
         if (flippedCards.length === 2) return
         if (flippedCards.some(card => card.uniqueId === clickedCard.uniqueId)) return
-        if (matchedPairs.includes(clickedCard.id)) return
+        if (matchedPairs.includes(clickedCard.pairId)) return
 
-        // Track flip view
         if (clickedCard.user_id) {
             trackFlipView(clickedCard.user_id, clickedCard.uniqueId)
         }
@@ -255,8 +378,9 @@ export default function GamePage() {
             const newMoves = moves + 1
             setMoves(newMoves)
 
-            if (newFlipped[0].id === newFlipped[1].id) {
-                const newMatched = [...matchedPairs, newFlipped[0].id]
+            // Check if same pairId (matching pair)
+            if (newFlipped[0].pairId === newFlipped[1].pairId) {
+                const newMatched = [...matchedPairs, newFlipped[0].pairId]
                 setMatchedPairs(newMatched)
                 setTimeout(() => setFlippedCards([]), 500)
 
@@ -264,14 +388,12 @@ export default function GamePage() {
                 if (newMatched.length === pairsNeeded) {
                     const finalTime = Date.now()
                     setEndTime(finalTime)
+                    setGameComplete(true)
 
                     if (user) {
-                        setTimeout(() => {
-                            const timeSeconds = Math.floor((finalTime - startTime) / 1000)
-                            const finalScore = (newMoves * 2) + timeSeconds
-
-                            saveScoreDirectly(newMoves, timeSeconds, finalScore)
-                        }, 1000)
+                        const timeSeconds = Math.floor((finalTime - startTime) / 1000)
+                        const finalScore = (newMoves * 2) + timeSeconds
+                        saveScoreDirectly(newMoves, timeSeconds, finalScore, gameMode)
                     }
                 }
             } else {
@@ -281,18 +403,25 @@ export default function GamePage() {
     }
 
     const isCardFlipped = (card) => {
-        return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.id)
+        return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.pairId)
     }
 
-    const isGameComplete = () => {
-        const pairsNeeded = gameMode === 'easy' ? 6 : 8
-        return matchedPairs.length === pairsNeeded && gameStarted
-    }
+    // Update elapsed time every second during game
+    useEffect(() => {
+        let interval
+        if (gameStarted && !gameComplete && startTime) {
+            interval = setInterval(() => {
+                setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
+            }, 1000)
+        }
+        return () => clearInterval(interval)
+    }, [gameStarted, gameComplete, startTime])
 
     const getElapsedTime = () => {
-        if (!startTime) return 0
-        const end = endTime || Date.now()
-        return Math.floor((end - startTime) / 1000)
+        if (endTime && startTime) {
+            return Math.floor((endTime - startTime) / 1000)
+        }
+        return elapsedTime
     }
 
     if (loading) {
@@ -308,32 +437,32 @@ export default function GamePage() {
 
     return (
         <div className="min-h-screen bg-slate-900">
-            <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-                {/* Weekly Prize Banner */}
-                {weeklyPrize && (
-                    <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-6 mb-6 text-center shadow-lg">
-                        <p className="text-white font-bold mb-2">🏆 This Week's Prize 🏆</p>
+            <main className="max-w-7xl mx-auto px-2 py-4 sm:px-6 lg:px-8">
+                {/* Weekly Prize Banner - Hidden during game */}
+                {weeklyPrize && !gameStarted && (
+                    <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-4 sm:p-6 mb-4 text-center shadow-lg">
+                        <p className="text-white font-bold mb-1 text-sm sm:text-base">🏆 This Week's Prize 🏆</p>
                         {weeklyPrize.is_surprise ? (
                             <>
-                                <p className="text-3xl font-bold text-white mb-2">🎁 Surprise Prize! 🎁</p>
-                                <p className="text-white">Play to find out what you could win!</p>
+                                <p className="text-xl sm:text-3xl font-bold text-white mb-1">🎁 Surprise Prize! 🎁</p>
+                                <p className="text-white text-sm">Play to find out what you could win!</p>
                             </>
                         ) : (
                             <>
                                 {weeklyPrize.prize_type === 'cash' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">${weeklyPrize.total_prize_pool}</p>
+                                        <p className="text-xl sm:text-3xl font-bold text-white mb-1">${weeklyPrize.total_prize_pool}</p>
                                         {weeklyPrize.number_of_winners === 1 ? (
-                                            <p className="text-white">Winner takes all!</p>
+                                            <p className="text-white text-sm">Winner takes all!</p>
                                         ) : (
-                                            <p className="text-white">Split among top {weeklyPrize.number_of_winners} players</p>
+                                            <p className="text-white text-sm">Split among top {weeklyPrize.number_of_winners} players</p>
                                         )}
                                     </>
                                 )}
                                 {weeklyPrize.prize_type === 'merchandise' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">🎽 Merchandise Prizes!</p>
-                                        <div className="text-white">
+                                        <p className="text-xl sm:text-3xl font-bold text-white mb-1">🎽 Merchandise Prizes!</p>
+                                        <div className="text-white text-sm">
                                             {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
                                                 <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
                                             ))}
@@ -342,8 +471,8 @@ export default function GamePage() {
                                 )}
                                 {weeklyPrize.prize_type === 'custom' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">🎁 Special Prize!</p>
-                                        <div className="text-white">
+                                        <p className="text-xl sm:text-3xl font-bold text-white mb-1">🎁 Special Prize!</p>
+                                        <div className="text-white text-sm">
                                             {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
                                                 <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
                                             ))}
@@ -353,58 +482,97 @@ export default function GamePage() {
                             </>
                         )}
                         {weeklyPrize.announcement_text && (
-                            <p className="text-white mt-3 italic">"{weeklyPrize.announcement_text}"</p>
+                            <p className="text-white mt-2 italic text-sm">"{weeklyPrize.announcement_text}"</p>
                         )}
                     </div>
                 )}
 
-                {/* Leaderboard Toggle */}
-                <div className="flex justify-center mb-6">
-                    <button
-                        onClick={() => setShowLeaderboard(!showLeaderboard)}
-                        className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
-                    >
-                        🏆 {showLeaderboard ? 'Hide' : 'Show'} Leaderboard
-                    </button>
-                </div>
+                {/* Leaderboard Toggle - Hidden during game */}
+                {!gameStarted && (
+                    <div className="flex justify-center mb-4">
+                        <button
+                            onClick={() => setShowLeaderboard(!showLeaderboard)}
+                            className="px-4 py-2 sm:px-6 sm:py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all text-sm sm:text-base"
+                        >
+                            🏆 {showLeaderboard ? 'Hide' : 'Show'} Leaderboards
+                        </button>
+                    </div>
+                )}
 
-                {showLeaderboard && (
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
-                        <h2 className="text-2xl font-bold text-white mb-4">🏆 This Week's Top 20</h2>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full">
-                                <thead>
-                                    <tr className="border-b border-slate-700">
-                                        <th className="text-left py-2 text-slate-400">Rank</th>
-                                        <th className="text-left py-2 text-slate-400">Player</th>
-                                        <th className="text-left py-2 text-slate-400">Mode</th>
-                                        <th className="text-left py-2 text-slate-400">Moves</th>
-                                        <th className="text-left py-2 text-slate-400">Time</th>
-                                        <th className="text-left py-2 text-slate-400">Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {leaderboard.map((entry, index) => (
-                                        <tr key={entry.id} className="border-b border-slate-700/50">
-                                            <td className="py-2 text-white">{index + 1}</td>
-                                            <td className="py-2 text-white">{entry.users.username}</td>
-                                            <td className="py-2 text-slate-300">{entry.game_mode === 'easy' ? '12 Cards' : '16 Cards'}</td>
-                                            <td className="py-2 text-slate-300">{entry.moves}</td>
-                                            <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
-                                            <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
+                {showLeaderboard && !gameStarted && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* Easy Mode Leaderboard */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
+                                <span className="text-green-400">🟢</span> Easy Mode (12 Cards)
+                            </h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs sm:text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-700">
+                                            <th className="text-left py-2 text-slate-400">#</th>
+                                            <th className="text-left py-2 text-slate-400">Player</th>
+                                            <th className="text-left py-2 text-slate-400">Moves</th>
+                                            <th className="text-left py-2 text-slate-400">Time</th>
+                                            <th className="text-left py-2 text-slate-400">Score</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {leaderboard.length === 0 && (
-                                <p className="text-center text-slate-400 py-4">No scores yet this week!</p>
-                            )}
+                                    </thead>
+                                    <tbody>
+                                        {easyLeaderboard.map((entry, index) => (
+                                            <tr key={entry.id} className="border-b border-slate-700/50">
+                                                <td className="py-2 text-white">{index + 1}</td>
+                                                <td className="py-2 text-white">{entry.users.username}</td>
+                                                <td className="py-2 text-slate-300">{entry.moves}</td>
+                                                <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
+                                                <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {easyLeaderboard.length === 0 && (
+                                    <p className="text-center text-slate-400 py-4 text-sm">No scores yet!</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Challenge Mode Leaderboard */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
+                                <span className="text-red-400">🔴</span> Challenge Mode (16 Cards)
+                            </h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs sm:text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-700">
+                                            <th className="text-left py-2 text-slate-400">#</th>
+                                            <th className="text-left py-2 text-slate-400">Player</th>
+                                            <th className="text-left py-2 text-slate-400">Moves</th>
+                                            <th className="text-left py-2 text-slate-400">Time</th>
+                                            <th className="text-left py-2 text-slate-400">Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {challengeLeaderboard.map((entry, index) => (
+                                            <tr key={entry.id} className="border-b border-slate-700/50">
+                                                <td className="py-2 text-white">{index + 1}</td>
+                                                <td className="py-2 text-white">{entry.users.username}</td>
+                                                <td className="py-2 text-slate-300">{entry.moves}</td>
+                                                <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
+                                                <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {challengeLeaderboard.length === 0 && (
+                                    <p className="text-center text-slate-400 py-4 text-sm">No scores yet!</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {!user && !gameStarted && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-6 py-4 rounded-lg mb-6">
+                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-3 rounded-lg mb-4 text-sm">
                         <p className="text-center">
                             <strong>Want to compete for prizes?</strong>
                             <button
@@ -418,25 +586,25 @@ export default function GamePage() {
                 )}
 
                 {!gameStarted && (
-                    <div className="text-center py-12">
-                        <h2 className="text-3xl font-bold text-white mb-4">Choose Your Challenge!</h2>
-                        <p className="text-lg text-slate-400 mb-8">
-                            Match all pairs. Lower score wins! Score = (Moves × 2) + Seconds
+                    <div className="text-center py-8">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Choose Your Challenge!</h2>
+                        <p className="text-sm sm:text-lg text-slate-400 mb-6">
+                            Match all pairs. Lower score wins!
                         </p>
-                        <div className="flex gap-4 justify-center">
+                        <div className="flex gap-3 justify-center">
                             <button
                                 onClick={() => startGame('easy')}
-                                className="px-8 py-4 bg-green-600 text-white text-lg font-bold rounded-lg hover:bg-green-500 transition-all"
+                                className="px-6 py-3 sm:px-8 sm:py-4 bg-green-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-green-500 transition-all"
                             >
                                 Easy Mode<br />
-                                <span className="text-sm font-normal">12 Cards</span>
+                                <span className="text-xs sm:text-sm font-normal">12 Cards</span>
                             </button>
                             <button
                                 onClick={() => startGame('challenge')}
-                                className="px-8 py-4 bg-red-600 text-white text-lg font-bold rounded-lg hover:bg-red-500 transition-all"
+                                className="px-6 py-3 sm:px-8 sm:py-4 bg-red-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-red-500 transition-all"
                             >
                                 Challenge<br />
-                                <span className="text-sm font-normal">16 Cards</span>
+                                <span className="text-xs sm:text-sm font-normal">16 Cards</span>
                             </button>
                         </div>
                     </div>
@@ -444,39 +612,33 @@ export default function GamePage() {
 
                 {gameStarted && (
                     <>
-                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
-                            <div className="flex justify-between items-center flex-wrap gap-4">
-                                <div className="text-lg text-white">
-                                    <span className="text-slate-400">Mode:</span> {gameMode === 'easy' ? '12 Cards' : '16 Cards'}
-                                </div>
-                                <div className="text-lg text-white">
-                                    <span className="text-slate-400">Moves:</span> {moves}
-                                </div>
-                                <div className="text-lg text-white">
-                                    <span className="text-slate-400">Time:</span> {getElapsedTime()}s
-                                </div>
-                                <div className="text-lg text-white">
-                                    <span className="text-slate-400">Matches:</span> {matchedPairs.length} / {gameMode === 'easy' ? 6 : 8}
-                                </div>
+                        {/* Compact stats bar for mobile */}
+                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 sm:p-4 mb-3">
+                            <div className="flex justify-between items-center text-xs sm:text-base">
+                                <span className="text-white"><span className="text-slate-400">M:</span> {moves}</span>
+                                <span className="text-white"><span className="text-slate-400">T:</span> {getElapsedTime()}s</span>
+                                <span className="text-white"><span className="text-slate-400">✓:</span> {matchedPairs.length}/{gameMode === 'easy' ? 6 : 8}</span>
                                 <button
-                                    onClick={() => setGameStarted(false)}
-                                    className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-all"
+                                    onClick={playAgain}
+                                    className="px-2 py-1 sm:px-3 sm:py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-all text-xs sm:text-sm"
                                 >
                                     Quit
                                 </button>
                             </div>
                         </div>
 
-                        {isGameComplete() && (
-                            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-6 py-4 rounded-xl mb-6 text-center">
-                                <h3 className="text-2xl font-bold mb-2">🎉 Congratulations!</h3>
-                                <p className="text-lg mb-2">
+                        {gameComplete && (
+                            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-xl mb-3 text-center">
+                                <h3 className="text-xl font-bold mb-1">🎉 Congratulations!</h3>
+                                <p className="text-sm mb-2">
                                     Moves: {moves} | Time: {getElapsedTime()}s | Score: {(moves * 2) + getElapsedTime()}
                                 </p>
                                 {user ? (
-                                    <p className="text-base">Score saved to leaderboard!</p>
+                                    <p className="text-xs mb-3 animate-pulse font-bold text-green-300">
+                                        ✓ Your score was saved to the leaderboard!
+                                    </p>
                                 ) : (
-                                    <p className="text-base">
+                                    <p className="text-xs mb-3">
                                         <button
                                             onClick={() => router.push('/auth/register')}
                                             className="underline"
@@ -485,42 +647,59 @@ export default function GamePage() {
                                         </button> to save your score!
                                     </p>
                                 )}
+                                <div className="flex gap-3 justify-center">
+                                    <button
+                                        onClick={playAgain}
+                                        className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 transition-all"
+                                    >
+                                        Play Again
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            playAgain()
+                                            setShowLeaderboard(true)
+                                        }}
+                                        className="px-6 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                                    >
+                                        View Leaderboard
+                                    </button>
+                                </div>
                             </div>
                         )}
 
-                        <div className={`grid gap-4 ${gameMode === 'easy' ? 'grid-cols-3 md:grid-cols-4' : 'grid-cols-4'}`}>
+                        <div className={`grid gap-1 sm:gap-2 ${gameMode === 'easy' ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4'}`}>
                             {cards.map((card) => (
                                 <div
                                     key={card.uniqueId}
                                     onClick={() => handleCardClick(card)}
-                                    className="relative h-40 cursor-pointer"
+                                    className="relative aspect-[3/4] cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
                                         weeklyPrize?.card_back_image_url ? (
-                                            <div className="w-full h-full rounded-lg shadow-lg overflow-hidden border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center">
+                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border border-indigo-400 bg-indigo-600 flex items-center justify-center">
                                                 <img
                                                     src={weeklyPrize.card_back_image_url}
                                                     alt="Card back"
-                                                    className="max-w-full max-h-full object-contain p-2"
+                                                    className="max-w-full max-h-full object-contain p-1"
                                                 />
                                             </div>
                                         ) : (
-                                            <div className="w-full h-full bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
-                                                <span className="text-5xl text-white">?</span>
+                                            <div className="w-full h-full bg-indigo-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg">
+                                                <span className="text-3xl sm:text-5xl text-white">?</span>
                                             </div>
                                         )
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
-                                            <div className="w-full h-full rounded-lg shadow-lg overflow-hidden">
+                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden">
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-cover" />
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-full h-full rounded-lg p-3 flex flex-col justify-between border-2 shadow-lg"
-                                                style={{ backgroundColor: card.card_color || '#fff' }}
+                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border shadow-lg"
+                                                style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <h3 className="font-bold text-sm" style={{ color: '#1F2937' }}>{card.title}</h3>
-                                                <p className="text-xs" style={{ color: '#6B7280' }}>{card.phone}</p>
+                                                <h3 className="font-bold text-xs sm:text-sm" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
+                                                <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.phone}</p>
                                             </div>
                                         )
                                     )}

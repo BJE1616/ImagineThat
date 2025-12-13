@@ -14,8 +14,15 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true)
     const [settings, setSettings] = useState({
         guaranteed_views: 1000,
-        ad_price: 100
+        ad_price: 100,
+        matrix_payout: 200
     })
+
+    const [showJoinMatrix, setShowJoinMatrix] = useState(false)
+    const [referredBy, setReferredBy] = useState('')
+    const [referralError, setReferralError] = useState(null)
+    const [joiningMatrix, setJoiningMatrix] = useState(false)
+    const [agreedToTerms, setAgreedToTerms] = useState(false)
 
     useEffect(() => {
         checkUser()
@@ -45,7 +52,7 @@ export default function DashboardPage() {
                 .select('*')
                 .eq('user_id', authUser.id)
                 .eq('status', 'active')
-                .single()
+                .maybeSingle()
 
             setCampaign(campaignData)
 
@@ -53,7 +60,6 @@ export default function DashboardPage() {
                 .from('matrix_entries')
                 .select(`
                     *,
-                    spot1:users!matrix_entries_spot_1_fkey (id, username),
                     spot2:users!matrix_entries_spot_2_fkey (id, username),
                     spot3:users!matrix_entries_spot_3_fkey (id, username),
                     spot4:users!matrix_entries_spot_4_fkey (id, username),
@@ -63,7 +69,7 @@ export default function DashboardPage() {
                 `)
                 .eq('user_id', authUser.id)
                 .eq('is_active', true)
-                .single()
+                .maybeSingle()
 
             setMatrix(matrixData)
 
@@ -138,6 +144,222 @@ export default function DashboardPage() {
         return count
     }
 
+    const findMatrixSpotForUser = async (newUserId, referrerUsername) => {
+        try {
+            let referrerId = null
+
+            if (referrerUsername) {
+                const { data: users } = await supabase
+                    .from('users')
+                    .select('id')
+                    .ilike('username', referrerUsername)
+                    .limit(1)
+
+                if (users && users.length > 0) {
+                    referrerId = users[0].id
+                }
+            }
+
+            if (referrerId) {
+                const { data: referrerMatrix } = await supabase
+                    .from('matrix_entries')
+                    .select('*')
+                    .eq('user_id', referrerId)
+                    .eq('is_active', true)
+                    .eq('is_completed', false)
+                    .maybeSingle()
+
+                if (referrerMatrix) {
+                    if (!referrerMatrix.spot_2) {
+                        await supabase
+                            .from('matrix_entries')
+                            .update({ spot_2: newUserId, updated_at: new Date().toISOString() })
+                            .eq('id', referrerMatrix.id)
+
+                        await supabase
+                            .from('notifications')
+                            .insert([{
+                                user_id: referrerId,
+                                type: 'referral_joined',
+                                title: '🎉 Your referral joined!',
+                                message: 'They\'ve been added to your matrix in spot 2!'
+                            }])
+
+                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
+                        await checkMatrixCompletion(referrerMatrix.id)
+                        return { placed: true, spot: 2 }
+                    } else if (!referrerMatrix.spot_3) {
+                        await supabase
+                            .from('matrix_entries')
+                            .update({ spot_3: newUserId, updated_at: new Date().toISOString() })
+                            .eq('id', referrerMatrix.id)
+
+                        await supabase
+                            .from('notifications')
+                            .insert([{
+                                user_id: referrerId,
+                                type: 'referral_joined',
+                                title: '🎉 Your referral joined!',
+                                message: 'They\'ve been added to your matrix in spot 3!'
+                            }])
+
+                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
+                        await checkMatrixCompletion(referrerMatrix.id)
+                        return { placed: true, spot: 3 }
+                    }
+                }
+            }
+
+            const { data: waitingMatrices } = await supabase
+                .from('matrix_entries')
+                .select('*')
+                .eq('is_active', true)
+                .eq('is_completed', false)
+                .order('created_at', { ascending: true })
+
+            if (waitingMatrices && waitingMatrices.length > 0) {
+                for (const matrixEntry of waitingMatrices) {
+                    if (matrixEntry.user_id === newUserId) continue
+
+                    const spots = [
+                        { key: 'spot_2', num: 2 },
+                        { key: 'spot_3', num: 3 },
+                        { key: 'spot_4', num: 4 },
+                        { key: 'spot_5', num: 5 },
+                        { key: 'spot_6', num: 6 },
+                        { key: 'spot_7', num: 7 }
+                    ]
+
+                    for (const spot of spots) {
+                        if (!matrixEntry[spot.key]) {
+                            await supabase
+                                .from('matrix_entries')
+                                .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
+                                .eq('id', matrixEntry.id)
+
+                            if (spot.num <= 3) {
+                                await supabase
+                                    .from('notifications')
+                                    .insert([{
+                                        user_id: matrixEntry.user_id,
+                                        type: 'free_referral',
+                                        title: '🎉 You got a free referral!',
+                                        message: `Someone was auto-placed in your matrix spot ${spot.num}!`
+                                    }])
+                            } else {
+                                await supabase
+                                    .from('notifications')
+                                    .insert([{
+                                        user_id: matrixEntry.user_id,
+                                        type: 'matrix_growth',
+                                        title: '🔷 Your matrix is growing!',
+                                        message: `Spot ${spot.num} has been filled in your matrix!`
+                                    }])
+                            }
+
+                            await checkMatrixCompletion(matrixEntry.id)
+                            return { placed: true, spot: spot.num, wasAutoPlaced: true }
+                        }
+                    }
+                }
+            }
+
+            return { placed: false }
+        } catch (error) {
+            console.error('Error finding matrix spot:', error)
+            return { placed: false }
+        }
+    }
+
+    const checkMatrixCompletion = async (matrixId) => {
+        try {
+            const { data: matrixData } = await supabase
+                .from('matrix_entries')
+                .select('*')
+                .eq('id', matrixId)
+                .single()
+
+            if (matrixData && matrixData.spot_2 && matrixData.spot_3 && matrixData.spot_4 &&
+                matrixData.spot_5 && matrixData.spot_6 && matrixData.spot_7) {
+                await supabase
+                    .from('matrix_entries')
+                    .update({
+                        is_completed: true,
+                        completed_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', matrixId)
+
+                await supabase
+                    .from('notifications')
+                    .insert([{
+                        user_id: matrixData.user_id,
+                        type: 'matrix_complete',
+                        title: '🎉 Matrix Complete!',
+                        message: `Congratulations! Your matrix is complete. Your payout of $${matrixData.payout_amount || settings.matrix_payout} is being processed!`
+                    }])
+            }
+        } catch (error) {
+            console.error('Error checking matrix completion:', error)
+        }
+    }
+
+    const handleJoinMatrix = async () => {
+        setJoiningMatrix(true)
+        setReferralError(null)
+
+        try {
+            if (referredBy.trim()) {
+                if (referredBy.trim().toLowerCase() === userData?.username?.toLowerCase()) {
+                    setReferralError('You cannot refer yourself.')
+                    setJoiningMatrix(false)
+                    return
+                }
+
+                const { data: users } = await supabase
+                    .from('users')
+                    .select('id, username')
+                    .ilike('username', referredBy.trim())
+                    .neq('id', user.id)
+                    .limit(1)
+
+                if (!users || users.length === 0) {
+                    setReferralError('Username not found. Check spelling or leave blank.')
+                    setJoiningMatrix(false)
+                    return
+                }
+            }
+
+            const { error: matrixError } = await supabase
+                .from('matrix_entries')
+                .insert([{
+                    user_id: user.id,
+                    campaign_id: campaign.id,
+                    spot_1: user.id,
+                    is_active: true,
+                    is_completed: false,
+                    payout_amount: parseInt(settings.matrix_payout),
+                    payout_status: 'pending'
+                }])
+
+            if (matrixError) throw matrixError
+
+            console.log('Calling findMatrixSpotForUser with:', user.id, referredBy.trim())
+            await findMatrixSpotForUser(user.id, referredBy.trim())
+
+            await checkUser()
+            setShowJoinMatrix(false)
+            setReferredBy('')
+            setAgreedToTerms(false)
+
+        } catch (error) {
+            console.error('Error joining matrix:', error)
+            alert('Error joining matrix: ' + error.message)
+        } finally {
+            setJoiningMatrix(false)
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -161,55 +383,45 @@ export default function DashboardPage() {
                 }
             `}</style>
             <div className="max-w-4xl mx-auto px-3 py-4 sm:px-6">
-                {/* Compact Welcome */}
                 <div className="mb-4">
                     <h1 className="text-xl sm:text-2xl font-bold text-white">
                         Welcome, {userData?.first_name || userData?.username || 'User'}!
                     </h1>
                 </div>
 
-                {/* Notifications - Compact with flash animation */}
                 {notifications.length > 0 && (
                     <div className="mb-4 space-y-2">
-                        {notifications.map(notif => {
-                            const notifDate = new Date(notif.created_at)
-                            const dateStr = notifDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                            const timeStr = notifDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-
-                            return (
-                                <div
-                                    key={notif.id}
-                                    className="bg-slate-800 border border-green-500/50 rounded-lg px-3 py-2 flex items-center justify-between"
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-sm">
-                                            <span className="mr-1">🎉</span>
-                                            <span className="flash-green">You got a free referral!</span>
-                                        </p>
-                                        <p className="text-white text-xs">
-                                            {notif.type === 'free_referral'
-                                                ? `Someone was auto-placed in your matrix on ${dateStr} at ${timeStr}.`
-                                                : notif.message
-                                            }
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => markNotificationRead(notif.id)}
-                                        className="text-green-400 hover:text-white px-2 ml-2 text-lg font-bold"
-                                    >
-                                        ✕
-                                    </button>
+                        {notifications.map(notif => (
+                            <div
+                                key={notif.id}
+                                className={`bg-slate-800 border rounded-lg p-3 flex items-center justify-between ${notif.type === 'free_referral'
+                                    ? 'border-green-500/50'
+                                    : 'border-slate-700'
+                                    }`}
+                            >
+                                <div className="flex-1">
+                                    <p className={`font-medium text-sm ${notif.type === 'free_referral' ? 'flash-green' : 'text-white'
+                                        }`}>
+                                        {notif.title}
+                                    </p>
+                                    <p className="text-slate-400 text-xs">{notif.message}</p>
                                 </div>
-                            )
-                        })}
+                                <button
+                                    onClick={() => markNotificationRead(notif.id)}
+                                    className="text-slate-500 hover:text-white ml-2 text-lg"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
 
-                {/* Compact Stats Row */}
-                <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <p className="text-slate-400 text-xs">Referral Code</p>
-                        <p className="text-amber-400 font-bold text-sm sm:text-base truncate">{userData?.referral_id || 'N/A'}</p>
+                        <p className="text-slate-400 text-xs">Your Referral Name</p>
+                        <p className="text-amber-400 font-bold text-sm sm:text-base truncate">{userData?.username || 'N/A'}</p>
+                        <p className="text-slate-500 text-xs mt-1">Share this!</p>
                     </div>
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                         <p className="text-slate-400 text-xs">Referrals</p>
@@ -220,18 +432,15 @@ export default function DashboardPage() {
                         {campaign ? (
                             <p className="font-bold text-xs sm:text-sm">
                                 <span className="text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">Active</span>
-                                <span className="text-white"> Ad Campaign</span>
                             </p>
                         ) : (
                             <p className="font-bold text-xs sm:text-sm">
-                                <span className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">Non Active</span>
-                                <span className="text-white"> Ad Campaign</span>
+                                <span className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">No Campaign</span>
                             </p>
                         )}
                     </div>
                 </div>
 
-                {/* Ad Campaign Section - Compact */}
                 {campaign ? (
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
                         <div className="flex items-center justify-between mb-3">
@@ -280,7 +489,118 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Matrix Section - Compact */}
+                {campaign && !matrix && !showJoinMatrix && (
+                    <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4 mb-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-base font-bold text-white">🔷 FREE Bonus: Referral Matrix</h2>
+                                <p className="text-slate-300 text-xs mt-1">
+                                    Optional thank-you program for referring other advertisers.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowJoinMatrix(true)}
+                                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-sm rounded-lg"
+                            >
+                                Learn More
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {showJoinMatrix && (
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
+                        <h2 className="text-base font-bold text-white mb-2">🔷 FREE Bonus: Referral Matrix</h2>
+
+                        <div className="bg-slate-700/50 rounded-lg p-3 mb-4 text-sm">
+                            <p className="text-slate-300 mb-2">
+                                As a <span className="text-amber-400 font-medium">thank you</span> for advertising with us, you can optionally join our referral matrix program at <span className="text-green-400 font-medium">no additional cost</span>.
+                            </p>
+                            <p className="text-slate-300 mb-2">
+                                <strong className="text-white">How it works:</strong> You get your own matrix with 6 spots. When other advertisers join (through your referral or auto-placement), they fill your spots.
+                            </p>
+                            <p className="text-slate-300">
+                                <strong className="text-white">Potential bonus:</strong> If all 6 spots are filled while your campaign is active, you <span className="text-slate-400 italic">may</span> be eligible for a bonus of up to ${settings.matrix_payout}.
+                            </p>
+                        </div>
+
+                        <div className="bg-slate-900/50 border border-slate-600 rounded-lg p-3 mb-4 max-h-32 overflow-y-auto text-xs text-slate-400">
+                            <p className="font-bold text-slate-300 mb-2">Terms & Conditions:</p>
+                            <p className="mb-2">1. The Referral Matrix is a FREE optional bonus program for advertisers. There is no additional cost to join.</p>
+                            <p className="mb-2">2. Participation does NOT guarantee any payout. Bonuses are discretionary and subject to program availability.</p>
+                            <p className="mb-2">3. Matrix spots are filled by other paying advertisers. Spot placement depends on referrals and auto-placement availability.</p>
+                            <p className="mb-2">4. To be eligible for any potential bonus, your ad campaign must remain active and in good standing.</p>
+                            <p className="mb-2">5. ImagineThat reserves the right to modify, suspend, or terminate this program at any time without notice.</p>
+                            <p className="mb-2">6. Any bonuses paid are considered promotional rewards and may be subject to applicable taxes.</p>
+                            <p>7. By joining, you acknowledge this is a bonus program and not a guaranteed income opportunity.</p>
+                        </div>
+
+                        <label className="flex items-start gap-3 mb-4 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={agreedToTerms}
+                                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                className="w-5 h-5 mt-0.5 rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500"
+                            />
+                            <span className="text-slate-300 text-sm">
+                                By checking this box, I acknowledge that I have read, understood, and agree to the Terms & Conditions. I further acknowledge that this is a voluntary, free bonus program and that payouts are not guaranteed until all specified criteria, including the completion of the matrix, are met.
+                            </span>
+                        </label>
+
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Who referred you? (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                value={referredBy}
+                                onChange={(e) => {
+                                    setReferredBy(e.target.value)
+                                    setReferralError(null)
+                                }}
+                                className={`w-full px-3 py-2 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 ${referralError ? 'border-red-500' : 'border-slate-600'
+                                    }`}
+                                placeholder="Enter their exact username"
+                            />
+                            {referralError && (
+                                <p className="text-red-400 text-sm mt-2">
+                                    ✗ {referralError}
+                                </p>
+                            )}
+                            <p className="text-slate-400 text-xs mt-2">
+                                Enter the exact username of who referred you, or leave blank to be auto-placed.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowJoinMatrix(false)
+                                    setReferredBy('')
+                                    setAgreedToTerms(false)
+                                    setReferralError(null)
+                                }}
+                                className="flex-1 py-2 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleJoinMatrix}
+                                disabled={joiningMatrix || !agreedToTerms}
+                                className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {joiningMatrix ? 'Joining...' : 'Join Matrix'}
+                            </button>
+                        </div>
+
+                        {!agreedToTerms && (
+                            <p className="text-amber-400 text-xs text-center mt-2">
+                                Please agree to the terms to continue
+                            </p>
+                        )}
+                    </div>
+                )}
+
                 {matrix && (
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4">
                         <div className="flex items-center justify-between mb-3">
@@ -293,16 +613,13 @@ export default function DashboardPage() {
                             </span>
                         </div>
 
-                        {/* Compact Matrix Visualization */}
                         <div className="bg-slate-700/30 rounded-lg p-3">
-                            {/* Row 1 - You */}
                             <div className="flex justify-center mb-2">
                                 <div className="w-16 h-8 bg-amber-500/20 border border-amber-500 rounded flex items-center justify-center">
                                     <span className="text-amber-400 font-bold text-xs">YOU</span>
                                 </div>
                             </div>
 
-                            {/* Row 2 - Spots 2-3 */}
                             <div className="flex justify-center gap-6 mb-2">
                                 {[2, 3].map(spot => {
                                     const spotData = matrix[`spot${spot}`]
@@ -322,7 +639,6 @@ export default function DashboardPage() {
                                 })}
                             </div>
 
-                            {/* Row 3 - Spots 4-7 */}
                             <div className="flex justify-center gap-2">
                                 {[4, 5, 6, 7].map(spot => {
                                     const spotData = matrix[`spot${spot}`]
@@ -351,7 +667,6 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Quick Actions - Compact */}
                 <div className="grid grid-cols-3 gap-2">
                     <button
                         onClick={() => router.push('/game')}

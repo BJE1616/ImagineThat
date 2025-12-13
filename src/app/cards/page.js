@@ -16,11 +16,34 @@ export default function CardsPage() {
         tagline: '',
         description: '',
         phone: '',
-        email: ''
+        email: '',
+        card_color: '#4F46E5',
+        text_color: '#FFFFFF'
     })
     const [imageFile, setImageFile] = useState(null)
     const [imagePreview, setImagePreview] = useState(null)
     const [uploading, setUploading] = useState(false)
+
+    // Preset color options
+    const colorOptions = [
+        { name: 'Indigo', value: '#4F46E5' },
+        { name: 'Blue', value: '#2563EB' },
+        { name: 'Green', value: '#16A34A' },
+        { name: 'Red', value: '#DC2626' },
+        { name: 'Purple', value: '#9333EA' },
+        { name: 'Orange', value: '#EA580C' },
+        { name: 'Teal', value: '#0D9488' },
+        { name: 'Pink', value: '#DB2777' },
+        { name: 'Slate', value: '#475569' },
+        { name: 'Black', value: '#1F2937' },
+    ]
+
+    const textColorOptions = [
+        { name: 'White', value: '#FFFFFF' },
+        { name: 'Black', value: '#1F2937' },
+        { name: 'Yellow', value: '#FDE047' },
+        { name: 'Light Gray', value: '#E5E7EB' },
+    ]
 
     useEffect(() => {
         checkUser()
@@ -123,7 +146,8 @@ export default function CardsPage() {
                     message: formData.description || formData.tagline || '',
                     phone: formData.phone || '',
                     email: formData.email || '',
-                    card_color: '#4F46E5',
+                    card_color: formData.card_color,
+                    text_color: formData.text_color,
                     image_url: imageUrl || ''
                 }])
                 .select()
@@ -138,7 +162,9 @@ export default function CardsPage() {
                 tagline: '',
                 description: '',
                 phone: '',
-                email: ''
+                email: '',
+                card_color: '#4F46E5',
+                text_color: '#FFFFFF'
             })
             setImageFile(null)
             setImagePreview(null)
@@ -172,107 +198,96 @@ export default function CardsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-xl text-gray-600">Loading...</div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-400 font-medium">Loading...</p>
+                </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            <header className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-gray-900">My Business Cards</h1>
-                    <button
-                        onClick={() => router.push('/dashboard')}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                    >
-                        Back to Dashboard
-                    </button>
-                </div>
-            </header>
-
-            <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-                {!showForm && (
-                    <div className="mb-6">
+        <div className="min-h-screen bg-slate-900">
+            <main className="max-w-4xl mx-auto px-4 py-8">
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
+                    {!showForm && (
                         <button
                             onClick={() => setShowForm(true)}
-                            className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium"
+                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
                         >
-                            + Create New Business Card
+                            + New Card
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {showForm && (
-                    <div className="bg-white rounded-lg shadow p-6 mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-2xl font-bold text-gray-900">Create Business Card</h2>
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white">Create New Card</h2>
                             <button
                                 onClick={() => {
                                     setShowForm(false)
-                                    setCardType('template')
-                                    setImageFile(null)
                                     setImagePreview(null)
+                                    setImageFile(null)
                                 }}
-                                className="text-gray-500 hover:text-gray-700"
+                                className="text-slate-400 hover:text-white"
                             >
                                 ✕ Cancel
                             </button>
                         </div>
 
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Card Type
-                            </label>
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => setCardType('template')}
-                                    className={`px-4 py-2 rounded-md ${cardType === 'template'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-200 text-gray-700'
-                                        }`}
-                                >
-                                    Text Template
-                                </button>
-                                <button
-                                    onClick={() => setCardType('uploaded')}
-                                    className={`px-4 py-2 rounded-md ${cardType === 'uploaded'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-200 text-gray-700'
-                                        }`}
-                                >
-                                    Upload Image
-                                </button>
-                            </div>
+                        {/* Card Type Toggle */}
+                        <div className="flex gap-4 mb-6">
+                            <button
+                                type="button"
+                                onClick={() => setCardType('template')}
+                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'template'
+                                        ? 'bg-amber-500 text-slate-900'
+                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    }`}
+                            >
+                                Create Card
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCardType('uploaded')}
+                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'uploaded'
+                                        ? 'bg-amber-500 text-slate-900'
+                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    }`}
+                            >
+                                Upload Image
+                            </button>
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {cardType === 'uploaded' ? (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">
                                             Upload Business Card Image *
                                         </label>
                                         <input
                                             type="file"
                                             accept="image/*"
                                             onChange={handleImageChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             required
                                         />
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-slate-400 mt-1">
                                             Upload a photo or scan of your business card
                                         </p>
                                     </div>
 
                                     {imagePreview && (
                                         <div className="mt-4">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
+                                            <p className="text-sm font-medium text-slate-300 mb-2">Preview:</p>
                                             <img
                                                 src={imagePreview}
                                                 alt="Preview"
-                                                className="max-w-md rounded-lg border-2 border-gray-300"
+                                                className="max-w-md rounded-lg border-2 border-slate-600"
                                             />
                                         </div>
                                     )}
@@ -280,14 +295,14 @@ export default function CardsPage() {
                             ) : (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">
                                             Business Name *
                                         </label>
                                         <input
                                             type="text"
                                             name="business_name"
                                             required
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your Business Name"
                                             value={formData.business_name}
                                             onChange={handleChange}
@@ -295,43 +310,29 @@ export default function CardsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Tagline
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                                            Tagline / Message
                                         </label>
                                         <input
                                             type="text"
                                             name="tagline"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your catchy tagline"
                                             value={formData.tagline}
                                             onChange={handleChange}
                                         />
                                     </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Description / Message
-                                        </label>
-                                        <textarea
-                                            name="description"
-                                            rows={3}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                                            placeholder="Brief description of your business"
-                                            value={formData.description}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">
                                                 Phone *
                                             </label>
                                             <input
                                                 type="tel"
                                                 name="phone"
                                                 required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="(555) 123-4567"
                                                 value={formData.phone}
                                                 onChange={handleChange}
@@ -339,18 +340,86 @@ export default function CardsPage() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-medium text-slate-300 mb-1">
                                                 Email *
                                             </label>
                                             <input
                                                 type="email"
                                                 name="email"
                                                 required
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="your@email.com"
                                                 value={formData.email}
                                                 onChange={handleChange}
                                             />
+                                        </div>
+                                    </div>
+
+                                    {/* Card Color Picker */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                            Card Background Color
+                                        </label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {colorOptions.map((color) => (
+                                                <button
+                                                    key={color.value}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, card_color: color.value })}
+                                                    className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
+                                                            ? 'border-amber-400 scale-110'
+                                                            : 'border-slate-600 hover:border-slate-400'
+                                                        }`}
+                                                    style={{ backgroundColor: color.value }}
+                                                    title={color.name}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Text Color Picker */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                            Text Color
+                                        </label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {textColorOptions.map((color) => (
+                                                <button
+                                                    key={color.value}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, text_color: color.value })}
+                                                    className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
+                                                            ? 'border-amber-400 scale-110'
+                                                            : 'border-slate-600 hover:border-slate-400'
+                                                        }`}
+                                                    style={{ backgroundColor: color.value }}
+                                                    title={color.name}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Card Preview */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                            Preview
+                                        </label>
+                                        <div
+                                            className="w-full max-w-xs h-40 rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
+                                            style={{ backgroundColor: formData.card_color }}
+                                        >
+                                            <div>
+                                                <h3 className="font-bold text-lg" style={{ color: formData.text_color }}>
+                                                    {formData.business_name || 'Business Name'}
+                                                </h3>
+                                                <p className="text-sm mt-1" style={{ color: formData.text_color, opacity: 0.8 }}>
+                                                    {formData.tagline || 'Your tagline here'}
+                                                </p>
+                                            </div>
+                                            <div className="text-sm" style={{ color: formData.text_color }}>
+                                                <p>{formData.phone || '(555) 123-4567'}</p>
+                                                <p>{formData.email || 'email@example.com'}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </>
@@ -359,7 +428,7 @@ export default function CardsPage() {
                             <button
                                 type="submit"
                                 disabled={uploading}
-                                className="w-full py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 font-medium"
+                                className="w-full py-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:bg-slate-600 disabled:text-slate-400 font-bold transition-all"
                             >
                                 {uploading ? 'Creating...' : 'Create Business Card'}
                             </button>
@@ -367,13 +436,14 @@ export default function CardsPage() {
                     </div>
                 )}
 
+                {/* Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
-                            <p className="text-gray-500 text-lg mb-4">You haven't created any business cards yet.</p>
+                            <p className="text-slate-400 text-lg mb-4">You haven't created any business cards yet.</p>
                             <button
                                 onClick={() => setShowForm(true)}
-                                className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                                className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
                             >
                                 Create Your First Card
                             </button>
@@ -381,45 +451,54 @@ export default function CardsPage() {
                     )}
 
                     {cards.map((card) => (
-                        <div key={card.id} className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative">
+                        <div key={card.id} className="relative group">
                             <button
                                 onClick={() => handleDelete(card.id)}
-                                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                className="absolute -top-2 -right-2 z-10 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Delete card"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                                 </svg>
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className="mb-4">
+                                <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
                                     <img
                                         src={card.image_url}
                                         alt="Business Card"
-                                        className="w-full h-auto rounded-lg"
+                                        className="w-full h-auto"
                                     />
+                                    <div className="p-3 flex items-center justify-between">
+                                        <span className="text-xs text-slate-400">
+                                            {new Date(card.created_at).toLocaleDateString()}
+                                        </span>
+                                        <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">
+                                            Image
+                                        </span>
+                                    </div>
                                 </div>
                             ) : (
-                                <>
-                                    <h3 className="text-xl font-bold text-gray-900 mb-2 pr-8">{card.title}</h3>
-                                    {card.message && <p className="text-gray-600 text-sm mb-4">{card.message}</p>}
-                                    <div className="border-t pt-4 space-y-2 text-sm">
-                                        <p className="text-gray-700"><strong>Phone:</strong> {card.phone}</p>
-                                        <p className="text-gray-700"><strong>Email:</strong> {card.email}</p>
+                                <div
+                                    className="rounded-xl p-4 h-44 flex flex-col justify-between border border-slate-700"
+                                    style={{ backgroundColor: card.card_color || '#4F46E5' }}
+                                >
+                                    <div>
+                                        <h3 className="font-bold text-lg" style={{ color: card.text_color || '#FFFFFF' }}>
+                                            {card.title}
+                                        </h3>
+                                        {card.message && (
+                                            <p className="text-sm mt-1" style={{ color: card.text_color || '#FFFFFF', opacity: 0.8 }}>
+                                                {card.message}
+                                            </p>
+                                        )}
                                     </div>
-                                </>
+                                    <div className="text-sm" style={{ color: card.text_color || '#FFFFFF' }}>
+                                        <p>{card.phone}</p>
+                                        <p>{card.email}</p>
+                                    </div>
+                                </div>
                             )}
-
-                            <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                                <span className="text-xs text-gray-500">
-                                    {new Date(card.created_at).toLocaleDateString()}
-                                </span>
-                                <span className={`text-xs px-2 py-1 rounded ${card.card_type === 'uploaded' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                                    }`}>
-                                    {card.card_type === 'uploaded' ? 'Image' : 'Template'}
-                                </span>
-                            </div>
                         </div>
                     ))}
                 </div>

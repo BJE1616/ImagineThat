@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -12,9 +12,22 @@ export default function Navbar() {
     const [userData, setUserData] = useState(null)
     const [isAdmin, setIsAdmin] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
+    const [dropdownOpen, setDropdownOpen] = useState(false)
+    const dropdownRef = useRef(null)
 
     useEffect(() => {
         checkUser()
+    }, [])
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setDropdownOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
     const checkUser = async () => {
@@ -42,15 +55,26 @@ export default function Navbar() {
         setUser(null)
         setUserData(null)
         setIsAdmin(false)
+        setDropdownOpen(false)
         router.push('/game')
     }
 
-    const getDisplayName = () => {
+    const getFullName = () => {
+        if (!userData) return ''
+        const firstName = userData.first_name || ''
+        const lastName = userData.last_name || ''
+        if (firstName && lastName) {
+            return `${firstName} ${lastName}`
+        }
+        return firstName || userData.username || ''
+    }
+
+    const getInitial = () => {
         if (!userData) return ''
         if (userData.first_name) {
-            return userData.first_name
+            return userData.first_name.charAt(0).toUpperCase()
         }
-        return userData.username || ''
+        return userData.username?.charAt(0).toUpperCase() || ''
     }
 
     // Don't show navbar on admin pages (admin has its own sidebar)
@@ -75,8 +99,8 @@ export default function Navbar() {
                         <Link
                             href="/game"
                             className={`px-3 py-2 rounded-lg font-medium transition-all ${pathname === '/game'
-                                    ? 'bg-amber-500/20 text-amber-400'
-                                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                                ? 'bg-amber-500/20 text-amber-400'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                                 }`}
                         >
                             🎮 Play Game
@@ -86,8 +110,8 @@ export default function Navbar() {
                             <Link
                                 href="/dashboard"
                                 className={`px-3 py-2 rounded-lg font-medium transition-all ${pathname === '/dashboard'
-                                        ? 'bg-amber-500/20 text-amber-400'
-                                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                                     }`}
                             >
                                 📊 Dashboard
@@ -98,8 +122,8 @@ export default function Navbar() {
                             <Link
                                 href="/cards"
                                 className={`px-3 py-2 rounded-lg font-medium transition-all ${pathname === '/cards'
-                                        ? 'bg-amber-500/20 text-amber-400'
-                                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                                     }`}
                             >
                                 🃏 My Cards
@@ -110,8 +134,8 @@ export default function Navbar() {
                             <Link
                                 href="/advertise"
                                 className={`px-3 py-2 rounded-lg font-medium transition-all ${pathname === '/advertise'
-                                        ? 'bg-amber-500/20 text-amber-400'
-                                        : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                                     }`}
                             >
                                 📢 Advertise
@@ -131,19 +155,40 @@ export default function Navbar() {
                     {/* User Section */}
                     <div className="hidden md:flex items-center gap-4">
                         {user ? (
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg border border-slate-600">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
-                                        {getDisplayName().charAt(0).toUpperCase()}
-                                    </div>
-                                    <span className="text-white font-medium">{getDisplayName()}</span>
-                                </div>
+                            <div className="relative" ref={dropdownRef}>
                                 <button
-                                    onClick={handleLogout}
-                                    className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-all"
+                                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg border border-slate-600 hover:bg-slate-700 transition-all cursor-pointer"
                                 >
-                                    Logout
+                                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
+                                        {getInitial()}
+                                    </div>
+                                    <span className="text-white font-medium">{getFullName()}</span>
+                                    <svg
+                                        className={`w-4 h-4 text-slate-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
                                 </button>
+
+                                {/* Dropdown Menu */}
+                                {dropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg py-1 z-50">
+                                        <div className="px-4 py-2 border-b border-slate-700">
+                                            <p className="text-sm text-slate-400">Signed in as</p>
+                                            <p className="text-white font-medium truncate">{getFullName()}</p>
+                                        </div>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="w-full text-left px-4 py-2 text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+                                        >
+                                            🚪 Logout
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <>
@@ -179,9 +224,9 @@ export default function Navbar() {
                         {user && userData && (
                             <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-slate-700/50 rounded-lg mx-2">
                                 <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm">
-                                    {getDisplayName().charAt(0).toUpperCase()}
+                                    {getInitial()}
                                 </div>
-                                <span className="text-white font-medium">Logged in as {getDisplayName()}</span>
+                                <span className="text-white font-medium">{getFullName()}</span>
                             </div>
                         )}
 
@@ -190,8 +235,8 @@ export default function Navbar() {
                                 href="/game"
                                 onClick={() => setMenuOpen(false)}
                                 className={`px-3 py-2 rounded-lg font-medium ${pathname === '/game'
-                                        ? 'bg-amber-500/20 text-amber-400'
-                                        : 'text-slate-300'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'text-slate-300'
                                     }`}
                             >
                                 🎮 Play Game
@@ -202,8 +247,8 @@ export default function Navbar() {
                                     href="/dashboard"
                                     onClick={() => setMenuOpen(false)}
                                     className={`px-3 py-2 rounded-lg font-medium ${pathname === '/dashboard'
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'text-slate-300'
+                                        ? 'bg-amber-500/20 text-amber-400'
+                                        : 'text-slate-300'
                                         }`}
                                 >
                                     📊 Dashboard
@@ -215,8 +260,8 @@ export default function Navbar() {
                                     href="/cards"
                                     onClick={() => setMenuOpen(false)}
                                     className={`px-3 py-2 rounded-lg font-medium ${pathname === '/cards'
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'text-slate-300'
+                                        ? 'bg-amber-500/20 text-amber-400'
+                                        : 'text-slate-300'
                                         }`}
                                 >
                                     🃏 My Cards
@@ -228,8 +273,8 @@ export default function Navbar() {
                                     href="/advertise"
                                     onClick={() => setMenuOpen(false)}
                                     className={`px-3 py-2 rounded-lg font-medium ${pathname === '/advertise'
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'text-slate-300'
+                                        ? 'bg-amber-500/20 text-amber-400'
+                                        : 'text-slate-300'
                                         }`}
                                 >
                                     📢 Advertise
@@ -253,9 +298,9 @@ export default function Navbar() {
                                             handleLogout()
                                             setMenuOpen(false)
                                         }}
-                                        className="w-full text-left px-3 py-2 text-slate-300 rounded-lg"
+                                        className="w-full text-left px-3 py-2 text-slate-300 rounded-lg hover:bg-slate-700"
                                     >
-                                        Logout
+                                        🚪 Logout
                                     </button>
                                 ) : (
                                     <>
