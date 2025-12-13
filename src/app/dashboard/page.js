@@ -488,14 +488,14 @@ export default function DashboardPage() {
                         <p className="text-green-400 font-bold text-lg">{userData?.simple_referral_count || 0}</p>
                     </div>
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <p className="text-slate-400 text-xs">Status</p>
+                        <p className="text-slate-400 text-xs">Campaign Status</p>
                         {campaign ? (
                             <p className="font-bold text-xs sm:text-sm">
                                 <span className="text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">Active</span>
                             </p>
                         ) : (
                             <p className="font-bold text-xs sm:text-sm">
-                                <span className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">No Campaign</span>
+                                <span className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">Not Active</span>
                             </p>
                         )}
                     </div>
@@ -686,13 +686,13 @@ export default function DashboardPage() {
                                     return (
                                         <div
                                             key={spot}
-                                            className={`w-14 h-7 rounded flex items-center justify-center ${spotData
+                                            className={`w-24 h-7 rounded flex items-center justify-center ${spotData
                                                 ? 'bg-green-500/20 border border-green-500'
                                                 : 'bg-slate-600/50 border border-dashed border-slate-500'
                                                 }`}
                                         >
                                             <span className={`text-xs ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
-                                                {spotData?.username?.slice(0, 6) || spot}
+                                                {spotData?.username || spot}
                                             </span>
                                         </div>
                                     )
@@ -705,13 +705,13 @@ export default function DashboardPage() {
                                     return (
                                         <div
                                             key={spot}
-                                            className={`w-12 h-6 rounded flex items-center justify-center ${spotData
+                                            className={`w-24 h-6 rounded flex items-center justify-center ${spotData
                                                 ? 'bg-green-500/20 border border-green-500'
                                                 : 'bg-slate-600/50 border border-dashed border-slate-500'
                                                 }`}
                                         >
                                             <span className={`text-xs ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
-                                                {spotData?.username?.slice(0, 4) || spot}
+                                                {spotData?.username || spot}
                                             </span>
                                         </div>
                                     )

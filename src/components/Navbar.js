@@ -91,7 +91,7 @@ export default function Navbar() {
                         <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center text-slate-900 font-bold text-lg">
                             IT
                         </div>
-                        <span className="text-white font-bold text-xl hidden sm:block">ImagineThat</span>
+                        <span className="text-white font-bold text-xl hidden sm:block">ImagineThat . icu</span>
                     </Link>
 
                     {/* Desktop Navigation */}
