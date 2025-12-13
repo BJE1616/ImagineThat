@@ -145,23 +145,35 @@ export default function DashboardPage() {
     }
 
     const findMatrixSpotForUser = async (newUserId, referrerUsername) => {
+        console.log('=== findMatrixSpotForUser START ===')
+        console.log('newUserId:', newUserId)
+        console.log('referrerUsername:', referrerUsername)
+
         try {
             let referrerId = null
 
             if (referrerUsername) {
-                const { data: users } = await supabase
+                console.log('Looking up referrer...')
+                const { data: users, error: lookupError } = await supabase
                     .from('users')
                     .select('id')
                     .ilike('username', referrerUsername)
                     .limit(1)
 
+                console.log('Referrer lookup result:', users)
+                console.log('Referrer lookup error:', lookupError)
+
                 if (users && users.length > 0) {
                     referrerId = users[0].id
+                    console.log('Found referrerId:', referrerId)
                 }
             }
 
+            console.log('referrerId before matrix lookup:', referrerId)
+
             if (referrerId) {
-                const { data: referrerMatrix } = await supabase
+                console.log('Looking for referrer matrix...')
+                const { data: referrerMatrix, error: matrixError } = await supabase
                     .from('matrix_entries')
                     .select('*')
                     .eq('user_id', referrerId)
@@ -169,53 +181,105 @@ export default function DashboardPage() {
                     .eq('is_completed', false)
                     .maybeSingle()
 
+                console.log('Referrer matrix:', referrerMatrix)
+                console.log('Matrix lookup error:', matrixError)
+
                 if (referrerMatrix) {
                     if (!referrerMatrix.spot_2) {
-                        await supabase
+                        console.log('Attempting to place in spot_2...')
+                        const { error: updateError } = await supabase
                             .from('matrix_entries')
                             .update({ spot_2: newUserId, updated_at: new Date().toISOString() })
                             .eq('id', referrerMatrix.id)
 
-                        await supabase
-                            .from('notifications')
-                            .insert([{
-                                user_id: referrerId,
-                                type: 'referral_joined',
-                                title: '🎉 Your referral joined!',
-                                message: 'They\'ve been added to your matrix in spot 2!'
-                            }])
+                        console.log('Update error:', updateError)
 
-                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
-                        await checkMatrixCompletion(referrerMatrix.id)
-                        return { placed: true, spot: 2 }
+                        if (!updateError) {
+                            await supabase
+                                .from('notifications')
+                                .insert([{
+                                    user_id: referrerId,
+                                    type: 'referral_joined',
+                                    title: '🎉 Your referral joined!',
+                                    message: 'They\'ve been added to your matrix in spot 2!'
+                                }])
+
+                            await supabase.rpc('increment_referral_count', { user_id: referrerId })
+                            await checkMatrixCompletion(referrerMatrix.id)
+                            console.log('Successfully placed in spot_2')
+                            return { placed: true, spot: 2 }
+                        }
                     } else if (!referrerMatrix.spot_3) {
-                        await supabase
+                        console.log('Attempting to place in spot_3...')
+                        const { error: updateError } = await supabase
                             .from('matrix_entries')
                             .update({ spot_3: newUserId, updated_at: new Date().toISOString() })
                             .eq('id', referrerMatrix.id)
 
-                        await supabase
-                            .from('notifications')
-                            .insert([{
-                                user_id: referrerId,
-                                type: 'referral_joined',
-                                title: '🎉 Your referral joined!',
-                                message: 'They\'ve been added to your matrix in spot 3!'
-                            }])
+                        console.log('Update error:', updateError)
 
-                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
-                        await checkMatrixCompletion(referrerMatrix.id)
-                        return { placed: true, spot: 3 }
+                        if (!updateError) {
+                            await supabase
+                                .from('notifications')
+                                .insert([{
+                                    user_id: referrerId,
+                                    type: 'referral_joined',
+                                    title: '🎉 Your referral joined!',
+                                    message: 'They\'ve been added to your matrix in spot 3!'
+                                }])
+
+                            await supabase.rpc('increment_referral_count', { user_id: referrerId })
+                            await checkMatrixCompletion(referrerMatrix.id)
+                            console.log('Successfully placed in spot_3')
+                            return { placed: true, spot: 3 }
+                        }
+                    } else {
+                        console.log('Spots 2 and 3 are full, trying spots 4-7...')
+                        const spots = [
+                            { key: 'spot_4', num: 4 },
+                            { key: 'spot_5', num: 5 },
+                            { key: 'spot_6', num: 6 },
+                            { key: 'spot_7', num: 7 }
+                        ]
+
+                        for (const spot of spots) {
+                            if (!referrerMatrix[spot.key]) {
+                                console.log(`Attempting to place in ${spot.key}...`)
+                                const { error: updateError } = await supabase
+                                    .from('matrix_entries')
+                                    .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
+                                    .eq('id', referrerMatrix.id)
+
+                                if (!updateError) {
+                                    await supabase
+                                        .from('notifications')
+                                        .insert([{
+                                            user_id: referrerId,
+                                            type: 'matrix_growth',
+                                            title: '🔷 Your matrix is growing!',
+                                            message: `Spot ${spot.num} has been filled in your matrix!`
+                                        }])
+
+                                    await checkMatrixCompletion(referrerMatrix.id)
+                                    console.log(`Successfully placed in ${spot.key}`)
+                                    return { placed: true, spot: spot.num }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
+            // Auto-place in oldest waiting matrix
+            console.log('Auto-placing in oldest waiting matrix...')
             const { data: waitingMatrices } = await supabase
                 .from('matrix_entries')
                 .select('*')
                 .eq('is_active', true)
                 .eq('is_completed', false)
                 .order('created_at', { ascending: true })
+
+            console.log('Waiting matrices found:', waitingMatrices?.length)
 
             if (waitingMatrices && waitingMatrices.length > 0) {
                 for (const matrixEntry of waitingMatrices) {
@@ -232,38 +296,33 @@ export default function DashboardPage() {
 
                     for (const spot of spots) {
                         if (!matrixEntry[spot.key]) {
-                            await supabase
+                            console.log(`Auto-placing in matrix ${matrixEntry.id}, ${spot.key}...`)
+                            const { error: updateError } = await supabase
                                 .from('matrix_entries')
                                 .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
                                 .eq('id', matrixEntry.id)
 
-                            if (spot.num <= 3) {
-                                await supabase
-                                    .from('notifications')
-                                    .insert([{
-                                        user_id: matrixEntry.user_id,
-                                        type: 'free_referral',
-                                        title: '🎉 You got a free referral!',
-                                        message: `Someone was auto-placed in your matrix spot ${spot.num}!`
-                                    }])
-                            } else {
-                                await supabase
-                                    .from('notifications')
-                                    .insert([{
-                                        user_id: matrixEntry.user_id,
-                                        type: 'matrix_growth',
-                                        title: '🔷 Your matrix is growing!',
-                                        message: `Spot ${spot.num} has been filled in your matrix!`
-                                    }])
+                            if (!updateError) {
+                                if (spot.num <= 3) {
+                                    await supabase
+                                        .from('notifications')
+                                        .insert([{
+                                            user_id: matrixEntry.user_id,
+                                            type: 'free_referral',
+                                            title: '🎉 You got a free referral!',
+                                            message: `Someone was auto-placed in your matrix spot ${spot.num}!`
+                                        }])
+                                }
+                                await checkMatrixCompletion(matrixEntry.id)
+                                console.log('Auto-placement successful')
+                                return { placed: true, spot: spot.num, wasAutoPlaced: true }
                             }
-
-                            await checkMatrixCompletion(matrixEntry.id)
-                            return { placed: true, spot: spot.num, wasAutoPlaced: true }
                         }
                     }
                 }
             }
 
+            console.log('No placement made')
             return { placed: false }
         } catch (error) {
             console.error('Error finding matrix spot:', error)
@@ -345,7 +404,8 @@ export default function DashboardPage() {
             if (matrixError) throw matrixError
 
             console.log('Calling findMatrixSpotForUser with:', user.id, referredBy.trim())
-            await findMatrixSpotForUser(user.id, referredBy.trim())
+            const result = await findMatrixSpotForUser(user.id, referredBy.trim())
+            console.log('findMatrixSpotForUser result:', result)
 
             await checkUser()
             setShowJoinMatrix(false)
@@ -385,7 +445,7 @@ export default function DashboardPage() {
             <div className="max-w-4xl mx-auto px-3 py-4 sm:px-6">
                 <div className="mb-4">
                     <h1 className="text-xl sm:text-2xl font-bold text-white">
-                        Welcome, {userData?.first_name || userData?.username || 'User'}!
+                        Welcome, {userData?.username || 'User'}!
                     </h1>
                 </div>
 
