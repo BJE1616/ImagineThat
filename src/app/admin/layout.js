@@ -78,6 +78,7 @@ export default function AdminLayout({ children }) {
         { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
         { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
         { href: '/admin/advertisers', label: 'Advertisers', icon: '📢' },
+        { href: '/admin/bonus', label: 'Bonus Views', icon: '🎁' },
         { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
         { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
         { href: '/admin/payments', label: 'Payment History', icon: '💰' },
