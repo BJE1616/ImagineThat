@@ -244,8 +244,8 @@ export default function CardsPage() {
                                 type="button"
                                 onClick={() => setCardType('template')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'template'
-                                        ? 'bg-amber-500 text-slate-900'
-                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    ? 'bg-amber-500 text-slate-900'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                     }`}
                             >
                                 Create Card
@@ -254,8 +254,8 @@ export default function CardsPage() {
                                 type="button"
                                 onClick={() => setCardType('uploaded')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'uploaded'
-                                        ? 'bg-amber-500 text-slate-900'
-                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    ? 'bg-amber-500 text-slate-900'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                     }`}
                             >
                                 Upload Image
@@ -296,12 +296,13 @@ export default function CardsPage() {
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-1">
-                                            Business Name *
+                                            Business Name * <span className="text-xs text-slate-400">(20 chars max)</span>
                                         </label>
                                         <input
                                             type="text"
                                             name="business_name"
                                             required
+                                            maxLength={20}
                                             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your Business Name"
                                             value={formData.business_name}
@@ -311,11 +312,12 @@ export default function CardsPage() {
 
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-1">
-                                            Tagline / Message
+                                            Tagline / Message <span className="text-xs text-slate-400">(40 chars max)</span>
                                         </label>
                                         <input
                                             type="text"
                                             name="tagline"
+                                            maxLength={40}
                                             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your catchy tagline"
                                             value={formData.tagline}
@@ -326,12 +328,11 @@ export default function CardsPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-slate-300 mb-1">
-                                                Phone *
+                                                Phone
                                             </label>
                                             <input
                                                 type="tel"
                                                 name="phone"
-                                                required
                                                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="(555) 123-4567"
                                                 value={formData.phone}
@@ -341,12 +342,11 @@ export default function CardsPage() {
 
                                         <div>
                                             <label className="block text-sm font-medium text-slate-300 mb-1">
-                                                Email *
+                                                Email
                                             </label>
                                             <input
                                                 type="email"
                                                 name="email"
-                                                required
                                                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="your@email.com"
                                                 value={formData.email}
@@ -367,8 +367,8 @@ export default function CardsPage() {
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, card_color: color.value })}
                                                     className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
-                                                            ? 'border-amber-400 scale-110'
-                                                            : 'border-slate-600 hover:border-slate-400'
+                                                        ? 'border-amber-400 scale-110'
+                                                        : 'border-slate-600 hover:border-slate-400'
                                                         }`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.name}
@@ -389,8 +389,8 @@ export default function CardsPage() {
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, text_color: color.value })}
                                                     className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
-                                                            ? 'border-amber-400 scale-110'
-                                                            : 'border-slate-600 hover:border-slate-400'
+                                                        ? 'border-amber-400 scale-110'
+                                                        : 'border-slate-600 hover:border-slate-400'
                                                         }`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.name}
@@ -405,20 +405,22 @@ export default function CardsPage() {
                                             Preview
                                         </label>
                                         <div
-                                            className="w-full max-w-xs h-40 rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
+                                            className="w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
                                             style={{ backgroundColor: formData.card_color }}
                                         >
-                                            <div>
-                                                <h3 className="font-bold text-lg" style={{ color: formData.text_color }}>
+                                            <div className="text-center">
+                                                <h3 className="font-bold text-sm sm:text-base" style={{ color: formData.text_color }}>
                                                     {formData.business_name || 'Business Name'}
                                                 </h3>
-                                                <p className="text-sm mt-1" style={{ color: formData.text_color, opacity: 0.8 }}>
+                                            </div>
+                                            <div className="text-center flex-1 flex items-center justify-center">
+                                                <p className="text-xs sm:text-sm" style={{ color: formData.text_color, opacity: 0.8 }}>
                                                     {formData.tagline || 'Your tagline here'}
                                                 </p>
                                             </div>
-                                            <div className="text-sm" style={{ color: formData.text_color }}>
-                                                <p>{formData.phone || '(555) 123-4567'}</p>
-                                                <p>{formData.email || 'email@example.com'}</p>
+                                            <div className="text-center text-sm" style={{ color: formData.text_color }}>
+                                                {formData.phone && <p>{formData.phone}</p>}
+                                                {formData.email && <p>{formData.email}</p>}
                                             </div>
                                         </div>
                                     </div>
@@ -437,7 +439,7 @@ export default function CardsPage() {
                 )}
 
                 {/* Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
                             <p className="text-slate-400 text-lg mb-4">You haven't created any business cards yet.</p>
@@ -463,24 +465,16 @@ export default function CardsPage() {
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+                                <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center">
                                     <img
                                         src={card.image_url}
                                         alt="Business Card"
-                                        className="w-full h-auto"
+                                        className="w-full h-full object-contain"
                                     />
-                                    <div className="p-3 flex items-center justify-between">
-                                        <span className="text-xs text-slate-400">
-                                            {new Date(card.created_at).toLocaleDateString()}
-                                        </span>
-                                        <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">
-                                            Image
-                                        </span>
-                                    </div>
                                 </div>
                             ) : (
                                 <div
-                                    className="rounded-xl p-4 h-44 flex flex-col justify-between border border-slate-700"
+                                    className="rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border border-slate-700"
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >
                                     <div>

@@ -667,12 +667,12 @@ export default function GamePage() {
                             </div>
                         )}
 
-                        <div className={`grid gap-1 sm:gap-2 ${gameMode === 'easy' ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-4'}`}>
+                        <div className={`grid gap-1 sm:gap-2 ${gameMode === 'easy' ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-4 sm:grid-cols-8'}`}>
                             {cards.map((card) => (
                                 <div
                                     key={card.uniqueId}
                                     onClick={() => handleCardClick(card)}
-                                    className="relative aspect-[3/4] cursor-pointer"
+                                    className="relative aspect-[4/3] cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
                                         weeklyPrize?.card_back_image_url ? (
@@ -691,15 +691,23 @@ export default function GamePage() {
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
                                             <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden">
-                                                <img src={card.image_url} alt="Card" className="w-full h-full object-cover" />
+                                                <img src={card.image_url} alt="Card" className="w-full h-full object-contain" />
                                             </div>
                                         ) : (
                                             <div
                                                 className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border shadow-lg"
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <h3 className="font-bold text-xs sm:text-sm" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
-                                                <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.phone}</p>
+                                                <div className="text-center">
+                                                    <h3 className="font-bold text-sm sm:text-base" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
+                                                </div>
+                                                <div className="text-center flex-1 flex items-center justify-center">
+                                                    {card.message && <p className="text-xs sm:text-sm" style={{ color: card.text_color || '#FFFFFF' }}>{card.message}</p>}
+                                                </div>
+                                                <div className="text-center">
+                                                    {card.phone && <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.phone}</p>}
+                                                    {card.email && <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.email}</p>}
+                                                </div>
                                             </div>
                                         )
                                     )}
