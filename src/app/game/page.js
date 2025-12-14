@@ -25,6 +25,7 @@ export default function GamePage() {
     const [viewingCard, setViewingCard] = useState(null)
     const trackedGameViews = useRef(new Set())
     const trackedFlipViews = useRef(new Set())
+    const [sessionId, setSessionId] = useState(null)
 
     useEffect(() => {
         checkUser()
@@ -300,6 +301,10 @@ export default function GamePage() {
             const shuffled = cardPairs.sort(() => Math.random() - 0.5)
             setCards(shuffled)
 
+            // Track game session
+            const cardIds = selectedCards.map(card => card.id)
+            await createGameSession(mode, cardIds)
+
             const uniqueOwners = new Set(selectedCards.map(card => card.user_id).filter(Boolean))
             uniqueOwners.forEach(ownerId => {
                 trackGameView(ownerId)
@@ -307,6 +312,54 @@ export default function GamePage() {
 
         } catch (error) {
             console.error('Error loading cards:', error)
+        }
+    }
+
+    const getDeviceType = () => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth < 768 ? 'mobile' : 'desktop'
+        }
+        return 'unknown'
+    }
+
+    const createGameSession = async (mode, cardIds) => {
+        try {
+            const { data, error } = await supabase
+                .from('game_sessions')
+                .insert([{
+                    user_id: user?.id || null,
+                    game_mode: mode,
+                    started_at: new Date().toISOString(),
+                    cards_shown: cardIds,
+                    device_type: getDeviceType()
+                }])
+                .select()
+                .single()
+
+            if (!error && data) {
+                setSessionId(data.id)
+                return data.id
+            }
+        } catch (error) {
+            console.error('Error creating game session:', error)
+        }
+        return null
+    }
+
+    const completeGameSession = async (finalMoves, finalScore) => {
+        if (!sessionId) return
+
+        try {
+            await supabase
+                .from('game_sessions')
+                .update({
+                    completed_at: new Date().toISOString(),
+                    moves: finalMoves,
+                    score: finalScore
+                })
+                .eq('id', sessionId)
+        } catch (error) {
+            console.error('Error completing game session:', error)
         }
     }
 
@@ -395,6 +448,7 @@ export default function GamePage() {
                         const timeSeconds = Math.floor((finalTime - startTime) / 1000)
                         const finalScore = (newMoves * 2) + timeSeconds
                         saveScoreDirectly(newMoves, timeSeconds, finalScore, gameMode)
+                        completeGameSession(newMoves, finalScore)
                     }
                 }
             } else {
