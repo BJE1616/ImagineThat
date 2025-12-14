@@ -17,6 +17,19 @@ export default function Navbar() {
 
     useEffect(() => {
         checkUser()
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (session?.user) {
+                setUser(session.user)
+                checkUser()
+            } else {
+                setUser(null)
+                setUserData(null)
+                setIsAdmin(false)
+            }
+        })
+
+        return () => subscription.unsubscribe()
     }, [])
 
     // Close dropdown when clicking outside

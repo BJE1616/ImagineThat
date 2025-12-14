@@ -22,6 +22,7 @@ export default function GamePage() {
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [weeklyPrize, setWeeklyPrize] = useState(null)
     const [elapsedTime, setElapsedTime] = useState(0)
+    const [viewingCard, setViewingCard] = useState(null)
     const trackedGameViews = useRef(new Set())
     const trackedFlipViews = useRef(new Set())
 
@@ -402,6 +403,30 @@ export default function GamePage() {
         }
     }
 
+    const trackCardClick = async (cardUserId) => {
+        if (!cardUserId) return
+
+        try {
+            const { data: activeCampaign } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_clicks')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .single()
+
+            if (activeCampaign) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_clicks: (activeCampaign.views_from_clicks || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', activeCampaign.id)
+            }
+        } catch (error) {
+            // Silently fail
+        }
+    }
     const isCardFlipped = (card) => {
         return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.pairId)
     }
@@ -437,6 +462,55 @@ export default function GamePage() {
 
     return (
         <div className="min-h-screen bg-slate-900">
+            {/* Card View Popup */}
+            {viewingCard && (
+                <div
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingCard(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-xl shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {viewingCard.card_type === 'uploaded' && viewingCard.image_url ? (
+                            <div className="bg-slate-800">
+                                <img src={viewingCard.image_url} alt="Card" className="w-full h-auto" />
+                                <button
+                                    onClick={() => setViewingCard(null)}
+                                    className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="p-6" style={{ backgroundColor: viewingCard.card_color || '#4F46E5' }}>
+                                <div className="text-center mb-4">
+                                    <h2 className="font-bold text-xl" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                        {viewingCard.title}
+                                    </h2>
+                                </div>
+                                {viewingCard.message && (
+                                    <div className="text-center mb-4">
+                                        <p className="text-sm" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                            {viewingCard.message}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="text-center space-y-1" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                    {viewingCard.phone && <p className="text-sm">📞 {viewingCard.phone}</p>}
+                                    {viewingCard.email && <p className="text-sm">✉️ {viewingCard.email}</p>}
+                                </div>
+                                <button
+                                    onClick={() => setViewingCard(null)}
+                                    className="mt-4 w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             <main className="max-w-7xl mx-auto px-2 py-4 sm:px-6 lg:px-8">
                 {/* Weekly Prize Banner - Hidden during game */}
                 {weeklyPrize && !gameStarted && (
@@ -690,24 +764,45 @@ export default function GamePage() {
                                         )
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
-                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden">
+                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative">
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-contain" />
+                                                {matchedPairs.includes(card.pairId) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            setViewingCard(card)
+                                                            trackCardClick(card.user_id)
+                                                        }}
+                                                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                                                    >
+                                                        👁
+                                                    </button>
+                                                )}
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border shadow-lg"
+                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border shadow-lg overflow-hidden relative"
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <div className="text-center">
-                                                    <h3 className="font-bold text-sm sm:text-base" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
+                                                <div className="text-center overflow-hidden">
+                                                    <h3 className="font-bold text-xs truncate" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
                                                 </div>
-                                                <div className="text-center flex-1 flex items-center justify-center">
-                                                    {card.message && <p className="text-xs sm:text-sm" style={{ color: card.text_color || '#FFFFFF' }}>{card.message}</p>}
+                                                <div className="text-center flex-1 flex items-center justify-center overflow-hidden px-1">
+                                                    {card.message && <p className="text-xs line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>{card.message}</p>}
                                                 </div>
-                                                <div className="text-center">
-                                                    {card.phone && <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.phone}</p>}
-                                                    {card.email && <p className="text-xs" style={{ color: card.text_color || '#FFFFFF' }}>{card.email}</p>}
-                                                </div>
+                                                {matchedPairs.includes(card.pairId) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            console.log('Card being viewed:', card)
+                                                            setViewingCard(card)
+                                                            trackCardClick(card.user_id)
+                                                        }}
+                                                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                                                    >
+                                                        👁
+                                                    </button>
+                                                )}
                                             </div>
                                         )
                                     )}
