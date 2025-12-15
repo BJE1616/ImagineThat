@@ -33,6 +33,11 @@ export default function DashboardPage() {
     const [cancelAgreed, setCancelAgreed] = useState(false)
     const [cancelProcessing, setCancelProcessing] = useState(false)
 
+    // Card swapping state
+    const [businessCards, setBusinessCards] = useState([])
+    const [swappingCampaign, setSwappingCampaign] = useState(null)
+    const [swapProcessing, setSwapProcessing] = useState(false)
+
     useEffect(() => {
         checkUser()
     }, [])
@@ -56,14 +61,36 @@ export default function DashboardPage() {
 
             setUserData(userDataResult)
 
+            // Fetch campaigns with linked business card info
             const { data: campaignData } = await supabase
                 .from('ad_campaigns')
-                .select('*')
+                .select(`
+                    *,
+                    business_card:business_cards (
+                        id,
+                        title,
+                        business_name,
+                        tagline,
+                        image_url,
+                        card_color,
+                        text_color,
+                        card_type
+                    )
+                `)
                 .eq('user_id', authUser.id)
                 .in('status', ['active', 'queued', 'completed', 'cancelled'])
                 .order('created_at', { ascending: true })
 
             setCampaigns(campaignData || [])
+
+            // Fetch user's business cards for swapping
+            const { data: cardsData } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('user_id', authUser.id)
+                .order('created_at', { ascending: false })
+
+            setBusinessCards(cardsData || [])
 
             const { data: matrixData } = await supabase
                 .from('matrix_entries')
@@ -224,7 +251,6 @@ export default function DashboardPage() {
 
             if (error) throw error
 
-            // Refresh data
             await checkUser()
             closeCancelModal()
 
@@ -233,6 +259,42 @@ export default function DashboardPage() {
             alert('Error cancelling campaign: ' + error.message)
         } finally {
             setCancelProcessing(false)
+        }
+    }
+
+    // Card swapping functions
+    const openSwapModal = (campaign) => {
+        setSwappingCampaign(campaign)
+    }
+
+    const closeSwapModal = () => {
+        setSwappingCampaign(null)
+    }
+
+    const handleSwapCard = async (newCardId) => {
+        if (!swappingCampaign || !newCardId) return
+
+        setSwapProcessing(true)
+
+        try {
+            const { error } = await supabase
+                .from('ad_campaigns')
+                .update({
+                    business_card_id: newCardId,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', swappingCampaign.id)
+
+            if (error) throw error
+
+            await checkUser()
+            closeSwapModal()
+
+        } catch (error) {
+            console.error('Error swapping card:', error)
+            alert('Error swapping card: ' + error.message)
+        } finally {
+            setSwapProcessing(false)
         }
     }
 
@@ -649,6 +711,98 @@ export default function DashboardPage() {
                 </div>
             )}
 
+            {/* Swap Card Modal */}
+            {swappingCampaign && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-white">🔄 Swap Card</h2>
+                            <button
+                                onClick={closeSwapModal}
+                                className="text-slate-400 hover:text-white text-xl"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <p className="text-slate-400 text-sm mb-4">
+                            Select a different card to use for this campaign:
+                        </p>
+
+                        {businessCards.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-slate-400 mb-4">You don't have any business cards.</p>
+                                <button
+                                    onClick={() => {
+                                        closeSwapModal()
+                                        router.push('/cards')
+                                    }}
+                                    className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg"
+                                >
+                                    Create a Card
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {businessCards.map((card) => {
+                                    const isCurrentCard = card.id === swappingCampaign.business_card_id
+                                    return (
+                                        <button
+                                            key={card.id}
+                                            onClick={() => !isCurrentCard && handleSwapCard(card.id)}
+                                            disabled={isCurrentCard || swapProcessing}
+                                            className={`w-full p-3 rounded-lg border-2 transition-all text-left flex items-center gap-3 ${isCurrentCard
+                                                ? 'border-green-500 bg-green-500/10 cursor-default'
+                                                : 'border-slate-600 hover:border-amber-500 hover:bg-amber-500/10'
+                                                } ${swapProcessing ? 'opacity-50' : ''}`}
+                                        >
+                                            {card.card_type === 'uploaded' && card.image_url ? (
+                                                <img
+                                                    src={card.image_url}
+                                                    alt={card.business_name || card.title}
+                                                    className="w-16 h-12 object-cover rounded"
+                                                />
+                                            ) : (
+                                                <div
+                                                    className="w-16 h-12 rounded flex items-center justify-center"
+                                                    style={{ backgroundColor: card.card_color || '#4F46E5' }}
+                                                >
+                                                    <span className="text-xs font-bold truncate px-1" style={{ color: card.text_color || '#FFFFFF' }}>
+                                                        {(card.business_name || card.title || '').substring(0, 8)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-medium truncate">
+                                                    {card.business_name || card.title}
+                                                </p>
+                                                <p className="text-slate-400 text-xs truncate">
+                                                    {card.tagline || card.message || 'No tagline'}
+                                                </p>
+                                            </div>
+                                            {isCurrentCard && (
+                                                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full whitespace-nowrap">
+                                                    Current
+                                                </span>
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        )}
+
+                        <div className="mt-4 pt-4 border-t border-slate-700">
+                            <button
+                                onClick={() => router.push('/cards')}
+                                className="w-full py-2 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600"
+                            >
+                                + Create New Card
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-4xl mx-auto px-3 py-4 sm:px-6">
                 <div className="mb-4">
                     <h1 className="text-xl sm:text-2xl font-bold text-white">
@@ -744,6 +898,37 @@ export default function DashboardPage() {
                                             {getStatusLabel(camp.status)}
                                         </span>
                                     </div>
+
+                                    {/* Show linked card */}
+                                    {camp.business_card && (camp.status === 'active' || camp.status === 'queued') && (
+                                        <div className="mb-3 p-2 bg-slate-700/50 rounded-lg flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                {camp.business_card.card_type === 'uploaded' && camp.business_card.image_url ? (
+                                                    <img
+                                                        src={camp.business_card.image_url}
+                                                        alt="Card"
+                                                        className="w-10 h-8 object-cover rounded"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="w-10 h-8 rounded flex items-center justify-center"
+                                                        style={{ backgroundColor: camp.business_card.card_color || '#4F46E5' }}
+                                                    >
+                                                        <span className="text-xs" style={{ color: camp.business_card.text_color || '#FFF' }}>🃏</span>
+                                                    </div>
+                                                )}
+                                                <span className="text-slate-300 text-xs truncate max-w-[120px]">
+                                                    {camp.business_card.business_name || camp.business_card.title}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => openSwapModal(camp)}
+                                                className="text-xs text-amber-400 hover:text-amber-300 underline"
+                                            >
+                                                Swap Card
+                                            </button>
+                                        </div>
+                                    )}
 
                                     {camp.status === 'cancelled' ? (
                                         <div className="text-xs text-slate-400">
