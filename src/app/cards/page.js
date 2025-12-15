@@ -25,8 +25,8 @@ export default function CardsPage() {
     const [uploading, setUploading] = useState(false)
     const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
     const [userData, setUserData] = useState(null)
+    const [cardsInUse, setCardsInUse] = useState([])
 
-    // Preset color options
     const colorOptions = [
         { name: 'Indigo', value: '#4F46E5' },
         { name: 'Blue', value: '#2563EB' },
@@ -62,7 +62,6 @@ export default function CardsPage() {
 
             setUser(authUser)
 
-            // Get user data including role
             const { data: userDataResult } = await supabase
                 .from('users')
                 .select('*')
@@ -73,15 +72,20 @@ export default function CardsPage() {
 
             await loadCards(authUser.id)
 
-            // Check for active campaign
             const { data: campaignData } = await supabase
                 .from('ad_campaigns')
-                .select('id')
+                .select('id, business_card_id')
                 .eq('user_id', authUser.id)
-                .eq('status', 'active')
-                .limit(1)
+                .in('status', ['active', 'queued'])
 
             setHasActiveCampaign(campaignData && campaignData.length > 0)
+
+            if (campaignData && campaignData.length > 0) {
+                const inUseIds = campaignData
+                    .filter(c => c.business_card_id)
+                    .map(c => c.business_card_id)
+                setCardsInUse(inUseIds)
+            }
         } catch (error) {
             console.error('Error:', error)
         } finally {
@@ -112,10 +116,8 @@ export default function CardsPage() {
     }
 
     const formatPhone = (value) => {
-        // Remove all non-digits
         const digits = value.replace(/\D/g, '')
 
-        // Format as (XXX)-XXX-XXXX
         if (digits.length <= 3) {
             return digits.length ? `(${digits}` : ''
         } else if (digits.length <= 6) {
@@ -136,6 +138,14 @@ export default function CardsPage() {
     const handleImageChange = (e) => {
         const file = e.target.files[0]
         if (file) {
+            // Check file size (2MB limit)
+            const maxSize = 2 * 1024 * 1024 // 2MB in bytes
+            if (file.size > maxSize) {
+                alert('Image is too large. Maximum size is 2MB.')
+                e.target.value = '' // Clear the input
+                return
+            }
+
             setImageFile(file)
             const reader = new FileReader()
             reader.onloadend = () => {
@@ -187,6 +197,8 @@ export default function CardsPage() {
                     user_id: user.id,
                     card_type: cardType,
                     title: formData.business_name || 'Business Card',
+                    business_name: formData.business_name || 'Business Card',
+                    tagline: formData.tagline || '',
                     message: formData.description || formData.tagline || '',
                     phone: formData.phone || '',
                     email: formData.email || '',
@@ -199,7 +211,6 @@ export default function CardsPage() {
             if (error) throw error
 
             if (!hasActiveCampaign) {
-                // No campaign yet - prompt to advertise
                 if (confirm('Business card created! Ready to start advertising?')) {
                     router.push('/advertise')
                     return
@@ -228,7 +239,16 @@ export default function CardsPage() {
         }
     }
 
+    const isCardInUse = (cardId) => {
+        return cardsInUse.includes(cardId)
+    }
+
     const handleDelete = async (cardId) => {
+        if (isCardInUse(cardId)) {
+            alert('This card is being used by an active or queued campaign. You can delete it after the campaign completes.')
+            return
+        }
+
         if (!confirm('Are you sure you want to delete this card? This action cannot be undone.')) {
             return
         }
@@ -248,6 +268,8 @@ export default function CardsPage() {
         }
     }
 
+    const maxCards = userData?.role === 'admin' ? 10 : 5
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -263,18 +285,18 @@ export default function CardsPage() {
         <div className="min-h-screen bg-slate-900">
             <main className="max-w-4xl mx-auto px-4 py-8">
                 <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
-                    {!showForm && (
-                        (userData?.role === 'admin' && cards.length < 10) ||
-                        (userData?.role !== 'admin' && cards.length < 1)
-                    ) && (
-                            <button
-                                onClick={() => setShowForm(true)}
-                                className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
-                            >
-                                + New Card
-                            </button>
-                        )}
+                    <div>
+                        <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
+                        <p className="text-slate-400 text-sm mt-1">{cards.length}/{maxCards} cards created</p>
+                    </div>
+                    {!showForm && cards.length < maxCards && (
+                        <button
+                            onClick={() => setShowForm(true)}
+                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                        >
+                            + New Card
+                        </button>
+                    )}
                 </div>
 
                 {showForm && (
@@ -293,7 +315,6 @@ export default function CardsPage() {
                             </button>
                         </div>
 
-                        {/* Card Type Toggle */}
                         <div className="flex gap-4 mb-6">
                             <button
                                 type="button"
@@ -332,7 +353,7 @@ export default function CardsPage() {
                                             required
                                         />
                                         <p className="text-xs text-slate-400 mt-1">
-                                            Upload a photo or scan of your business card
+                                            Upload a photo or scan of your business card (max 2MB)
                                         </p>
                                     </div>
 
@@ -360,7 +381,7 @@ export default function CardsPage() {
                                             maxLength={20}
                                             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your Business Name"
-                                            value={formData.business_name}
+                                            value={formData.business_name || ''}
                                             onChange={handleChange}
                                         />
                                     </div>
@@ -375,7 +396,7 @@ export default function CardsPage() {
                                             maxLength={40}
                                             className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                             placeholder="Your catchy tagline"
-                                            value={formData.tagline}
+                                            value={formData.tagline || ''}
                                             onChange={handleChange}
                                         />
                                     </div>
@@ -390,7 +411,7 @@ export default function CardsPage() {
                                                 name="phone"
                                                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="(555)-555-5555"
-                                                value={formData.phone}
+                                                value={formData.phone || ''}
                                                 onChange={handlePhoneChange}
                                                 maxLength={14}
                                             />
@@ -405,13 +426,12 @@ export default function CardsPage() {
                                                 name="email"
                                                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
                                                 placeholder="your@email.com"
-                                                value={formData.email}
+                                                value={formData.email || ''}
                                                 onChange={handleChange}
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Card Color Picker */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-2">
                                             Card Background Color
@@ -433,7 +453,6 @@ export default function CardsPage() {
                                         </div>
                                     </div>
 
-                                    {/* Text Color Picker */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-2">
                                             Text Color
@@ -455,7 +474,6 @@ export default function CardsPage() {
                                         </div>
                                     </div>
 
-                                    {/* Card Preview */}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-2">
                                             Preview
@@ -520,7 +538,6 @@ export default function CardsPage() {
                     </div>
                 )}
 
-                {/* Cards Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
@@ -534,26 +551,42 @@ export default function CardsPage() {
                         </div>
                     )}
 
-                    {cards.length >= 1 && userData?.role !== 'admin' && !showForm && (
+                    {cards.length >= maxCards && !showForm && (
                         <div className="col-span-full text-center py-4">
-                            <p className="text-slate-500 text-sm">You can only have 1 business card.</p>
+                            <p className="text-slate-500 text-sm">You've reached the maximum of {maxCards} business cards.</p>
                         </div>
                     )}
 
                     {cards.map((card) => (
                         <div key={card.id} className="relative group">
+                            {isCardInUse(card.id) && (
+                                <div className="absolute -top-2 -left-2 z-10 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
+                                    In Use
+                                </div>
+                            )}
+
                             <button
                                 onClick={() => handleDelete(card.id)}
-                                className="absolute -top-2 -right-2 z-10 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Delete card"
+                                className={`absolute -top-2 -right-2 z-10 p-2 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${isCardInUse(card.id)
+                                    ? 'bg-slate-500 text-slate-300 cursor-not-allowed'
+                                    : 'bg-red-500 text-white hover:bg-red-600'
+                                    }`}
+                                title={isCardInUse(card.id) ? 'Cannot delete - card is in use' : 'Delete card'}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
+                                {isCardInUse(card.id) ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                )}
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+                                <div className={`bg-slate-800 border rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'
+                                    }`}>
                                     <img
                                         src={card.image_url}
                                         alt="Business Card"
@@ -562,16 +595,17 @@ export default function CardsPage() {
                                 </div>
                             ) : (
                                 <div
-                                    className="rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border border-slate-700"
+                                    className={`rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'
+                                        }`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >
                                     <div>
                                         <h3 className="font-bold text-lg" style={{ color: card.text_color || '#FFFFFF' }}>
-                                            {card.title}
+                                            {card.title || card.business_name}
                                         </h3>
-                                        {card.message && (
+                                        {(card.message || card.tagline) && (
                                             <p className="text-sm mt-1" style={{ color: card.text_color || '#FFFFFF', opacity: 0.8 }}>
-                                                {card.message}
+                                                {card.message || card.tagline}
                                             </p>
                                         )}
                                     </div>
