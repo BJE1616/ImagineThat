@@ -23,6 +23,7 @@ export default function CardsPage() {
     const [imageFile, setImageFile] = useState(null)
     const [imagePreview, setImagePreview] = useState(null)
     const [uploading, setUploading] = useState(false)
+    const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
 
     // Preset color options
     const colorOptions = [
@@ -60,6 +61,16 @@ export default function CardsPage() {
 
             setUser(authUser)
             await loadCards(authUser.id)
+
+            // Check for active campaign
+            const { data: campaignData } = await supabase
+                .from('ad_campaigns')
+                .select('id')
+                .eq('user_id', authUser.id)
+                .eq('status', 'active')
+                .limit(1)
+
+            setHasActiveCampaign(campaignData && campaignData.length > 0)
         } catch (error) {
             console.error('Error:', error)
         } finally {
@@ -86,6 +97,28 @@ export default function CardsPage() {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
+        })
+    }
+
+    const formatPhone = (value) => {
+        // Remove all non-digits
+        const digits = value.replace(/\D/g, '')
+
+        // Format as (XXX)-XXX-XXXX
+        if (digits.length <= 3) {
+            return digits.length ? `(${digits}` : ''
+        } else if (digits.length <= 6) {
+            return `(${digits.slice(0, 3)})-${digits.slice(3)}`
+        } else {
+            return `(${digits.slice(0, 3)})-${digits.slice(3, 6)}-${digits.slice(6, 10)}`
+        }
+    }
+
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhone(e.target.value)
+        setFormData({
+            ...formData,
+            phone: formatted
         })
     }
 
@@ -154,7 +187,15 @@ export default function CardsPage() {
 
             if (error) throw error
 
-            alert('Business card created successfully!')
+            if (!hasActiveCampaign) {
+                // No campaign yet - prompt to advertise
+                if (confirm('Business card created! Ready to start advertising?')) {
+                    router.push('/advertise')
+                    return
+                }
+            } else {
+                alert('Business card created successfully!')
+            }
             setShowForm(false)
             setCardType('template')
             setFormData({
@@ -334,9 +375,10 @@ export default function CardsPage() {
                                                 type="tel"
                                                 name="phone"
                                                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                                placeholder="(555) 123-4567"
+                                                placeholder="(555)-555-5555"
                                                 value={formData.phone}
-                                                onChange={handleChange}
+                                                onChange={handlePhoneChange}
+                                                maxLength={14}
                                             />
                                         </div>
 
@@ -404,23 +446,49 @@ export default function CardsPage() {
                                         <label className="block text-sm font-medium text-slate-300 mb-2">
                                             Preview
                                         </label>
-                                        <div
-                                            className="w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
-                                            style={{ backgroundColor: formData.card_color }}
-                                        >
-                                            <div className="text-center">
-                                                <h3 className="font-bold text-sm sm:text-base" style={{ color: formData.text_color }}>
-                                                    {formData.business_name || 'Business Name'}
-                                                </h3>
+                                        <p className="text-xs text-slate-400 mb-3">
+                                            📱 Your card appears small in the game. Phone & email show when players tap the 👁 icon.
+                                        </p>
+                                        <div className="flex gap-6 items-start flex-wrap">
+                                            <div>
+                                                <p className="text-xs text-slate-500 mb-1">Full Preview:</p>
+                                                <div
+                                                    className="w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
+                                                    style={{ backgroundColor: formData.card_color }}
+                                                >
+                                                    <div className="text-center">
+                                                        <h3 className="font-bold text-sm sm:text-base" style={{ color: formData.text_color }}>
+                                                            {formData.business_name || 'Business Name'}
+                                                        </h3>
+                                                    </div>
+                                                    <div className="text-center flex-1 flex items-center justify-center">
+                                                        <p className="text-xs sm:text-sm" style={{ color: formData.text_color, opacity: 0.8 }}>
+                                                            {formData.tagline || 'Your tagline here'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-center text-sm" style={{ color: formData.text_color }}>
+                                                        {formData.phone && <p>{formData.phone}</p>}
+                                                        {formData.email && <p>{formData.email}</p>}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="text-center flex-1 flex items-center justify-center">
-                                                <p className="text-xs sm:text-sm" style={{ color: formData.text_color, opacity: 0.8 }}>
-                                                    {formData.tagline || 'Your tagline here'}
-                                                </p>
-                                            </div>
-                                            <div className="text-center text-sm" style={{ color: formData.text_color }}>
-                                                {formData.phone && <p>{formData.phone}</p>}
-                                                {formData.email && <p>{formData.email}</p>}
+                                            <div>
+                                                <p className="text-xs text-slate-500 mb-1">In-Game Size:</p>
+                                                <div
+                                                    className="w-24 aspect-[4/3] rounded-md p-1 flex flex-col justify-between border border-slate-600"
+                                                    style={{ backgroundColor: formData.card_color }}
+                                                >
+                                                    <div className="text-center overflow-hidden">
+                                                        <h3 className="font-bold text-xs truncate" style={{ color: formData.text_color }}>
+                                                            {formData.business_name || 'Business Name'}
+                                                        </h3>
+                                                    </div>
+                                                    <div className="text-center flex-1 flex items-center justify-center overflow-hidden">
+                                                        <p className="text-xs line-clamp-2" style={{ color: formData.text_color, opacity: 0.8 }}>
+                                                            {formData.tagline || 'Tagline'}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -26,6 +26,7 @@ export default function AdvertisePage() {
     const [referredBy, setReferredBy] = useState('')
     const [referrerName, setReferrerName] = useState(null)
     const [referrerNotFound, setReferrerNotFound] = useState(false)
+    const [hasBusinessCard, setHasBusinessCard] = useState(false)
 
     useEffect(() => {
         checkUser()
@@ -58,6 +59,15 @@ export default function AdvertisePage() {
                 .single()
 
             setExistingCampaign(campaignData)
+
+            // Check if user has a business card
+            const { data: cardData } = await supabase
+                .from('business_cards')
+                .select('id')
+                .eq('user_id', authUser.id)
+                .limit(1)
+
+            setHasBusinessCard(cardData && cardData.length > 0)
 
             const { data: settingsData } = await supabase
                 .from('admin_settings')
@@ -391,6 +401,28 @@ export default function AdvertisePage() {
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-slate-400 text-sm">Loading...</p>
+                </div>
+            </div>
+        )
+    }
+
+    if (!hasBusinessCard) {
+        return (
+            <div className="min-h-screen bg-slate-900 py-12 px-4">
+                <div className="max-w-md mx-auto">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
+                        <span className="text-4xl mb-4 block">🃏</span>
+                        <h2 className="text-xl font-bold text-white mb-2">Create Your Business Card First</h2>
+                        <p className="text-slate-400 mb-6">
+                            Before you can start advertising, you need to create your business card. This is what everyone will see!
+                        </p>
+                        <button
+                            onClick={() => router.push('/cards')}
+                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
+                        >
+                            Create Business Card
+                        </button>
+                    </div>
                 </div>
             </div>
         )
