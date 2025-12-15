@@ -21,15 +21,20 @@ export default function GamePage() {
     const [challengeLeaderboard, setChallengeLeaderboard] = useState([])
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [weeklyPrize, setWeeklyPrize] = useState(null)
+    const [cardBackSetting, setCardBackSetting] = useState(null)
+    const [cardBackAdvertiser, setCardBackAdvertiser] = useState(null)
     const [elapsedTime, setElapsedTime] = useState(0)
     const [viewingCard, setViewingCard] = useState(null)
     const trackedGameViews = useRef(new Set())
     const trackedFlipViews = useRef(new Set())
     const [sessionId, setSessionId] = useState(null)
+    const trackedCardBackView = useRef(false)
 
     useEffect(() => {
         checkUser()
         loadWeeklyPrize()
+        loadCardBackSetting()
+        loadCardBackAdvertiser()
     }, [])
 
     const checkUser = async () => {
@@ -42,6 +47,112 @@ export default function GamePage() {
             await loadLeaderboards()
         } finally {
             setLoading(false)
+        }
+    }
+
+    const loadCardBackSetting = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('admin_settings')
+                .select('*')
+                .in('setting_key', ['card_back_logo_url', 'show_advertiser_cards'])
+
+            console.log('Card back settings:', data)
+
+            if (data) {
+                const settings = {}
+                data.forEach(item => {
+                    settings[item.setting_key] = item.setting_value
+                })
+                setCardBackSetting(settings)
+            }
+        } catch (error) {
+            console.log('Error loading card back setting')
+        }
+    }
+
+    const trackCardBackView = async (cardUserId, viewCount = 1) => {
+        if (!cardUserId || trackedCardBackView.current) return
+        trackedCardBackView.current = true
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_card_back')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                const campaign = campaigns[0]
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_card_back: (campaign.views_from_card_back || 0) + viewCount,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaign.id)
+                console.log('Card back views tracked:', viewCount, 'for:', cardUserId)
+            }
+        } catch (error) {
+            console.log('Error tracking card back view')
+        }
+    }
+
+    const loadCardBackAdvertiser = async () => {
+        console.log('Loading card back advertiser...')
+        try {
+            // Get advertisers who need views or have bonus views
+            const { data: campaigns, error } = await supabase
+                .from('ad_campaigns')
+                .select('user_id, views_guaranteed, views_from_game, views_from_flips, bonus_views')
+                .eq('status', 'active')
+
+            console.log('Campaigns found:', campaigns)
+            if (error || !campaigns || campaigns.length === 0) return
+
+            // Filter to those who still need views
+            const eligibleCampaigns = campaigns.filter(c => {
+                const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0)
+                return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+            })
+
+            console.log('Eligible campaigns:', eligibleCampaigns)
+            if (eligibleCampaigns.length === 0) return
+
+            // Pick random advertiser
+            const randomCampaign = eligibleCampaigns[Math.floor(Math.random() * eligibleCampaigns.length)]
+            console.log('Random campaign:', randomCampaign)
+
+            // Get their business card - without .single()
+            const { data: cards, error: cardError } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('user_id', randomCampaign.user_id)
+
+            console.log('Business cards found:', cards, 'Error:', cardError)
+
+            if (cards && cards.length > 0) {
+                console.log('Card back advertiser:', cards[0])
+                setCardBackAdvertiser(cards[0])
+            } else {
+                // Try to find any advertiser with a business card
+                console.log('No card for random campaign, trying fallback...')
+                const userIds = eligibleCampaigns.map(c => c.user_id)
+                const { data: anyCards, error: anyError } = await supabase
+                    .from('business_cards')
+                    .select('*')
+                    .in('user_id', userIds)
+
+                console.log('Fallback cards found:', anyCards, 'Error:', anyError)
+
+                if (anyCards && anyCards.length > 0) {
+                    console.log('Card back advertiser (fallback):', anyCards[0])
+                    setCardBackAdvertiser(anyCards[0])
+                }
+            }
+        } catch (error) {
+            console.log('Error loading card back advertiser:', error)
         }
     }
 
@@ -58,7 +169,7 @@ export default function GamePage() {
                 .select('*')
                 .eq('week_start', weekStart.toISOString().split('T')[0])
                 .eq('is_active', true)
-                .single()
+                .maybeSingle()
 
             if (data) {
                 setWeeklyPrize(data)
@@ -145,38 +256,37 @@ export default function GamePage() {
         trackedGameViews.current.add(cardUserId)
 
         try {
-            const { data: activeCampaign } = await supabase
+            const { data: campaigns } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_game')
                 .eq('user_id', cardUserId)
                 .eq('status', 'active')
-                .single()
+                .limit(1)
 
-            if (activeCampaign) {
+            if (campaigns && campaigns.length > 0) {
                 await supabase
                     .from('ad_campaigns')
                     .update({
-                        views_from_game: (activeCampaign.views_from_game || 0) + 1,
+                        views_from_game: (campaigns[0].views_from_game || 0) + 1,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', activeCampaign.id)
+                    .eq('id', campaigns[0].id)
             } else {
-                const { data: anyCampaign } = await supabase
+                const { data: anyCampaigns } = await supabase
                     .from('ad_campaigns')
                     .select('id, bonus_views')
                     .eq('user_id', cardUserId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single()
 
-                if (anyCampaign) {
+                if (anyCampaigns && anyCampaigns.length > 0) {
                     await supabase
                         .from('ad_campaigns')
                         .update({
-                            bonus_views: (anyCampaign.bonus_views || 0) + 1,
+                            bonus_views: (anyCampaigns[0].bonus_views || 0) + 1,
                             updated_at: new Date().toISOString()
                         })
-                        .eq('id', anyCampaign.id)
+                        .eq('id', anyCampaigns[0].id)
                 }
             }
         } catch (error) {
@@ -192,38 +302,37 @@ export default function GamePage() {
         trackedFlipViews.current.add(trackKey)
 
         try {
-            const { data: activeCampaign } = await supabase
+            const { data: campaigns } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_flips')
                 .eq('user_id', cardUserId)
                 .eq('status', 'active')
-                .single()
+                .limit(1)
 
-            if (activeCampaign) {
+            if (campaigns && campaigns.length > 0) {
                 await supabase
                     .from('ad_campaigns')
                     .update({
-                        views_from_flips: (activeCampaign.views_from_flips || 0) + 1,
+                        views_from_flips: (campaigns[0].views_from_flips || 0) + 1,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', activeCampaign.id)
+                    .eq('id', campaigns[0].id)
             } else {
-                const { data: anyCampaign } = await supabase
+                const { data: anyCampaigns } = await supabase
                     .from('ad_campaigns')
                     .select('id, bonus_views')
                     .eq('user_id', cardUserId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single()
 
-                if (anyCampaign) {
+                if (anyCampaigns && anyCampaigns.length > 0) {
                     await supabase
                         .from('ad_campaigns')
                         .update({
-                            bonus_views: (anyCampaign.bonus_views || 0) + 1,
+                            bonus_views: (anyCampaigns[0].bonus_views || 0) + 1,
                             updated_at: new Date().toISOString()
                         })
-                        .eq('id', anyCampaign.id)
+                        .eq('id', anyCampaigns[0].id)
                 }
             }
         } catch (error) {
@@ -250,10 +359,17 @@ export default function GamePage() {
             let cardsData = []
 
             if (activeAdvertiserIds.length > 0) {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('business_cards')
                     .select('*')
                     .in('user_id', activeAdvertiserIds)
+
+                // Exclude the card back advertiser from the game
+                if (cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser?.user_id) {
+                    query = query.neq('user_id', cardBackAdvertiser.user_id)
+                }
+
+                const { data, error } = await query
 
                 if (error) throw error
                 cardsData = data || []
@@ -334,7 +450,7 @@ export default function GamePage() {
                     device_type: getDeviceType()
                 }])
                 .select()
-                .single()
+                .maybeSingle()
 
             if (!error && data) {
                 setSessionId(data.id)
@@ -364,6 +480,11 @@ export default function GamePage() {
     }
 
     const startGame = async (mode) => {
+        // Track card back views based on game mode
+        if (cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser) {
+            const viewCount = mode === 'easy' ? 12 : 16
+            trackCardBackView(cardBackAdvertiser.user_id, viewCount)
+        }
         setGameMode(mode)
         setGameStarted(true)
         setGameComplete(false)
@@ -461,26 +582,27 @@ export default function GamePage() {
         if (!cardUserId) return
 
         try {
-            const { data: activeCampaign } = await supabase
+            const { data: campaigns } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_clicks')
                 .eq('user_id', cardUserId)
                 .eq('status', 'active')
-                .single()
+                .limit(1)
 
-            if (activeCampaign) {
+            if (campaigns && campaigns.length > 0) {
                 await supabase
                     .from('ad_campaigns')
                     .update({
-                        views_from_clicks: (activeCampaign.views_from_clicks || 0) + 1,
+                        views_from_clicks: (campaigns[0].views_from_clicks || 0) + 1,
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', activeCampaign.id)
+                    .eq('id', campaigns[0].id)
             }
         } catch (error) {
             // Silently fail
         }
     }
+
     const isCardFlipped = (card) => {
         return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.pairId)
     }
@@ -803,10 +925,28 @@ export default function GamePage() {
                                     className="relative aspect-[4/3] cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
-                                        weeklyPrize?.card_back_image_url ? (
+                                        cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser ? (
+                                            cardBackAdvertiser.card_type === 'uploaded' && cardBackAdvertiser.image_url ? (
+                                                <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border border-amber-400 bg-slate-800 flex items-center justify-center">
+                                                    <img
+                                                        src={cardBackAdvertiser.image_url}
+                                                        alt="Advertiser card"
+                                                        className="max-w-full max-h-full object-contain p-1"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className="w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border border-amber-400 shadow-lg overflow-hidden"
+                                                    style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
+                                                >
+                                                    <h3 className="font-bold text-xs text-center truncate w-full" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.title}</h3>
+                                                    {cardBackAdvertiser.message && <p className="text-xs text-center line-clamp-2 mt-1" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.message}</p>}
+                                                </div>
+                                            )
+                                        ) : cardBackSetting?.card_back_logo_url ? (
                                             <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border border-indigo-400 bg-indigo-600 flex items-center justify-center">
                                                 <img
-                                                    src={weeklyPrize.card_back_image_url}
+                                                    src={cardBackSetting.card_back_logo_url}
                                                     alt="Card back"
                                                     className="max-w-full max-h-full object-contain p-1"
                                                 />
@@ -848,7 +988,6 @@ export default function GamePage() {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            console.log('Card being viewed:', card)
                                                             setViewingCard(card)
                                                             trackCardClick(card.user_id)
                                                         }}

@@ -10,8 +10,11 @@ export default function AdminSettingsPage() {
     const [settings, setSettings] = useState({
         guaranteed_views: '1000',
         ad_price: '100',
-        matrix_payout: '200'
+        matrix_payout: '200',
+        card_back_logo_url: '',
+        show_advertiser_cards: 'false'
     })
+    const [uploading, setUploading] = useState(false)
 
     useEffect(() => {
         loadSettings()
@@ -37,33 +40,38 @@ export default function AdminSettingsPage() {
         }
     }
 
-    const saveSetting = async (key, value) => {
-        setSaving(true)
-        setMessage('')
-
-        try {
-            const { error } = await supabase
-                .from('admin_settings')
-                .update({
-                    setting_value: value,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('setting_key', key)
-
-            if (error) throw error
-
-            setMessage('Settings saved successfully!')
-            setTimeout(() => setMessage(''), 3000)
-        } catch (error) {
-            console.error('Error saving setting:', error)
-            setMessage('Error saving settings')
-        } finally {
-            setSaving(false)
-        }
-    }
-
     const handleChange = (key, value) => {
         setSettings(prev => ({ ...prev, [key]: value }))
+    }
+
+    const handleLogoUpload = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setUploading(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `card-back-logo-${Date.now()}.${fileExt}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('business-card-images')
+                .upload(fileName, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('business-card-images')
+                .getPublicUrl(fileName)
+
+            setSettings(prev => ({ ...prev, card_back_logo_url: publicUrl }))
+            setMessage('Logo uploaded! Click "Save All Settings" to apply.')
+            setTimeout(() => setMessage(''), 4000)
+        } catch (error) {
+            console.error('Upload error:', error)
+            setMessage('Error uploading image')
+        } finally {
+            setUploading(false)
+        }
     }
 
     const handleSaveAll = async () => {
@@ -113,8 +121,8 @@ export default function AdminSettingsPage() {
 
             {message && (
                 <div className={`mb-6 px-4 py-3 rounded-lg ${message.includes('Error')
-                        ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                        : 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                    : 'bg-green-500/10 border border-green-500/30 text-green-400'
                     }`}>
                     {message}
                 </div>
@@ -186,6 +194,78 @@ export default function AdminSettingsPage() {
                                 <p>• Spots 4-7: Referrals of spots 2-3</p>
                                 <p>• All 7 spots must be paid advertisers</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Card Back Settings */}
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+                    <h2 className="text-xl font-bold text-white mb-6">🎴 Card Back Settings</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Logo Upload */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Company Logo
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoUpload}
+                                disabled={uploading}
+                                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-amber-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-slate-900 file:font-medium hover:file:bg-amber-400"
+                            />
+                            {uploading && <p className="text-amber-400 text-sm mt-2">Uploading...</p>}
+                            <p className="text-slate-500 text-sm mt-1">This logo shows on card backs by default</p>
+
+                            {/* Toggle for Advertiser Cards */}
+                            <div className="mt-6 p-4 bg-slate-700/50 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-white font-medium">Show Advertiser Cards Instead</h3>
+                                        <p className="text-slate-400 text-sm">Display a random advertiser's card on card backs</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleChange('show_advertiser_cards', settings.show_advertiser_cards === 'true' ? 'false' : 'true')}
+                                        className={`relative w-14 h-8 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? 'bg-amber-500' : 'bg-slate-600'}`}
+                                    >
+                                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                                    </button>
+                                </div>
+                                {settings.show_advertiser_cards === 'true' && (
+                                    <p className="text-amber-400 text-sm mt-3">
+                                        ✓ A random advertiser's card will be shown on card backs. This counts toward their "Card Back Views" stat.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Preview */}
+                        <div className="flex flex-col items-center justify-center">
+                            <p className="text-slate-400 text-sm mb-3">Current Card Back Preview:</p>
+                            <div className="w-32 h-24 rounded-lg border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center overflow-hidden">
+                                {settings.show_advertiser_cards === 'true' ? (
+                                    <div className="text-center p-2">
+                                        <span className="text-2xl">🎴</span>
+                                        <p className="text-white text-xs mt-1">Advertiser Card</p>
+                                    </div>
+                                ) : settings.card_back_logo_url ? (
+                                    <img
+                                        src={settings.card_back_logo_url}
+                                        alt="Logo preview"
+                                        className="max-w-full max-h-full object-contain p-1"
+                                    />
+                                ) : (
+                                    <span className="text-4xl text-white">?</span>
+                                )}
+                            </div>
+                            <p className="text-slate-500 text-xs mt-2">
+                                {settings.show_advertiser_cards === 'true'
+                                    ? 'Random advertiser each game'
+                                    : settings.card_back_logo_url
+                                        ? 'Your logo'
+                                        : 'Upload a logo'}
+                            </p>
                         </div>
                     </div>
                 </div>

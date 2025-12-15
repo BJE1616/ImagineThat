@@ -541,6 +541,7 @@ export default function DashboardPage() {
                             <div className="flex gap-4 text-xs text-slate-400">
                                 <span>Game: {campaign.views_from_game || 0}</span>
                                 <span>Flips: {campaign.views_from_flips || 0}</span>
+                                <span>Card Backs: {campaign.views_from_card_back || 0}</span>
                             </div>
 
                             {bonusHistory.length > 0 && (
