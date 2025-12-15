@@ -37,6 +37,8 @@ export default function DashboardPage() {
     const [businessCards, setBusinessCards] = useState([])
     const [swappingCampaign, setSwappingCampaign] = useState(null)
     const [swapProcessing, setSwapProcessing] = useState(false)
+    const [swapStep, setSwapStep] = useState(1) // 1: select card, 2: confirm
+    const [selectedSwapCard, setSelectedSwapCard] = useState(null)
 
     useEffect(() => {
         checkUser()
@@ -265,14 +267,23 @@ export default function DashboardPage() {
     // Card swapping functions
     const openSwapModal = (campaign) => {
         setSwappingCampaign(campaign)
+        setSwapStep(1)
+        setSelectedSwapCard(null)
     }
 
     const closeSwapModal = () => {
         setSwappingCampaign(null)
+        setSwapStep(1)
+        setSelectedSwapCard(null)
     }
 
-    const handleSwapCard = async (newCardId) => {
-        if (!swappingCampaign || !newCardId) return
+    const selectCardForSwap = (card) => {
+        setSelectedSwapCard(card)
+        setSwapStep(2)
+    }
+
+    const handleSwapCard = async () => {
+        if (!swappingCampaign || !selectedSwapCard) return
 
         setSwapProcessing(true)
 
@@ -280,7 +291,7 @@ export default function DashboardPage() {
             const { error } = await supabase
                 .from('ad_campaigns')
                 .update({
-                    business_card_id: newCardId,
+                    business_card_id: selectedSwapCard.id,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', swappingCampaign.id)
@@ -715,90 +726,160 @@ export default function DashboardPage() {
             {swappingCampaign && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-white">🔄 Swap Card</h2>
-                            <button
-                                onClick={closeSwapModal}
-                                className="text-slate-400 hover:text-white text-xl"
-                            >
-                                ✕
-                            </button>
-                        </div>
+                        {swapStep === 1 ? (
+                            <>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-white">🔄 Swap Card</h2>
+                                    <button
+                                        onClick={closeSwapModal}
+                                        className="text-slate-400 hover:text-white text-xl"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
 
-                        <p className="text-slate-400 text-sm mb-4">
-                            Select a different card to use for this campaign:
-                        </p>
+                                <p className="text-slate-400 text-sm mb-4">
+                                    Select a different card to use for this campaign:
+                                </p>
 
-                        {businessCards.length === 0 ? (
-                            <div className="text-center py-8">
-                                <p className="text-slate-400 mb-4">You don't have any business cards.</p>
-                                <button
-                                    onClick={() => {
-                                        closeSwapModal()
-                                        router.push('/cards')
-                                    }}
-                                    className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg"
-                                >
-                                    Create a Card
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {businessCards.map((card) => {
-                                    const isCurrentCard = card.id === swappingCampaign.business_card_id
-                                    return (
+                                {businessCards.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-slate-400 mb-4">You don't have any business cards.</p>
                                         <button
-                                            key={card.id}
-                                            onClick={() => !isCurrentCard && handleSwapCard(card.id)}
-                                            disabled={isCurrentCard || swapProcessing}
-                                            className={`w-full p-3 rounded-lg border-2 transition-all text-left flex items-center gap-3 ${isCurrentCard
-                                                ? 'border-green-500 bg-green-500/10 cursor-default'
-                                                : 'border-slate-600 hover:border-amber-500 hover:bg-amber-500/10'
-                                                } ${swapProcessing ? 'opacity-50' : ''}`}
+                                            onClick={() => {
+                                                closeSwapModal()
+                                                router.push('/cards')
+                                            }}
+                                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg"
                                         >
-                                            {card.card_type === 'uploaded' && card.image_url ? (
-                                                <img
-                                                    src={card.image_url}
-                                                    alt={card.business_name || card.title}
-                                                    className="w-16 h-12 object-cover rounded"
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="w-16 h-12 rounded flex items-center justify-center"
-                                                    style={{ backgroundColor: card.card_color || '#4F46E5' }}
-                                                >
-                                                    <span className="text-xs font-bold truncate px-1" style={{ color: card.text_color || '#FFFFFF' }}>
-                                                        {(card.business_name || card.title || '').substring(0, 8)}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-white font-medium truncate">
-                                                    {card.business_name || card.title}
-                                                </p>
-                                                <p className="text-slate-400 text-xs truncate">
-                                                    {card.tagline || card.message || 'No tagline'}
-                                                </p>
-                                            </div>
-                                            {isCurrentCard && (
-                                                <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full whitespace-nowrap">
-                                                    Current
-                                                </span>
-                                            )}
+                                            Create a Card
                                         </button>
-                                    )
-                                })}
-                            </div>
-                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {businessCards.map((card) => {
+                                            const isCurrentCard = card.id === swappingCampaign.business_card_id
+                                            return (
+                                                <button
+                                                    key={card.id}
+                                                    onClick={() => !isCurrentCard && selectCardForSwap(card)}
+                                                    disabled={isCurrentCard}
+                                                    className={`w-full p-3 rounded-lg border-2 transition-all text-left flex items-center gap-3 ${isCurrentCard
+                                                            ? 'border-green-500 bg-green-500/10 cursor-default'
+                                                            : 'border-slate-600 hover:border-amber-500 hover:bg-amber-500/10'
+                                                        }`}
+                                                >
+                                                    {card.card_type === 'uploaded' && card.image_url ? (
+                                                        <img
+                                                            src={card.image_url}
+                                                            alt={card.business_name || card.title}
+                                                            className="w-16 h-12 object-cover rounded"
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            className="w-16 h-12 rounded flex items-center justify-center"
+                                                            style={{ backgroundColor: card.card_color || '#4F46E5' }}
+                                                        >
+                                                            <span className="text-xs font-bold truncate px-1" style={{ color: card.text_color || '#FFFFFF' }}>
+                                                                {(card.business_name || card.title || '').substring(0, 8)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-white font-medium truncate">
+                                                            {card.business_name || card.title}
+                                                        </p>
+                                                        <p className="text-slate-400 text-xs truncate">
+                                                            {card.tagline || card.message || 'No tagline'}
+                                                        </p>
+                                                    </div>
+                                                    {isCurrentCard && (
+                                                        <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full whitespace-nowrap">
+                                                            Current
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                )}
 
-                        <div className="mt-4 pt-4 border-t border-slate-700">
-                            <button
-                                onClick={() => router.push('/cards')}
-                                className="w-full py-2 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600"
-                            >
-                                + Create New Card
-                            </button>
-                        </div>
+                                <div className="mt-4 pt-4 border-t border-slate-700">
+                                    <button
+                                        onClick={() => {
+                                            closeSwapModal()
+                                            router.push('/cards')
+                                        }}
+                                        className="w-full py-2 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600"
+                                    >
+                                        + Create New Card
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="text-center mb-4">
+                                    <span className="text-4xl">🔄</span>
+                                    <h2 className="text-xl font-bold text-white mt-2">Confirm Card Swap</h2>
+                                </div>
+
+                                <div className="bg-slate-700/50 rounded-lg p-4 mb-4">
+                                    <p className="text-slate-400 text-sm mb-3">You are about to change your campaign's card to:</p>
+
+                                    <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-amber-500/50">
+                                        {selectedSwapCard?.card_type === 'uploaded' && selectedSwapCard?.image_url ? (
+                                            <img
+                                                src={selectedSwapCard.image_url}
+                                                alt={selectedSwapCard.business_name || selectedSwapCard.title}
+                                                className="w-16 h-12 object-cover rounded"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-16 h-12 rounded flex items-center justify-center"
+                                                style={{ backgroundColor: selectedSwapCard?.card_color || '#4F46E5' }}
+                                            >
+                                                <span className="text-xs font-bold truncate px-1" style={{ color: selectedSwapCard?.text_color || '#FFFFFF' }}>
+                                                    {(selectedSwapCard?.business_name || selectedSwapCard?.title || '').substring(0, 8)}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-white font-medium truncate">
+                                                {selectedSwapCard?.business_name || selectedSwapCard?.title}
+                                            </p>
+                                            <p className="text-slate-400 text-xs truncate">
+                                                {selectedSwapCard?.tagline || selectedSwapCard?.message || 'No tagline'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+                                    <p className="text-blue-400 text-sm">
+                                        <strong>Note:</strong> This will immediately change which card is displayed for your campaign. Your view count and campaign progress will not be affected.
+                                    </p>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setSwapStep(1)
+                                            setSelectedSwapCard(null)
+                                        }}
+                                        className="flex-1 py-2 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600"
+                                    >
+                                        Go Back
+                                    </button>
+                                    <button
+                                        onClick={handleSwapCard}
+                                        disabled={swapProcessing}
+                                        className="flex-1 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 disabled:opacity-50"
+                                    >
+                                        {swapProcessing ? 'Swapping...' : 'Confirm Swap'}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -880,9 +961,9 @@ export default function DashboardPage() {
                         <div className="space-y-3">
                             {campaigns.map((camp, index) => (
                                 <div key={camp.id} className={`bg-slate-800 border rounded-lg p-4 ${camp.status === 'active' ? 'border-green-500/50' :
-                                    camp.status === 'queued' ? 'border-yellow-500/50' :
-                                        camp.status === 'cancelled' ? 'border-red-500/50' :
-                                            'border-slate-700'
+                                        camp.status === 'queued' ? 'border-yellow-500/50' :
+                                            camp.status === 'cancelled' ? 'border-red-500/50' :
+                                                'border-slate-700'
                                     }`}>
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="flex items-center gap-2">
@@ -890,10 +971,10 @@ export default function DashboardPage() {
                                             <span className="text-white font-medium text-sm">Campaign {index + 1}</span>
                                         </div>
                                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${camp.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                                            camp.status === 'queued' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                camp.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
-                                                    camp.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
-                                                        'bg-slate-500/20 text-slate-400'
+                                                camp.status === 'queued' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                    camp.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
+                                                        camp.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                                                            'bg-slate-500/20 text-slate-400'
                                             }`}>
                                             {getStatusLabel(camp.status)}
                                         </span>
@@ -950,8 +1031,8 @@ export default function DashboardPage() {
                                                 <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                                                     <div
                                                         className={`h-full rounded-full ${camp.status === 'completed' ? 'bg-green-500' :
-                                                            camp.status === 'queued' ? 'bg-yellow-500' :
-                                                                'bg-amber-500'
+                                                                camp.status === 'queued' ? 'bg-yellow-500' :
+                                                                    'bg-amber-500'
                                                             }`}
                                                         style={{ width: `${getViewProgress(camp)}%` }}
                                                     ></div>
