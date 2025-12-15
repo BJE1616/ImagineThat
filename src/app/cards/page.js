@@ -24,6 +24,7 @@ export default function CardsPage() {
     const [imagePreview, setImagePreview] = useState(null)
     const [uploading, setUploading] = useState(false)
     const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
+    const [userData, setUserData] = useState(null)
 
     // Preset color options
     const colorOptions = [
@@ -60,6 +61,16 @@ export default function CardsPage() {
             }
 
             setUser(authUser)
+
+            // Get user data including role
+            const { data: userDataResult } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', authUser.id)
+                .single()
+
+            setUserData(userDataResult)
+
             await loadCards(authUser.id)
 
             // Check for active campaign
@@ -254,13 +265,16 @@ export default function CardsPage() {
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
                     {!showForm && (
-                        <button
-                            onClick={() => setShowForm(true)}
-                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
-                        >
-                            + New Card
-                        </button>
-                    )}
+                        (userData?.role === 'admin' && cards.length < 10) ||
+                        (userData?.role !== 'admin' && cards.length < 1)
+                    ) && (
+                            <button
+                                onClick={() => setShowForm(true)}
+                                className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                            >
+                                + New Card
+                            </button>
+                        )}
                 </div>
 
                 {showForm && (
@@ -517,6 +531,12 @@ export default function CardsPage() {
                             >
                                 Create Your First Card
                             </button>
+                        </div>
+                    )}
+
+                    {cards.length >= 1 && userData?.role !== 'admin' && !showForm && (
+                        <div className="col-span-full text-center py-4">
+                            <p className="text-slate-500 text-sm">You can only have 1 business card.</p>
                         </div>
                     )}
 
