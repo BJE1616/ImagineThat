@@ -16,8 +16,11 @@ export default function AdvertisePage() {
         matrix_payout: '200'
     })
     const [paymentMethod, setPaymentMethod] = useState('stripe')
-    const [existingCampaign, setExistingCampaign] = useState(null)
     const [message, setMessage] = useState('')
+
+    // Card selection
+    const [businessCards, setBusinessCards] = useState([])
+    const [selectedCardId, setSelectedCardId] = useState(null)
 
     // Multi-step flow
     const [step, setStep] = useState(1) // 1: Payment, 2: Matrix question, 3: Referral
@@ -26,7 +29,6 @@ export default function AdvertisePage() {
     const [referredBy, setReferredBy] = useState('')
     const [referrerName, setReferrerName] = useState(null)
     const [referrerNotFound, setReferrerNotFound] = useState(false)
-    const [hasBusinessCard, setHasBusinessCard] = useState(false)
 
     useEffect(() => {
         checkUser()
@@ -51,23 +53,19 @@ export default function AdvertisePage() {
 
             setUserData(userDataResult)
 
-            const { data: campaignData } = await supabase
-                .from('ad_campaigns')
-                .select('*')
-                .eq('user_id', authUser.id)
-                .eq('status', 'active')
-                .single()
-
-            setExistingCampaign(campaignData)
-
-            // Check if user has a business card
+            // Fetch all user's business cards
             const { data: cardData } = await supabase
                 .from('business_cards')
-                .select('id')
+                .select('*')
                 .eq('user_id', authUser.id)
-                .limit(1)
+                .order('created_at', { ascending: false })
 
-            setHasBusinessCard(cardData && cardData.length > 0)
+            setBusinessCards(cardData || [])
+
+            // Auto-select first card if they have one
+            if (cardData && cardData.length > 0) {
+                setSelectedCardId(cardData[0].id)
+            }
 
             const { data: settingsData } = await supabase
                 .from('admin_settings')
@@ -102,7 +100,6 @@ export default function AdvertisePage() {
         }
 
         try {
-            // First, find the user (use maybeSingle to avoid error if not found)
             const { data: userResult, error: userError } = await supabase
                 .from('users')
                 .select('id, username, first_name')
@@ -115,7 +112,6 @@ export default function AdvertisePage() {
                 return
             }
 
-            // User found - now check if they have an active matrix
             const { data: matrixData } = await supabase
                 .from('matrix_entries')
                 .select('id')
@@ -125,11 +121,9 @@ export default function AdvertisePage() {
                 .maybeSingle()
 
             if (matrixData) {
-                // User has active matrix - can be a referrer
                 setReferrerName(userResult.first_name || userResult.username)
                 setReferrerNotFound(false)
             } else {
-                // User exists but no active matrix - still allow, they'll be auto-placed
                 setReferrerName(userResult.first_name || userResult.username)
                 setReferrerNotFound(false)
             }
@@ -313,21 +307,37 @@ export default function AdvertisePage() {
 
     // Step 1: Process Payment
     const handlePurchase = async () => {
+        if (!selectedCardId) {
+            setMessage('Error: Please select a card for this campaign')
+            return
+        }
+
         setProcessing(true)
         setMessage('')
 
         try {
+            // Check if user has any active or queued campaigns
+            const { data: existingCampaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id')
+                .eq('user_id', user.id)
+                .in('status', ['active', 'queued'])
+
+            const hasExisting = existingCampaigns && existingCampaigns.length > 0
+            const newStatus = hasExisting ? 'queued' : 'active'
+
             const { data: campaign, error: campaignError } = await supabase
                 .from('ad_campaigns')
                 .insert([{
                     user_id: user.id,
+                    business_card_id: selectedCardId,
                     payment_method: paymentMethod,
                     amount_paid: parseInt(settings.ad_price),
                     views_guaranteed: parseInt(settings.guaranteed_views),
                     views_from_game: 0,
                     views_from_flips: 0,
                     bonus_views: 0,
-                    status: 'active' // For testing - change to 'pending_payment' for real payments
+                    status: newStatus
                 }])
                 .select()
                 .single()
@@ -406,7 +416,8 @@ export default function AdvertisePage() {
         )
     }
 
-    if (!hasBusinessCard) {
+    // No business cards - prompt to create one
+    if (businessCards.length === 0) {
         return (
             <div className="min-h-screen bg-slate-900 py-12 px-4">
                 <div className="max-w-md mx-auto">
@@ -421,28 +432,6 @@ export default function AdvertisePage() {
                             className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
                         >
                             Create Business Card
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    if (existingCampaign) {
-        return (
-            <div className="min-h-screen bg-slate-900 py-12 px-4">
-                <div className="max-w-md mx-auto">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
-                        <span className="text-4xl mb-4 block">📢</span>
-                        <h2 className="text-xl font-bold text-white mb-2">Active Campaign Running</h2>
-                        <p className="text-slate-400 mb-6">
-                            You can only have one active ad campaign at a time. Your current campaign is still running!
-                        </p>
-                        <button
-                            onClick={() => router.push('/dashboard')}
-                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
-                        >
-                            View Dashboard
                         </button>
                     </div>
                 </div>
@@ -566,13 +555,66 @@ export default function AdvertisePage() {
         )
     }
 
-    // STEP 1: Payment
+    // STEP 1: Payment (with card selection)
     return (
         <div className="min-h-screen bg-slate-900 py-12 px-4">
             <div className="max-w-4xl mx-auto">
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold text-white">Start Advertising</h1>
                     <p className="text-slate-400 mt-2">Get your business card seen by thousands!</p>
+                </div>
+
+                {/* Card Selection */}
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-white">🃏 Select Card for This Campaign</h2>
+                        {businessCards.length < 5 && (
+                            <button
+                                onClick={() => router.push('/cards')}
+                                className="px-3 py-1 bg-slate-700 text-slate-300 text-sm rounded-lg hover:bg-slate-600"
+                            >
+                                + Create New Card
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {businessCards.map((card) => (
+                            <button
+                                key={card.id}
+                                onClick={() => setSelectedCardId(card.id)}
+                                className={`p-4 rounded-lg border-2 transition-all text-left ${selectedCardId === card.id
+                                        ? 'border-amber-500 bg-amber-500/10'
+                                        : 'border-slate-600 hover:border-slate-500'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    {card.image_url ? (
+                                        <img
+                                            src={card.image_url}
+                                            alt={card.business_name}
+                                            className="w-16 h-16 object-cover rounded-lg"
+                                        />
+                                    ) : (
+                                        <div className="w-16 h-16 bg-slate-700 rounded-lg flex items-center justify-center">
+                                            <span className="text-2xl">🃏</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-white font-medium truncate">{card.business_name}</p>
+                                        <p className="text-slate-400 text-sm truncate">{card.tagline || 'No tagline'}</p>
+                                    </div>
+                                    {selectedCardId === card.id && (
+                                        <span className="text-amber-400 text-xl">✓</span>
+                                    )}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    <p className="text-slate-500 text-sm mt-4">
+                        {businessCards.length}/5 cards created
+                    </p>
                 </div>
 
                 {/* Package Details */}
@@ -663,11 +705,17 @@ export default function AdvertisePage() {
 
                     <button
                         onClick={handlePurchase}
-                        disabled={processing}
+                        disabled={processing || !selectedCardId}
                         className="px-12 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold text-lg rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
                     >
                         {processing ? 'Processing...' : `Pay $${settings.ad_price} & Start Campaign`}
                     </button>
+
+                    {!selectedCardId && (
+                        <p className="text-amber-400 text-sm mt-2">
+                            Please select a card above
+                        </p>
+                    )}
 
                     <p className="text-slate-500 text-sm mt-4">
                         By purchasing, you agree to our terms of service.
