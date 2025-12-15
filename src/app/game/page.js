@@ -376,21 +376,18 @@ export default function GamePage() {
             }
 
             if (cardsData.length < limit) {
-                const existingIds = cardsData.map(c => c.id)
-
-                let query = supabase
+                // Use house cards as filler
+                const { data: houseCards, error } = await supabase
                     .from('business_cards')
                     .select('*')
-                    .limit(limit - cardsData.length)
+                    .eq('is_house_card', true)
 
-                if (existingIds.length > 0) {
-                    query = query.not('id', 'in', `(${existingIds.join(',')})`)
-                }
-
-                const { data: additionalCards, error } = await query
-
-                if (!error && additionalCards) {
-                    cardsData = [...cardsData, ...additionalCards]
+                if (!error && houseCards && houseCards.length > 0) {
+                    // Shuffle house cards and fill remaining slots
+                    const shuffledHouse = houseCards.sort(() => Math.random() - 0.5)
+                    while (cardsData.length < limit && shuffledHouse.length > 0) {
+                        cardsData.push(shuffledHouse.pop())
+                    }
                 }
             }
 
