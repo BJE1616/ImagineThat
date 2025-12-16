@@ -18,12 +18,10 @@ export default function AdvertisePage() {
     const [paymentMethod, setPaymentMethod] = useState('stripe')
     const [message, setMessage] = useState('')
 
-    // Card selection
     const [businessCards, setBusinessCards] = useState([])
     const [selectedCardId, setSelectedCardId] = useState(null)
 
-    // Multi-step flow
-    const [step, setStep] = useState(1) // 1: Payment, 2: Matrix question, 3: Referral
+    const [step, setStep] = useState(1)
     const [campaignId, setCampaignId] = useState(null)
     const [joinMatrix, setJoinMatrix] = useState(false)
     const [referredBy, setReferredBy] = useState('')
@@ -53,7 +51,6 @@ export default function AdvertisePage() {
 
             setUserData(userDataResult)
 
-            // Fetch all user's business cards
             const { data: cardData } = await supabase
                 .from('business_cards')
                 .select('*')
@@ -62,7 +59,6 @@ export default function AdvertisePage() {
 
             setBusinessCards(cardData || [])
 
-            // Auto-select first card if they have one
             if (cardData && cardData.length > 0) {
                 setSelectedCardId(cardData[0].id)
             }
@@ -299,13 +295,38 @@ export default function AdvertisePage() {
                         title: '🎉 Matrix Complete!',
                         message: `Congratulations! Your matrix is complete. Your payout of $${matrix.payout_amount || settings.matrix_payout} is being processed!`
                     }])
+
+                // Send matrix complete email
+                try {
+                    const { data: matrixUser } = await supabase
+                        .from('users')
+                        .select('email, username')
+                        .eq('id', matrix.user_id)
+                        .single()
+
+                    if (matrixUser) {
+                        await fetch('/api/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'matrix_complete',
+                                to: matrixUser.email,
+                                data: {
+                                    username: matrixUser.username,
+                                    payout: matrix.payout_amount || settings.matrix_payout
+                                }
+                            })
+                        })
+                    }
+                } catch (emailError) {
+                    console.error('Matrix complete email error:', emailError)
+                }
             }
         } catch (error) {
             console.error('Error checking matrix completion:', error)
         }
     }
 
-    // Step 1: Process Payment
     const handlePurchase = async () => {
         if (!selectedCardId) {
             setMessage('Error: Please select a card for this campaign')
@@ -316,7 +337,6 @@ export default function AdvertisePage() {
         setMessage('')
 
         try {
-            // Check if user has any active or queued campaigns
             const { data: existingCampaigns } = await supabase
                 .from('ad_campaigns')
                 .select('id')
@@ -346,7 +366,26 @@ export default function AdvertisePage() {
 
             setCampaignId(campaign.id)
 
-            // Move to step 2: Ask about matrix
+            // Send campaign activated email if status is active
+            if (newStatus === 'active') {
+                try {
+                    await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'campaign_activated',
+                            to: userData.email,
+                            data: {
+                                username: userData.username,
+                                views: parseInt(settings.guaranteed_views)
+                            }
+                        })
+                    })
+                } catch (emailError) {
+                    console.error('Campaign activated email error:', emailError)
+                }
+            }
+
             setStep(2)
 
         } catch (error) {
@@ -356,13 +395,11 @@ export default function AdvertisePage() {
         }
     }
 
-    // Step 2: Handle matrix choice
     const handleMatrixChoice = (wantsMatrix) => {
         setJoinMatrix(wantsMatrix)
         if (wantsMatrix) {
-            setStep(3) // Go to referral step
+            setStep(3)
         } else {
-            // Skip matrix, go to dashboard
             finishWithoutMatrix()
         }
     }
@@ -372,12 +409,10 @@ export default function AdvertisePage() {
         setTimeout(() => router.push('/dashboard'), 2000)
     }
 
-    // Step 3: Handle referral and create matrix
     const handleJoinMatrix = async () => {
         setProcessing(true)
 
         try {
-            // Create their own matrix
             const { error: matrixError } = await supabase
                 .from('matrix_entries')
                 .insert([{
@@ -392,7 +427,6 @@ export default function AdvertisePage() {
 
             if (matrixError) throw matrixError
 
-            // Place them in someone else's matrix
             await findMatrixSpotForUser(user.id, referredBy)
 
             setMessage('✓ You joined the matrix! Redirecting to dashboard...')
@@ -416,7 +450,6 @@ export default function AdvertisePage() {
         )
     }
 
-    // No business cards - prompt to create one
     if (businessCards.length === 0) {
         return (
             <div className="min-h-screen bg-slate-900 py-12 px-4">
@@ -439,7 +472,6 @@ export default function AdvertisePage() {
         )
     }
 
-    // STEP 2: Matrix Question
     if (step === 2) {
         return (
             <div className="min-h-screen bg-slate-900 py-12 px-4">
@@ -457,7 +489,6 @@ export default function AdvertisePage() {
                                 Fill 6 spots and earn <span className="text-green-400 font-bold">${settings.matrix_payout}</span> back!
                             </p>
 
-                            {/* Mini Matrix Preview */}
                             <div className="flex justify-center mb-2">
                                 <div className="w-12 h-8 bg-amber-500/30 border border-amber-500 rounded text-xs flex items-center justify-center text-amber-400">You</div>
                             </div>
@@ -493,7 +524,6 @@ export default function AdvertisePage() {
         )
     }
 
-    // STEP 3: Referral Question
     if (step === 3) {
         return (
             <div className="min-h-screen bg-slate-900 py-12 px-4">
@@ -555,7 +585,6 @@ export default function AdvertisePage() {
         )
     }
 
-    // STEP 1: Payment (with card selection)
     return (
         <div className="min-h-screen bg-slate-900 py-12 px-4">
             <div className="max-w-4xl mx-auto">
@@ -564,7 +593,6 @@ export default function AdvertisePage() {
                     <p className="text-slate-400 mt-2">Get your business card seen by thousands!</p>
                 </div>
 
-                {/* Card Selection */}
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-white">🃏 Select Card for This Campaign</h2>
@@ -584,8 +612,8 @@ export default function AdvertisePage() {
                                 key={card.id}
                                 onClick={() => setSelectedCardId(card.id)}
                                 className={`p-4 rounded-lg border-2 transition-all text-left ${selectedCardId === card.id
-                                        ? 'border-amber-500 bg-amber-500/10'
-                                        : 'border-slate-600 hover:border-slate-500'
+                                    ? 'border-amber-500 bg-amber-500/10'
+                                    : 'border-slate-600 hover:border-slate-500'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
@@ -617,7 +645,6 @@ export default function AdvertisePage() {
                     </p>
                 </div>
 
-                {/* Package Details */}
                 <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-6 mb-8">
                     <h2 className="text-xl font-bold text-white mb-4">📦 Ad Package</h2>
 
@@ -649,7 +676,6 @@ export default function AdvertisePage() {
                     </div>
                 </div>
 
-                {/* Payment Method */}
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
                     <h2 className="text-xl font-bold text-white mb-4">💳 Payment Method</h2>
 
@@ -692,7 +718,6 @@ export default function AdvertisePage() {
                     </div>
                 </div>
 
-                {/* Purchase Button */}
                 <div className="mt-8 text-center">
                     {message && (
                         <div className={`mb-4 px-4 py-3 rounded-lg inline-block ${message.includes('Error')
