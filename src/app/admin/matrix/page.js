@@ -14,6 +14,8 @@ export default function AdminMatrixPage() {
     })
     const [filter, setFilter] = useState('all')
     const [selectedMatrix, setSelectedMatrix] = useState(null)
+    const [searchTerm, setSearchTerm] = useState('')
+    const [sortBy, setSortBy] = useState('recent')
 
     useEffect(() => {
         loadMatrices()
@@ -111,6 +113,29 @@ export default function AdminMatrixPage() {
         })
     }
 
+    // Filter and sort matrices
+    const filteredAndSortedMatrices = matrices
+        .filter(matrix => {
+            if (!searchTerm) return true
+            const username = matrix.users?.username?.toLowerCase() || ''
+            const email = matrix.users?.email?.toLowerCase() || ''
+            const search = searchTerm.toLowerCase()
+            return username.includes(search) || email.includes(search)
+        })
+        .sort((a, b) => {
+            if (sortBy === 'alpha-asc') {
+                const nameA = a.users?.username?.toLowerCase() || ''
+                const nameB = b.users?.username?.toLowerCase() || ''
+                return nameA.localeCompare(nameB)
+            } else if (sortBy === 'alpha-desc') {
+                const nameA = a.users?.username?.toLowerCase() || ''
+                const nameB = b.users?.username?.toLowerCase() || ''
+                return nameB.localeCompare(nameA)
+            }
+            // Default: recent (already sorted by created_at desc from query)
+            return 0
+        })
+
     if (loading && matrices.length === 0) {
         return (
             <div className="p-4">
@@ -136,21 +161,21 @@ export default function AdminMatrixPage() {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total Matrices</p>
-                    <p className="text-xl font-bold text-blue-400">{stats.totalMatrices}</p>
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2">
+                    <p className="text-slate-400 text-[10px]">Total Matrices</p>
+                    <p className="text-sm font-bold text-blue-400">{stats.totalMatrices}</p>
                 </div>
-                <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Active</p>
-                    <p className="text-xl font-bold text-green-400">{stats.activeMatrices}</p>
+                <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
+                    <p className="text-slate-400 text-[10px]">Active</p>
+                    <p className="text-sm font-bold text-green-400">{stats.activeMatrices}</p>
                 </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Completed</p>
-                    <p className="text-xl font-bold text-purple-400">{stats.completedMatrices}</p>
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded p-2">
+                    <p className="text-slate-400 text-[10px]">Completed</p>
+                    <p className="text-sm font-bold text-purple-400">{stats.completedMatrices}</p>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Pending Payouts</p>
-                    <p className="text-xl font-bold text-amber-400">{stats.pendingPayouts}</p>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-2">
+                    <p className="text-slate-400 text-[10px]">Pending Payouts</p>
+                    <p className="text-sm font-bold text-amber-400">{stats.pendingPayouts}</p>
                 </div>
             </div>
 
@@ -175,6 +200,36 @@ export default function AdminMatrixPage() {
                 ))}
             </div>
 
+            {/* Search and Sort Row */}
+            <div className="flex gap-2 mb-3">
+                <div className="flex-1 relative">
+                    <input
+                        type="text"
+                        placeholder="Search by username or email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+                <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                >
+                    <option value="recent">Most Recent</option>
+                    <option value="alpha-asc">A → Z</option>
+                    <option value="alpha-desc">Z → A</option>
+                </select>
+            </div>
+
             <div className="flex gap-3">
                 {/* Matrices List */}
                 <div className={`${selectedMatrix ? 'w-2/3' : 'w-full'} bg-slate-800 border border-slate-700 rounded overflow-hidden`}>
@@ -182,15 +237,15 @@ export default function AdminMatrixPage() {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-slate-700">
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">User</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Progress</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Status</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Payout</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Created</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">User</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Progress</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Status</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Payout</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Created</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {matrices.length > 0 ? matrices.map(matrix => (
+                                {filteredAndSortedMatrices.length > 0 ? filteredAndSortedMatrices.map(matrix => (
                                     <tr
                                         key={matrix.id}
                                         onClick={() => setSelectedMatrix(matrix)}
@@ -198,10 +253,10 @@ export default function AdminMatrixPage() {
                                             }`}
                                     >
                                         <td className="py-2 px-3">
-                                            <p className="text-white font-medium">
+                                            <p className="text-white font-medium text-xs">
                                                 {matrix.users?.username || 'Unknown'}
                                             </p>
-                                            <p className="text-slate-400 text-xs">
+                                            <p className="text-slate-400 text-[10px]">
                                                 {matrix.users?.email}
                                             </p>
                                         </td>
@@ -222,7 +277,7 @@ export default function AdminMatrixPage() {
                                             </div>
                                         </td>
                                         <td className="py-2 px-3">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.is_completed
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${matrix.is_completed
                                                 ? 'bg-green-500/20 text-green-400'
                                                 : matrix.is_active
                                                     ? 'bg-blue-500/20 text-blue-400'
@@ -233,7 +288,7 @@ export default function AdminMatrixPage() {
                                         </td>
                                         <td className="py-2 px-3">
                                             {matrix.is_completed && (
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.payout_status === 'paid'
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${matrix.payout_status === 'paid'
                                                     ? 'bg-green-500/20 text-green-400'
                                                     : 'bg-amber-500/20 text-amber-400'
                                                     }`}>
@@ -241,14 +296,14 @@ export default function AdminMatrixPage() {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs">
+                                        <td className="py-2 px-3 text-slate-400 text-[10px]">
                                             {formatDate(matrix.created_at)}
                                         </td>
                                     </tr>
                                 )) : (
                                     <tr>
                                         <td colSpan="5" className="py-8 text-center text-slate-400 text-sm">
-                                            No matrices found
+                                            {searchTerm ? 'No matching users found' : 'No matrices found'}
                                         </td>
                                     </tr>
                                 )}
@@ -271,14 +326,14 @@ export default function AdminMatrixPage() {
                         </div>
 
                         <div className="mb-3">
-                            <p className="text-slate-400 text-xs mb-0.5">Owner</p>
+                            <p className="text-slate-400 text-[10px] mb-0.5">Owner</p>
                             <p className="text-white font-medium text-sm">{selectedMatrix.users?.username}</p>
                             <p className="text-slate-400 text-xs">{selectedMatrix.users?.email}</p>
                         </div>
 
                         {/* Matrix Visualization */}
                         <div className="mb-3">
-                            <p className="text-slate-400 text-xs mb-2">Matrix Structure</p>
+                            <p className="text-slate-400 text-[10px] mb-2">Matrix Structure</p>
                             <div className="bg-slate-700/50 rounded p-3">
                                 {/* Spot 1 - Owner */}
                                 <div className="flex justify-center mb-2">
@@ -334,8 +389,8 @@ export default function AdminMatrixPage() {
                         {/* Payout Section */}
                         {selectedMatrix.is_completed && (
                             <div className="border-t border-slate-700 pt-3">
-                                <p className="text-slate-400 text-xs mb-2">Payout Information</p>
-                                <div className="space-y-1 mb-3 text-sm">
+                                <p className="text-slate-400 text-[10px] mb-2">Payout Information</p>
+                                <div className="space-y-1 mb-3 text-xs">
                                     <div className="flex justify-between">
                                         <span className="text-slate-400">Amount</span>
                                         <span className="text-white font-medium">${selectedMatrix.payout_amount}</span>
@@ -362,7 +417,7 @@ export default function AdminMatrixPage() {
                                 {selectedMatrix.payout_status === 'pending' && (
                                     <button
                                         onClick={() => markAsPaid(selectedMatrix.id)}
-                                        className="w-full py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-500 transition-all"
+                                        className="w-full py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all"
                                     >
                                         Mark as Paid
                                     </button>

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 export default function LoginPage() {
     const router = useRouter()
     const [formData, setFormData] = useState({
-        email: '',
+        emailOrUsername: '',
         password: ''
     })
     const [loading, setLoading] = useState(false)
@@ -26,8 +26,26 @@ export default function LoginPage() {
         setError(null)
 
         try {
+            let email = formData.emailOrUsername.trim()
+
+            // Check if input is a username (no @ symbol)
+            if (!email.includes('@')) {
+                // Look up email by username
+                const { data: userData, error: userError } = await supabase
+                    .from('users')
+                    .select('email')
+                    .ilike('username', email)
+                    .single()
+
+                if (userError || !userData) {
+                    throw new Error('Username not found')
+                }
+
+                email = userData.email
+            }
+
             const { data, error: signInError } = await supabase.auth.signInWithPassword({
-                email: formData.email,
+                email: email,
                 password: formData.password,
             })
 
@@ -60,17 +78,17 @@ export default function LoginPage() {
 
                     <div className="space-y-4">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                                Email Address
+                            <label htmlFor="emailOrUsername" className="block text-sm font-medium text-gray-700 mb-1">
+                                Email or Username
                             </label>
                             <input
-                                id="email"
-                                name="email"
-                                type="email"
+                                id="emailOrUsername"
+                                name="emailOrUsername"
+                                type="text"
                                 required
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
-                                placeholder="your.email@example.com"
-                                value={formData.email}
+                                placeholder="your.email@example.com or username"
+                                value={formData.emailOrUsername}
                                 onChange={handleChange}
                             />
                         </div>
