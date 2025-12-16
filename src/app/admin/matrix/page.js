@@ -51,7 +51,6 @@ export default function AdminMatrixPage() {
 
             setMatrices(data || [])
 
-            // Calculate stats from all data
             const { data: allData } = await supabase
                 .from('matrix_entries')
                 .select('is_active, is_completed, payout_status')
@@ -114,49 +113,49 @@ export default function AdminMatrixPage() {
 
     if (loading && matrices.length === 0) {
         return (
-            <div className="p-8">
-                <div className="animate-pulse space-y-6">
-                    <div className="h-8 bg-slate-700 rounded w-64"></div>
-                    <div className="grid grid-cols-4 gap-6">
+            <div className="p-4">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className="grid grid-cols-4 gap-2">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-24 bg-slate-800 rounded-xl"></div>
+                            <div key={i} className="h-14 bg-slate-800 rounded"></div>
                         ))}
                     </div>
-                    <div className="h-96 bg-slate-800 rounded-xl"></div>
+                    <div className="h-64 bg-slate-800 rounded"></div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Matrix Overview</h1>
-                <p className="text-slate-400 mt-1">View all referral matrices and payouts</p>
+        <div className="p-4">
+            <div className="mb-4">
+                <h1 className="text-lg font-bold text-white">Matrix Overview</h1>
+                <p className="text-slate-400 text-xs">View all referral matrices and payouts</p>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Total Matrices</p>
-                    <p className="text-3xl font-bold text-blue-400 mt-1">{stats.totalMatrices}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Total Matrices</p>
+                    <p className="text-xl font-bold text-blue-400">{stats.totalMatrices}</p>
                 </div>
-                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Active</p>
-                    <p className="text-3xl font-bold text-green-400 mt-1">{stats.activeMatrices}</p>
+                <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Active</p>
+                    <p className="text-xl font-bold text-green-400">{stats.activeMatrices}</p>
                 </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Completed</p>
-                    <p className="text-3xl font-bold text-purple-400 mt-1">{stats.completedMatrices}</p>
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Completed</p>
+                    <p className="text-xl font-bold text-purple-400">{stats.completedMatrices}</p>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Pending Payouts</p>
-                    <p className="text-3xl font-bold text-amber-400 mt-1">{stats.pendingPayouts}</p>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Pending Payouts</p>
+                    <p className="text-xl font-bold text-amber-400">{stats.pendingPayouts}</p>
                 </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-1 mb-3">
                 {[
                     { key: 'all', label: 'All' },
                     { key: 'active', label: 'Active' },
@@ -166,9 +165,9 @@ export default function AdminMatrixPage() {
                     <button
                         key={tab.key}
                         onClick={() => setFilter(tab.key)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all ${filter === tab.key
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${filter === tab.key
+                            ? 'bg-amber-500 text-slate-900'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                     >
                         {tab.label}
@@ -176,18 +175,18 @@ export default function AdminMatrixPage() {
                 ))}
             </div>
 
-            <div className="flex gap-6">
+            <div className="flex gap-3">
                 {/* Matrices List */}
-                <div className={`${selectedMatrix ? 'w-2/3' : 'w-full'} bg-slate-800 border border-slate-700 rounded-xl overflow-hidden`}>
+                <div className={`${selectedMatrix ? 'w-2/3' : 'w-full'} bg-slate-800 border border-slate-700 rounded overflow-hidden`}>
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-slate-700">
-                                    <th className="text-left py-4 px-6 text-slate-400 font-medium">User</th>
-                                    <th className="text-left py-4 px-6 text-slate-400 font-medium">Progress</th>
-                                    <th className="text-left py-4 px-6 text-slate-400 font-medium">Status</th>
-                                    <th className="text-left py-4 px-6 text-slate-400 font-medium">Payout</th>
-                                    <th className="text-left py-4 px-6 text-slate-400 font-medium">Created</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">User</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Progress</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Status</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Payout</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Created</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -198,57 +197,57 @@ export default function AdminMatrixPage() {
                                         className={`border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer ${selectedMatrix?.id === matrix.id ? 'bg-slate-700/50' : ''
                                             }`}
                                     >
-                                        <td className="py-4 px-6">
+                                        <td className="py-2 px-3">
                                             <p className="text-white font-medium">
                                                 {matrix.users?.username || 'Unknown'}
                                             </p>
-                                            <p className="text-slate-400 text-sm">
+                                            <p className="text-slate-400 text-xs">
                                                 {matrix.users?.email}
                                             </p>
                                         </td>
-                                        <td className="py-4 px-6">
+                                        <td className="py-2 px-3">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                                                     <div
                                                         className={`h-full rounded-full ${getFilledSpots(matrix) === 7
-                                                                ? 'bg-green-500'
-                                                                : 'bg-amber-500'
+                                                            ? 'bg-green-500'
+                                                            : 'bg-amber-500'
                                                             }`}
                                                         style={{ width: `${(getFilledSpots(matrix) / 7) * 100}%` }}
                                                     ></div>
                                                 </div>
-                                                <span className="text-slate-400 text-sm">
+                                                <span className="text-slate-400 text-xs">
                                                     {getFilledSpots(matrix)}/7
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="py-4 px-6">
-                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${matrix.is_completed
-                                                    ? 'bg-green-500/20 text-green-400'
-                                                    : matrix.is_active
-                                                        ? 'bg-blue-500/20 text-blue-400'
-                                                        : 'bg-slate-500/20 text-slate-400'
+                                        <td className="py-2 px-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.is_completed
+                                                ? 'bg-green-500/20 text-green-400'
+                                                : matrix.is_active
+                                                    ? 'bg-blue-500/20 text-blue-400'
+                                                    : 'bg-slate-500/20 text-slate-400'
                                                 }`}>
                                                 {matrix.is_completed ? 'Completed' : matrix.is_active ? 'Active' : 'Inactive'}
                                             </span>
                                         </td>
-                                        <td className="py-4 px-6">
+                                        <td className="py-2 px-3">
                                             {matrix.is_completed && (
-                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${matrix.payout_status === 'paid'
-                                                        ? 'bg-green-500/20 text-green-400'
-                                                        : 'bg-amber-500/20 text-amber-400'
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.payout_status === 'paid'
+                                                    ? 'bg-green-500/20 text-green-400'
+                                                    : 'bg-amber-500/20 text-amber-400'
                                                     }`}>
                                                     ${matrix.payout_amount} - {matrix.payout_status}
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="py-4 px-6 text-slate-400">
+                                        <td className="py-2 px-3 text-slate-400 text-xs">
                                             {formatDate(matrix.created_at)}
                                         </td>
                                     </tr>
                                 )) : (
                                     <tr>
-                                        <td colSpan="5" className="py-12 text-center text-slate-400">
+                                        <td colSpan="5" className="py-8 text-center text-slate-400 text-sm">
                                             No matrices found
                                         </td>
                                     </tr>
@@ -260,49 +259,49 @@ export default function AdminMatrixPage() {
 
                 {/* Matrix Detail Panel */}
                 {selectedMatrix && (
-                    <div className="w-1/3 bg-slate-800 border border-slate-700 rounded-xl p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-lg font-bold text-white">Matrix Details</h3>
+                    <div className="w-1/3 bg-slate-800 border border-slate-700 rounded p-3">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-bold text-white">Matrix Details</h3>
                             <button
                                 onClick={() => setSelectedMatrix(null)}
-                                className="text-slate-400 hover:text-white"
+                                className="text-slate-400 hover:text-white text-sm"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        <div className="mb-6">
-                            <p className="text-slate-400 text-sm mb-1">Owner</p>
-                            <p className="text-white font-medium">{selectedMatrix.users?.username}</p>
-                            <p className="text-slate-400 text-sm">{selectedMatrix.users?.email}</p>
+                        <div className="mb-3">
+                            <p className="text-slate-400 text-xs mb-0.5">Owner</p>
+                            <p className="text-white font-medium text-sm">{selectedMatrix.users?.username}</p>
+                            <p className="text-slate-400 text-xs">{selectedMatrix.users?.email}</p>
                         </div>
 
                         {/* Matrix Visualization */}
-                        <div className="mb-6">
-                            <p className="text-slate-400 text-sm mb-3">Matrix Structure</p>
-                            <div className="bg-slate-700/50 rounded-lg p-4">
+                        <div className="mb-3">
+                            <p className="text-slate-400 text-xs mb-2">Matrix Structure</p>
+                            <div className="bg-slate-700/50 rounded p-3">
                                 {/* Spot 1 - Owner */}
-                                <div className="flex justify-center mb-4">
-                                    <div className="w-20 h-12 bg-amber-500/20 border border-amber-500/50 rounded-lg flex items-center justify-center">
-                                        <span className="text-amber-400 text-xs font-medium">
+                                <div className="flex justify-center mb-2">
+                                    <div className="w-16 h-10 bg-amber-500/20 border border-amber-500/50 rounded flex items-center justify-center">
+                                        <span className="text-amber-400 text-[10px] font-medium">
                                             {selectedMatrix.spot1?.username || 'Owner'}
                                         </span>
                                     </div>
                                 </div>
 
                                 {/* Spots 2-3 */}
-                                <div className="flex justify-center gap-8 mb-4">
+                                <div className="flex justify-center gap-4 mb-2">
                                     {[2, 3].map(spot => {
                                         const spotData = selectedMatrix[`spot${spot}`]
                                         return (
                                             <div
                                                 key={spot}
-                                                className={`w-20 h-12 rounded-lg flex items-center justify-center ${spotData
-                                                        ? 'bg-green-500/20 border border-green-500/50'
-                                                        : 'bg-slate-600/50 border border-slate-500/50'
+                                                className={`w-16 h-10 rounded flex items-center justify-center ${spotData
+                                                    ? 'bg-green-500/20 border border-green-500/50'
+                                                    : 'bg-slate-600/50 border border-slate-500/50'
                                                     }`}
                                             >
-                                                <span className={`text-xs font-medium ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
+                                                <span className={`text-[10px] font-medium ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
                                                     {spotData?.username || `Spot ${spot}`}
                                                 </span>
                                             </div>
@@ -311,18 +310,18 @@ export default function AdminMatrixPage() {
                                 </div>
 
                                 {/* Spots 4-7 */}
-                                <div className="flex justify-center gap-4">
+                                <div className="flex justify-center gap-2">
                                     {[4, 5, 6, 7].map(spot => {
                                         const spotData = selectedMatrix[`spot${spot}`]
                                         return (
                                             <div
                                                 key={spot}
-                                                className={`w-16 h-10 rounded-lg flex items-center justify-center ${spotData
-                                                        ? 'bg-green-500/20 border border-green-500/50'
-                                                        : 'bg-slate-600/50 border border-slate-500/50'
+                                                className={`w-12 h-8 rounded flex items-center justify-center ${spotData
+                                                    ? 'bg-green-500/20 border border-green-500/50'
+                                                    : 'bg-slate-600/50 border border-slate-500/50'
                                                     }`}
                                             >
-                                                <span className={`text-xs font-medium ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
+                                                <span className={`text-[10px] font-medium ${spotData ? 'text-green-400' : 'text-slate-500'}`}>
                                                     {spotData?.username || spot}
                                                 </span>
                                             </div>
@@ -334,9 +333,9 @@ export default function AdminMatrixPage() {
 
                         {/* Payout Section */}
                         {selectedMatrix.is_completed && (
-                            <div className="border-t border-slate-700 pt-6">
-                                <p className="text-slate-400 text-sm mb-3">Payout Information</p>
-                                <div className="space-y-2 mb-4">
+                            <div className="border-t border-slate-700 pt-3">
+                                <p className="text-slate-400 text-xs mb-2">Payout Information</p>
+                                <div className="space-y-1 mb-3 text-sm">
                                     <div className="flex justify-between">
                                         <span className="text-slate-400">Amount</span>
                                         <span className="text-white font-medium">${selectedMatrix.payout_amount}</span>
@@ -363,7 +362,7 @@ export default function AdminMatrixPage() {
                                 {selectedMatrix.payout_status === 'pending' && (
                                     <button
                                         onClick={() => markAsPaid(selectedMatrix.id)}
-                                        className="w-full py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-500 transition-all"
+                                        className="w-full py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-500 transition-all"
                                     >
                                         Mark as Paid
                                     </button>

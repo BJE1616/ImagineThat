@@ -41,7 +41,6 @@ export default function AdminAdvertisersPage() {
 
             setCampaigns(data || [])
 
-            // Calculate stats
             const allCampaigns = data || []
             const active = allCampaigns.filter(c => c.status === 'active')
             const totalRev = allCampaigns.reduce((sum, c) => sum + parseFloat(c.amount_paid || 0), 0)
@@ -90,56 +89,56 @@ export default function AdminAdvertisersPage() {
 
     if (loading && campaigns.length === 0) {
         return (
-            <div className="p-8">
-                <div className="animate-pulse space-y-6">
-                    <div className="h-8 bg-slate-700 rounded w-64"></div>
-                    <div className="grid grid-cols-4 gap-6">
+            <div className="p-4">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className="grid grid-cols-4 gap-2">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-24 bg-slate-800 rounded-xl"></div>
+                            <div key={i} className="h-14 bg-slate-800 rounded"></div>
                         ))}
                     </div>
-                    <div className="h-96 bg-slate-800 rounded-xl"></div>
+                    <div className="h-64 bg-slate-800 rounded"></div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Advertisers</h1>
-                <p className="text-slate-400 mt-1">Manage ad campaigns and track views</p>
+        <div className="p-4">
+            <div className="mb-4">
+                <h1 className="text-lg font-bold text-white">Advertisers</h1>
+                <p className="text-slate-400 text-xs">Manage ad campaigns and track views</p>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Total Campaigns</p>
-                    <p className="text-3xl font-bold text-blue-400 mt-1">{stats.totalCampaigns}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Total Campaigns</p>
+                    <p className="text-xl font-bold text-blue-400">{stats.totalCampaigns}</p>
                 </div>
-                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Active Campaigns</p>
-                    <p className="text-3xl font-bold text-green-400 mt-1">{stats.activeCampaigns}</p>
+                <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Active Campaigns</p>
+                    <p className="text-xl font-bold text-green-400">{stats.activeCampaigns}</p>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Total Revenue</p>
-                    <p className="text-3xl font-bold text-amber-400 mt-1">${stats.totalRevenue}</p>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Total Revenue</p>
+                    <p className="text-xl font-bold text-amber-400">${stats.totalRevenue}</p>
                 </div>
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-6">
-                    <p className="text-slate-400 text-sm font-medium">Total Views Delivered</p>
-                    <p className="text-3xl font-bold text-purple-400 mt-1">{stats.totalViews.toLocaleString()}</p>
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded p-3">
+                    <p className="text-slate-400 text-xs">Total Views</p>
+                    <p className="text-xl font-bold text-purple-400">{stats.totalViews.toLocaleString()}</p>
                 </div>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-1 mb-3">
                 {['all', 'active', 'completed'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setFilter(tab)}
-                        className={`px-4 py-2 rounded-lg font-medium capitalize transition-all ${filter === tab
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === tab
+                            ? 'bg-amber-500 text-slate-900'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                     >
                         {tab}
@@ -148,44 +147,42 @@ export default function AdminAdvertisersPage() {
             </div>
 
             {/* Campaigns Table */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-slate-700">
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Advertiser</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Payment</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Date</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Views Progress</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Status</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Advertiser</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Payment</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Date</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Views Progress</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {campaigns.length > 0 ? campaigns.map(campaign => (
                                 <tr key={campaign.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                                    <td className="py-4 px-6">
-                                        <div>
-                                            <p className="text-white font-medium">
-                                                {campaign.users?.username || 'Unknown'}
-                                            </p>
-                                            <p className="text-slate-400 text-sm">
-                                                {campaign.users?.email}
-                                            </p>
-                                        </div>
+                                    <td className="py-2 px-3">
+                                        <p className="text-white font-medium">
+                                            {campaign.users?.username || 'Unknown'}
+                                        </p>
+                                        <p className="text-slate-400 text-xs">
+                                            {campaign.users?.email}
+                                        </p>
                                     </td>
-                                    <td className="py-4 px-6">
-                                        <div className="flex items-center gap-2">
-                                            <span>{getPaymentMethodIcon(campaign.payment_method)}</span>
+                                    <td className="py-2 px-3">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-sm">{getPaymentMethodIcon(campaign.payment_method)}</span>
                                             <span className="text-green-400 font-medium">${campaign.amount_paid}</span>
                                         </div>
-                                        <p className="text-slate-500 text-sm capitalize">{campaign.payment_method}</p>
+                                        <p className="text-slate-500 text-xs capitalize">{campaign.payment_method}</p>
                                     </td>
-                                    <td className="py-4 px-6 text-slate-300">
+                                    <td className="py-2 px-3 text-slate-300 text-xs">
                                         {formatDate(campaign.paid_at)}
                                     </td>
-                                    <td className="py-4 px-6">
-                                        <div className="w-full max-w-48">
-                                            <div className="flex justify-between text-sm mb-1">
+                                    <td className="py-2 px-3">
+                                        <div className="w-full max-w-36">
+                                            <div className="flex justify-between text-xs mb-0.5">
                                                 <span className="text-slate-400">
                                                     {getTotalViews(campaign).toLocaleString()} / {campaign.views_guaranteed?.toLocaleString()}
                                                 </span>
@@ -193,26 +190,26 @@ export default function AdminAdvertisersPage() {
                                                     {Math.round(getViewProgress(campaign))}%
                                                 </span>
                                             </div>
-                                            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full ${getViewProgress(campaign) >= 100
-                                                            ? 'bg-green-500'
-                                                            : 'bg-amber-500'
+                                                        ? 'bg-green-500'
+                                                        : 'bg-amber-500'
                                                         }`}
                                                     style={{ width: `${getViewProgress(campaign)}%` }}
                                                 ></div>
                                             </div>
                                             {campaign.bonus_views > 0 && (
-                                                <p className="text-green-400 text-xs mt-1">
-                                                    +{campaign.bonus_views.toLocaleString()} bonus views
+                                                <p className="text-green-400 text-[10px] mt-0.5">
+                                                    +{campaign.bonus_views.toLocaleString()} bonus
                                                 </p>
                                             )}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-6">
-                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${campaign.status === 'active'
-                                                ? 'bg-green-500/20 text-green-400'
-                                                : 'bg-slate-500/20 text-slate-400'
+                                    <td className="py-2 px-3">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${campaign.status === 'active'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-slate-500/20 text-slate-400'
                                             }`}>
                                             {campaign.status}
                                         </span>
@@ -220,7 +217,7 @@ export default function AdminAdvertisersPage() {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="5" className="py-12 text-center text-slate-400">
+                                    <td colSpan="5" className="py-8 text-center text-slate-400 text-sm">
                                         No ad campaigns yet
                                     </td>
                                 </tr>

@@ -80,7 +80,6 @@ export default function AdminPaymentsPage() {
     const formatDate = (dateString) => {
         if (!dateString) return '—'
         return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
@@ -110,69 +109,69 @@ export default function AdminPaymentsPage() {
 
     if (loading) {
         return (
-            <div className="p-8">
-                <div className="animate-pulse space-y-6">
-                    <div className="h-8 bg-slate-700 rounded w-64"></div>
-                    <div className="grid grid-cols-3 gap-4">
+            <div className="p-4">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className="grid grid-cols-3 gap-2">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="h-24 bg-slate-800 rounded-xl"></div>
+                            <div key={i} className="h-14 bg-slate-800 rounded"></div>
                         ))}
                     </div>
-                    <div className="h-96 bg-slate-800 rounded-xl"></div>
+                    <div className="h-64 bg-slate-800 rounded"></div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Payment History</h1>
-                <p className="text-slate-400 mt-1">Track all prize payments</p>
+        <div className="p-4">
+            <div className="mb-4">
+                <h1 className="text-lg font-bold text-white">Payment History</h1>
+                <p className="text-slate-400 text-xs">Track all prize payments</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-6">
+            <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-sm font-medium">Total Paid</p>
-                            <p className="text-3xl font-bold text-green-400 mt-1">${stats.totalPaid.toLocaleString()}</p>
+                            <p className="text-slate-400 text-xs">Total Paid</p>
+                            <p className="text-xl font-bold text-green-400">${stats.totalPaid.toLocaleString()}</p>
                         </div>
-                        <span className="text-4xl">✅</span>
+                        <span className="text-xl">✅</span>
                     </div>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-sm font-medium">Pending</p>
-                            <p className="text-3xl font-bold text-amber-400 mt-1">${stats.totalPending.toLocaleString()}</p>
+                            <p className="text-slate-400 text-xs">Pending</p>
+                            <p className="text-xl font-bold text-amber-400">${stats.totalPending.toLocaleString()}</p>
                         </div>
-                        <span className="text-4xl">⏳</span>
+                        <span className="text-xl">⏳</span>
                     </div>
                 </div>
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-6">
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-sm font-medium">This Month</p>
-                            <p className="text-3xl font-bold text-blue-400 mt-1">${stats.paymentsThisMonth.toLocaleString()}</p>
+                            <p className="text-slate-400 text-xs">This Month</p>
+                            <p className="text-xl font-bold text-blue-400">${stats.paymentsThisMonth.toLocaleString()}</p>
                         </div>
-                        <span className="text-4xl">📅</span>
+                        <span className="text-xl">📅</span>
                     </div>
                 </div>
             </div>
 
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-1 mb-3">
                 {[
-                    { value: 'all', label: 'All Payments' },
+                    { value: 'all', label: 'All' },
                     { value: 'paid', label: 'Paid' },
                     { value: 'pending', label: 'Pending' }
                 ].map(tab => (
                     <button
                         key={tab.value}
                         onClick={() => setFilter(tab.value)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all ${filter === tab.value
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${filter === tab.value
+                            ? 'bg-amber-500 text-slate-900'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                     >
                         {tab.label}
@@ -180,74 +179,74 @@ export default function AdminPaymentsPage() {
                 ))}
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-slate-700">
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Date</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Player</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Email</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Week</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Rank</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Amount</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Status</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Paid At</th>
-                                <th className="text-left py-4 px-6 text-slate-400 font-medium">Action</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Date</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Player</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Email</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Week</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Rank</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Amount</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Status</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Paid At</th>
+                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {payments.length > 0 ? (
                                 payments.map(payment => (
                                     <tr key={payment.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                        <td className="py-4 px-6 text-slate-300 text-sm">{formatDate(payment.created_at)}</td>
-                                        <td className="py-4 px-6">
-                                            <p className="text-white font-medium">{payment.user.username}</p>
+                                        <td className="py-2 px-3 text-slate-300 text-xs">{formatDate(payment.created_at)}</td>
+                                        <td className="py-2 px-3">
+                                            <p className="text-white font-medium text-xs">{payment.user.username}</p>
                                         </td>
-                                        <td className="py-4 px-6 text-slate-300">{payment.user.email}</td>
-                                        <td className="py-4 px-6 text-slate-300">{payment.week_start}</td>
-                                        <td className="py-4 px-6">
-                                            <span className={`w-8 h-8 rounded-full inline-flex items-center justify-center font-bold text-sm ${payment.rank === 1 ? 'bg-amber-500 text-slate-900' :
-                                                    payment.rank === 2 ? 'bg-slate-400 text-slate-900' :
-                                                        payment.rank === 3 ? 'bg-amber-700 text-white' :
-                                                            'bg-slate-600 text-slate-300'
+                                        <td className="py-2 px-3 text-slate-300 text-xs">{payment.user.email}</td>
+                                        <td className="py-2 px-3 text-slate-300 text-xs">{payment.week_start}</td>
+                                        <td className="py-2 px-3">
+                                            <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${payment.rank === 1 ? 'bg-amber-500 text-slate-900' :
+                                                payment.rank === 2 ? 'bg-slate-400 text-slate-900' :
+                                                    payment.rank === 3 ? 'bg-amber-700 text-white' :
+                                                        'bg-slate-600 text-slate-300'
                                                 }`}>
                                                 {payment.rank}
                                             </span>
                                         </td>
-                                        <td className="py-4 px-6">
-                                            <span className="text-green-400 font-semibold">${payment.prize_amount}</span>
+                                        <td className="py-2 px-3">
+                                            <span className="text-green-400 font-semibold text-xs">${payment.prize_amount}</span>
                                         </td>
-                                        <td className="py-4 px-6">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${payment.status === 'paid'
-                                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                        <td className="py-2 px-3">
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${payment.status === 'paid'
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                                                 }`}>
                                                 {payment.status === 'paid' ? '✓ Paid' : 'Pending'}
                                             </span>
                                         </td>
-                                        <td className="py-4 px-6 text-slate-400 text-sm">{formatDate(payment.paid_at)}</td>
-                                        <td className="py-4 px-6">
+                                        <td className="py-2 px-3 text-slate-400 text-xs">{formatDate(payment.paid_at)}</td>
+                                        <td className="py-2 px-3">
                                             <button
                                                 onClick={() => updatePaymentStatus(
                                                     payment.id,
                                                     payment.status === 'paid' ? 'pending' : 'paid'
                                                 )}
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${payment.status === 'paid'
-                                                        ? 'bg-slate-600 text-slate-300 hover:bg-slate-500'
-                                                        : 'bg-green-600 text-white hover:bg-green-500'
+                                                className={`px-2 py-1 rounded text-xs font-medium transition-all ${payment.status === 'paid'
+                                                    ? 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                                                    : 'bg-green-600 text-white hover:bg-green-500'
                                                     }`}
                                             >
-                                                {payment.status === 'paid' ? 'Undo' : 'Mark Paid'}
+                                                {payment.status === 'paid' ? 'Undo' : 'Paid'}
                                             </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="9" className="py-12 text-center text-slate-400">
-                                        <p className="text-lg">No payment records found</p>
-                                        <p className="text-sm mt-1">Payments will appear here when prizes are marked as paid</p>
+                                    <td colSpan="9" className="py-8 text-center text-slate-400">
+                                        <p className="text-sm">No payment records found</p>
+                                        <p className="text-xs mt-1">Payments will appear here when prizes are marked as paid</p>
                                     </td>
                                 </tr>
                             )}

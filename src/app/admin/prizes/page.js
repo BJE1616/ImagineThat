@@ -122,7 +122,6 @@ export default function AdminPrizesPage() {
                 .upload(filePath, file)
 
             if (uploadError) {
-                // Try creating the bucket if it doesn't exist
                 if (uploadError.message.includes('bucket') || uploadError.message.includes('not found')) {
                     setMessage('Please create a storage bucket named "game-assets" in Supabase first.')
                     return
@@ -200,128 +199,124 @@ export default function AdminPrizesPage() {
 
     if (loading) {
         return (
-            <div className="p-8">
-                <div className="animate-pulse space-y-6">
-                    <div className="h-8 bg-slate-700 rounded w-64"></div>
-                    <div className="h-96 bg-slate-800 rounded-xl"></div>
+            <div className="p-4">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className="h-64 bg-slate-800 rounded"></div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Prize Settings</h1>
-                <p className="text-slate-400 mt-1">Configure prizes for the current week</p>
+        <div className="p-4">
+            <div className="mb-4">
+                <h1 className="text-lg font-bold text-white">Prize Settings</h1>
+                <p className="text-slate-400 text-xs">Configure prizes for the current week</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-white">Current Week</h2>
-                    <span className="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-sm font-medium">
+            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
+                <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-sm font-bold text-white">Current Week</h2>
+                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
                         {formatWeekRange()}
                     </span>
                 </div>
-                <p className="text-slate-400">
+                <p className="text-slate-400 text-xs">
                     Week ends Sunday at midnight CST. Winners will be finalized after that time.
                 </p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
-                <h2 className="text-xl font-bold text-white mb-6">Prize Configuration</h2>
+            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
+                <h2 className="text-sm font-bold text-white mb-3">Prize Configuration</h2>
 
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                        Prize Type
-                    </label>
-                    <div className="flex gap-4 flex-wrap">
+                <div className="mb-3">
+                    <label className="block text-xs font-medium text-slate-300 mb-2">Prize Type</label>
+                    <div className="flex gap-1 flex-wrap">
                         <button
                             onClick={() => setPrizeType('cash')}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all ${prizeType === 'cash'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'cash'
+                                ? 'bg-amber-500 text-slate-900'
+                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                 }`}
                         >
-                            💵 Cash Prize
+                            💵 Cash
                         </button>
                         <button
                             onClick={() => setPrizeType('merchandise')}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all ${prizeType === 'merchandise'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'merchandise'
+                                ? 'bg-amber-500 text-slate-900'
+                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                 }`}
                         >
-                            🎽 Merchandise
+                            🎽 Merch
                         </button>
                         <button
                             onClick={() => setPrizeType('custom')}
-                            className={`px-6 py-3 rounded-lg font-medium transition-all ${prizeType === 'custom'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'custom'
+                                ? 'bg-amber-500 text-slate-900'
+                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                 }`}
                         >
-                            ✏️ Custom Prize
+                            ✏️ Custom
                         </button>
                     </div>
                 </div>
 
-                <div className="mb-6">
-                    <label className="flex items-center gap-3 cursor-pointer">
+                <div className="mb-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
                         <input
                             type="checkbox"
                             checked={isSurprise}
                             onChange={(e) => setIsSurprise(e.target.checked)}
-                            className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500"
+                            className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500"
                         />
-                        <span className="text-slate-300 font-medium">🎁 Keep prize a surprise (don't show details to players)</span>
+                        <span className="text-slate-300 text-xs">🎁 Keep prize a surprise</span>
                     </label>
                 </div>
 
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                        Number of Winners
-                    </label>
-                    <div className="flex gap-2 flex-wrap">
+                <div className="mb-3">
+                    <label className="block text-xs font-medium text-slate-300 mb-2">Number of Winners</label>
+                    <div className="flex gap-1 flex-wrap">
                         {[1, 2, 3, 4, 5, 10, 15, 20].map(num => (
                             <button
                                 key={num}
                                 onClick={() => handleNumberOfWinnersChange(num)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all ${numberOfWinners === num
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                className={`px-2 py-1 rounded text-xs font-medium transition-all ${numberOfWinners === num
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                                     }`}
                             >
-                                {num === 1 ? 'Single Winner' : `Top ${num}`}
+                                {num === 1 ? '1st' : `Top ${num}`}
                             </button>
                         ))}
                     </div>
                 </div>
 
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
+                <div className="mb-3">
+                    <label className="block text-xs font-medium text-slate-300 mb-2">
                         {prizeType === 'cash' ? 'Prize Amounts' : 'Prize Details'}
                     </label>
-                    <div className="space-y-3">
+                    <div className="space-y-1.5">
                         {prizeAmounts.map((amount, index) => (
-                            <div key={index} className="flex items-center gap-4 flex-wrap">
-                                <span className={`w-20 text-sm font-medium ${index === 0 ? 'text-amber-400' :
-                                        index === 1 ? 'text-slate-300' :
-                                            index === 2 ? 'text-amber-600' :
-                                                'text-slate-400'
+                            <div key={index} className="flex items-center gap-2 flex-wrap">
+                                <span className={`w-14 text-xs font-medium ${index === 0 ? 'text-amber-400' :
+                                    index === 1 ? 'text-slate-300' :
+                                        index === 2 ? 'text-amber-600' :
+                                            'text-slate-400'
                                     }`}>
-                                    {getOrdinal(index + 1)} Place
+                                    {getOrdinal(index + 1)}
                                 </span>
 
                                 {prizeType === 'cash' && (
                                     <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
                                         <input
                                             type="number"
                                             value={amount}
                                             onChange={(e) => handleAmountChange(index, e.target.value)}
                                             placeholder="0"
-                                            className="w-32 pl-8 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                            className="w-24 pl-5 pr-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                                         />
                                     </div>
                                 )}
@@ -331,8 +326,8 @@ export default function AdminPrizesPage() {
                                         type="text"
                                         value={prizeDescriptions[index] || ''}
                                         onChange={(e) => handleDescriptionChange(index, e.target.value)}
-                                        placeholder={prizeType === 'merchandise' ? 'e.g., T-Shirt, Hat, Mug' : 'Describe the prize...'}
-                                        className="flex-1 min-w-64 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                        placeholder={prizeType === 'merchandise' ? 'e.g., T-Shirt, Hat' : 'Describe prize...'}
+                                        className="flex-1 min-w-48 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                                     />
                                 )}
                             </div>
@@ -340,32 +335,32 @@ export default function AdminPrizesPage() {
                     </div>
 
                     {prizeType === 'cash' && (
-                        <div className="mt-4 pt-4 border-t border-slate-700">
-                            <div className="flex items-center gap-4">
-                                <span className="w-20 text-sm font-bold text-white">Total</span>
-                                <span className="text-2xl font-bold text-green-400">${calculateTotal()}</span>
+                        <div className="mt-2 pt-2 border-t border-slate-700">
+                            <div className="flex items-center gap-2">
+                                <span className="w-14 text-xs font-bold text-white">Total</span>
+                                <span className="text-lg font-bold text-green-400">${calculateTotal()}</span>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-300 mb-3">
-                        Announcement Text (shown on game page)
+                <div className="mb-3">
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Announcement Text
                     </label>
                     <textarea
                         value={announcementText}
                         onChange={(e) => setAnnouncementText(e.target.value)}
                         placeholder="e.g., This week's grand prize: $100 for the top player!"
-                        rows={3}
-                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        rows={2}
+                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                     />
                 </div>
 
                 {message && (
-                    <div className={`mb-6 px-4 py-3 rounded-lg ${message.includes('Error')
-                            ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                            : 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    <div className={`mb-3 px-3 py-2 rounded text-xs ${message.includes('Error')
+                        ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                        : 'bg-green-500/10 border border-green-500/30 text-green-400'
                         }`}>
                         {message}
                     </div>
@@ -374,57 +369,57 @@ export default function AdminPrizesPage() {
                 <button
                     onClick={savePrize}
                     disabled={saving}
-                    className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                    className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 text-sm font-bold rounded hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
                 >
-                    {saving ? 'Saving...' : currentPrize ? 'Update Prize Settings' : 'Save Prize Settings'}
+                    {saving ? 'Saving...' : currentPrize ? 'Update Prize' : 'Save Prize'}
                 </button>
             </div>
 
             {/* Card Back Image Section */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-6">
-                <h2 className="text-xl font-bold text-white mb-4">🃏 Card Back Image</h2>
-                <p className="text-slate-400 mb-4">
-                    Upload a logo or image to display on the back of game cards. This could be your logo or a sponsor's logo.
+            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
+                <h2 className="text-sm font-bold text-white mb-2">🃏 Card Back Image</h2>
+                <p className="text-slate-400 text-xs mb-3">
+                    Upload a logo or image to display on the back of game cards.
                 </p>
 
-                <div className="flex items-start gap-6">
+                <div className="flex items-start gap-4">
                     <div className="flex-1">
-                        <label className="block mb-3">
-                            <span className="text-sm font-medium text-slate-300 mb-2 block">Upload Image</span>
+                        <label className="block mb-2">
+                            <span className="text-xs font-medium text-slate-300 mb-1 block">Upload Image</span>
                             <input
                                 type="file"
                                 accept="image/*"
                                 onChange={handleImageUpload}
                                 disabled={uploading}
-                                className="block w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-slate-900 file:font-medium hover:file:bg-amber-400 file:cursor-pointer cursor-pointer"
+                                className="block w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-xs file:font-medium hover:file:bg-amber-400 file:cursor-pointer cursor-pointer"
                             />
                         </label>
-                        {uploading && <p className="text-amber-400 text-sm mt-2">Uploading...</p>}
+                        {uploading && <p className="text-amber-400 text-xs mt-1">Uploading...</p>}
 
-                        <div className="mt-4">
-                            <span className="text-sm font-medium text-slate-300 mb-2 block">Or paste image URL</span>
+                        <div className="mt-2">
+                            <span className="text-xs font-medium text-slate-300 mb-1 block">Or paste image URL</span>
                             <input
                                 type="text"
                                 value={cardBackImageUrl}
                                 onChange={(e) => setCardBackImageUrl(e.target.value)}
                                 placeholder="https://example.com/image.png"
-                                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                         </div>
 
                         {cardBackImageUrl && (
                             <button
                                 onClick={() => setCardBackImageUrl('')}
-                                className="mt-3 px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-all"
+                                className="mt-2 px-2 py-1 text-xs bg-red-600/20 text-red-400 rounded hover:bg-red-600/30 transition-all"
                             >
                                 Remove Image
                             </button>
                         )}
                     </div>
 
-                    <div className="w-40">
-                        <p className="text-sm font-medium text-slate-300 mb-2">Preview</p>
-                        <div className="w-32 h-40 rounded-lg shadow-lg overflow-hidden border-2 border-slate-600">
+                    <div className="w-24">
+                        <p className="text-xs font-medium text-slate-300 mb-1">Preview</p>
+                        <div className="w-20 h-28 rounded shadow-lg overflow-hidden border border-slate-600">
                             {cardBackImageUrl ? (
                                 <img
                                     src={cardBackImageUrl}
@@ -433,7 +428,7 @@ export default function AdminPrizesPage() {
                                 />
                             ) : (
                                 <div className="w-full h-full bg-indigo-600 flex items-center justify-center">
-                                    <span className="text-4xl text-white">?</span>
+                                    <span className="text-2xl text-white">?</span>
                                 </div>
                             )}
                         </div>
@@ -441,36 +436,36 @@ export default function AdminPrizesPage() {
                 </div>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                <h2 className="text-xl font-bold text-white mb-4">Preview (What Players Will See)</h2>
-                <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-6">
+            <div className="bg-slate-800 border border-slate-700 rounded p-3">
+                <h2 className="text-sm font-bold text-white mb-2">Preview (What Players See)</h2>
+                <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded p-3">
                     <div className="text-center">
-                        <p className="text-white font-bold mb-2">🏆 This Week's Prize 🏆</p>
+                        <p className="text-white text-xs font-bold mb-1">🏆 This Week's Prize 🏆</p>
 
                         {isSurprise ? (
                             <>
-                                <p className="text-3xl font-bold text-white mb-2">🎁 Surprise Prize! 🎁</p>
-                                <p className="text-white/90">Play to find out what you could win!</p>
+                                <p className="text-xl font-bold text-white mb-1">🎁 Surprise! 🎁</p>
+                                <p className="text-white/90 text-xs">Play to find out what you could win!</p>
                             </>
                         ) : (
                             <>
                                 {prizeType === 'cash' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">${calculateTotal()}</p>
+                                        <p className="text-xl font-bold text-white mb-1">${calculateTotal()}</p>
                                         {numberOfWinners === 1 ? (
-                                            <p className="text-white/90">Winner takes all!</p>
+                                            <p className="text-white/90 text-xs">Winner takes all!</p>
                                         ) : (
-                                            <p className="text-white/90">Split among top {numberOfWinners} players</p>
+                                            <p className="text-white/90 text-xs">Split among top {numberOfWinners}</p>
                                         )}
                                     </>
                                 )}
 
                                 {prizeType === 'merchandise' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">🎽 Merchandise</p>
-                                        <div className="text-white/90">
+                                        <p className="text-xl font-bold text-white mb-1">🎽 Merchandise</p>
+                                        <div className="text-white/90 text-xs">
                                             {prizeDescriptions.filter(d => d).map((desc, i) => (
-                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                                <p key={i}>{getOrdinal(i + 1)}: {desc}</p>
                                             ))}
                                         </div>
                                     </>
@@ -478,10 +473,10 @@ export default function AdminPrizesPage() {
 
                                 {prizeType === 'custom' && (
                                     <>
-                                        <p className="text-3xl font-bold text-white mb-2">🎁 Special Prize</p>
-                                        <div className="text-white/90">
+                                        <p className="text-xl font-bold text-white mb-1">🎁 Special Prize</p>
+                                        <div className="text-white/90 text-xs">
                                             {prizeDescriptions.filter(d => d).map((desc, i) => (
-                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                                <p key={i}>{getOrdinal(i + 1)}: {desc}</p>
                                             ))}
                                         </div>
                                     </>
@@ -490,7 +485,7 @@ export default function AdminPrizesPage() {
                         )}
 
                         {announcementText && (
-                            <p className="text-white mt-4 italic">"{announcementText}"</p>
+                            <p className="text-white mt-2 text-xs italic">"{announcementText}"</p>
                         )}
                     </div>
                 </div>
