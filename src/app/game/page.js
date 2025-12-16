@@ -57,8 +57,6 @@ export default function GamePage() {
                 .select('*')
                 .in('setting_key', ['card_back_logo_url', 'show_advertiser_cards'])
 
-            console.log('Card back settings:', data)
-
             if (data) {
                 const settings = {}
                 data.forEach(item => {
@@ -92,7 +90,6 @@ export default function GamePage() {
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', campaign.id)
-                console.log('Card back views tracked:', viewCount, 'for:', cardUserId)
             }
         } catch (error) {
             console.log('Error tracking card back view')
@@ -100,59 +97,43 @@ export default function GamePage() {
     }
 
     const loadCardBackAdvertiser = async () => {
-        console.log('Loading card back advertiser...')
         try {
-            // Get advertisers who need views or have bonus views
             const { data: campaigns, error } = await supabase
                 .from('ad_campaigns')
                 .select('user_id, views_guaranteed, views_from_game, views_from_flips, bonus_views')
                 .eq('status', 'active')
 
-            console.log('Campaigns found:', campaigns)
             if (error || !campaigns || campaigns.length === 0) return
 
-            // Filter to those who still need views
             const eligibleCampaigns = campaigns.filter(c => {
                 const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0)
                 return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
             })
 
-            console.log('Eligible campaigns:', eligibleCampaigns)
             if (eligibleCampaigns.length === 0) return
 
-            // Pick random advertiser
             const randomCampaign = eligibleCampaigns[Math.floor(Math.random() * eligibleCampaigns.length)]
-            console.log('Random campaign:', randomCampaign)
 
-            // Get their business card - without .single()
             const { data: cards, error: cardError } = await supabase
                 .from('business_cards')
                 .select('*')
                 .eq('user_id', randomCampaign.user_id)
 
-            console.log('Business cards found:', cards, 'Error:', cardError)
-
             if (cards && cards.length > 0) {
-                console.log('Card back advertiser:', cards[0])
                 setCardBackAdvertiser(cards[0])
             } else {
-                // Try to find any advertiser with a business card
-                console.log('No card for random campaign, trying fallback...')
                 const userIds = eligibleCampaigns.map(c => c.user_id)
-                const { data: anyCards, error: anyError } = await supabase
+                const { data: anyCards } = await supabase
                     .from('business_cards')
                     .select('*')
                     .in('user_id', userIds)
 
-                console.log('Fallback cards found:', anyCards, 'Error:', anyError)
-
                 if (anyCards && anyCards.length > 0) {
-                    console.log('Card back advertiser (fallback):', anyCards[0])
                     setCardBackAdvertiser(anyCards[0])
                 }
             }
         } catch (error) {
-            console.log('Error loading card back advertiser:', error)
+            console.log('Error loading card back advertiser')
         }
     }
 
@@ -164,7 +145,7 @@ export default function GamePage() {
             weekStart.setDate(today.getDate() - dayOfWeek)
             weekStart.setHours(0, 0, 0, 0)
 
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('weekly_prizes')
                 .select('*')
                 .eq('week_start', weekStart.toISOString().split('T')[0])
@@ -193,7 +174,6 @@ export default function GamePage() {
             weekStart.setDate(today.getDate() - dayOfWeek)
             weekStart.setHours(0, 0, 0, 0)
 
-            // Load Easy mode leaderboard
             const { data: easyData, error: easyError } = await supabase
                 .from('leaderboard')
                 .select('*')
@@ -204,7 +184,6 @@ export default function GamePage() {
 
             if (easyError) throw easyError
 
-            // Load Challenge mode leaderboard
             const { data: challengeData, error: challengeError } = await supabase
                 .from('leaderboard')
                 .select('*')
@@ -215,7 +194,6 @@ export default function GamePage() {
 
             if (challengeError) throw challengeError
 
-            // Get user info for both leaderboards
             const allUserIds = [
                 ...easyData.map(entry => entry.user_id),
                 ...challengeData.map(entry => entry.user_id)
@@ -249,7 +227,6 @@ export default function GamePage() {
         }
     }
 
-    // Track game views (when card appears in game)
     const trackGameView = async (cardUserId) => {
         if (!cardUserId || trackedGameViews.current.has(cardUserId)) return
 
@@ -294,7 +271,6 @@ export default function GamePage() {
         }
     }
 
-    // Track flip views (when card is flipped)
     const trackFlipView = async (cardUserId, cardUniqueId) => {
         const trackKey = `${cardUserId}-${cardUniqueId}`
         if (!cardUserId || trackedFlipViews.current.has(trackKey)) return
@@ -364,7 +340,6 @@ export default function GamePage() {
                     .select('*')
                     .in('user_id', activeAdvertiserIds)
 
-                // Exclude the card back advertiser from the game
                 if (cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser?.user_id) {
                     query = query.neq('user_id', cardBackAdvertiser.user_id)
                 }
@@ -376,14 +351,12 @@ export default function GamePage() {
             }
 
             if (cardsData.length < limit) {
-                // Use house cards as filler
                 const { data: houseCards, error } = await supabase
                     .from('business_cards')
                     .select('*')
                     .eq('is_house_card', true)
 
                 if (!error && houseCards && houseCards.length > 0) {
-                    // Shuffle house cards and fill remaining slots
                     const shuffledHouse = houseCards.sort(() => Math.random() - 0.5)
                     while (cardsData.length < limit && shuffledHouse.length > 0) {
                         cardsData.push(shuffledHouse.pop())
@@ -403,10 +376,8 @@ export default function GamePage() {
                 selectedCards = [...selectedCards, ...shuffled].slice(0, limit)
             }
 
-            // Create pairs with unique pair IDs to handle duplicate cards
             const cardPairs = []
             selectedCards.forEach((card, pairIndex) => {
-                // Each card appears twice, with a unique pairId
                 cardPairs.push({ ...card, uniqueId: pairIndex * 2, pairId: pairIndex })
                 cardPairs.push({ ...card, uniqueId: pairIndex * 2 + 1, pairId: pairIndex })
             })
@@ -414,7 +385,6 @@ export default function GamePage() {
             const shuffled = cardPairs.sort(() => Math.random() - 0.5)
             setCards(shuffled)
 
-            // Track game session
             const cardIds = selectedCards.map(card => card.id)
             await createGameSession(mode, cardIds)
 
@@ -477,7 +447,6 @@ export default function GamePage() {
     }
 
     const startGame = async (mode) => {
-        // Track card back views based on game mode
         if (cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser) {
             const viewCount = mode === 'easy' ? 12 : 16
             trackCardBackView(cardBackAdvertiser.user_id, viewCount)
@@ -550,7 +519,6 @@ export default function GamePage() {
             const newMoves = moves + 1
             setMoves(newMoves)
 
-            // Check if same pairId (matching pair)
             if (newFlipped[0].pairId === newFlipped[1].pairId) {
                 const newMatched = [...matchedPairs, newFlipped[0].pairId]
                 setMatchedPairs(newMatched)
@@ -604,7 +572,6 @@ export default function GamePage() {
         return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.pairId)
     }
 
-    // Update elapsed time every second during game
     useEffect(() => {
         let interval
         if (gameStarted && !gameComplete && startTime) {
@@ -622,6 +589,10 @@ export default function GamePage() {
         return elapsedTime
     }
 
+    const CardBack = () => (
+        <div className="absolute top-1 right-1 bg-amber-400 text-slate-900 text-[8px] font-bold px-1 rounded z-10">TAP</div>
+    )
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -635,7 +606,6 @@ export default function GamePage() {
 
     return (
         <div className="min-h-screen bg-slate-900">
-            {/* Card View Popup */}
             {viewingCard && (
                 <div
                     className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
@@ -685,7 +655,6 @@ export default function GamePage() {
                 </div>
             )}
             <main className="max-w-7xl mx-auto px-2 py-4 sm:px-6 lg:px-8">
-                {/* Weekly Prize Banner - Hidden during game */}
                 {weeklyPrize && !gameStarted && (
                     <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-4 sm:p-6 mb-4 text-center shadow-lg">
                         <p className="text-white font-bold mb-1 text-sm sm:text-base">🏆 This Week's Prize 🏆</p>
@@ -734,7 +703,6 @@ export default function GamePage() {
                     </div>
                 )}
 
-                {/* Leaderboard Toggle - Hidden during game */}
                 {!gameStarted && (
                     <div className="flex justify-center mb-4">
                         <button
@@ -748,7 +716,6 @@ export default function GamePage() {
 
                 {showLeaderboard && !gameStarted && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        {/* Easy Mode Leaderboard */}
                         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
                             <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
                                 <span className="text-green-400">🟢</span> Easy Mode (12 Cards)
@@ -782,7 +749,6 @@ export default function GamePage() {
                             </div>
                         </div>
 
-                        {/* Challenge Mode Leaderboard */}
                         <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
                             <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
                                 <span className="text-red-400">🔴</span> Challenge Mode (16 Cards)
@@ -859,7 +825,6 @@ export default function GamePage() {
 
                 {gameStarted && (
                     <>
-                        {/* Compact stats bar for mobile */}
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 sm:p-4 mb-3">
                             <div className="flex justify-between items-center text-xs sm:text-base">
                                 <span className="text-white"><span className="text-slate-400">M:</span> {moves}</span>
@@ -914,7 +879,7 @@ export default function GamePage() {
                             </div>
                         )}
 
-                        <div className={`grid gap-1 sm:gap-2 ${gameMode === 'easy' ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-4 sm:grid-cols-8'}`}>
+                        <div className={`grid gap-1 sm:gap-2 ${gameMode === 'easy' ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6' : 'grid-cols-4 lg:grid-cols-8'}`}>
                             {cards.map((card) => (
                                 <div
                                     key={card.uniqueId}
@@ -924,7 +889,8 @@ export default function GamePage() {
                                     {!isCardFlipped(card) ? (
                                         cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser ? (
                                             cardBackAdvertiser.card_type === 'uploaded' && cardBackAdvertiser.image_url ? (
-                                                <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border border-amber-400 bg-slate-800 flex items-center justify-center">
+                                                <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-amber-400 bg-slate-800 flex items-center justify-center ring-2 ring-amber-400/50 relative">
+                                                    <CardBack />
                                                     <img
                                                         src={cardBackAdvertiser.image_url}
                                                         alt="Advertiser card"
@@ -933,15 +899,17 @@ export default function GamePage() {
                                                 </div>
                                             ) : (
                                                 <div
-                                                    className="w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border border-amber-400 shadow-lg overflow-hidden"
+                                                    className="w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border-2 border-amber-400 shadow-lg overflow-hidden ring-2 ring-amber-400/50 relative"
                                                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                                                 >
+                                                    <CardBack />
                                                     <h3 className="font-bold text-xs text-center truncate w-full" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.title}</h3>
                                                     {cardBackAdvertiser.message && <p className="text-xs text-center line-clamp-2 mt-1" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.message}</p>}
                                                 </div>
                                             )
                                         ) : cardBackSetting?.card_back_logo_url ? (
-                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border border-indigo-400 bg-indigo-600 flex items-center justify-center">
+                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-amber-400 bg-indigo-600 flex items-center justify-center ring-2 ring-amber-400/50 relative">
+                                                <CardBack />
                                                 <img
                                                     src={cardBackSetting.card_back_logo_url}
                                                     alt="Card back"
@@ -949,13 +917,14 @@ export default function GamePage() {
                                                 />
                                             </div>
                                         ) : (
-                                            <div className="w-full h-full bg-indigo-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg">
+                                            <div className="w-full h-full bg-indigo-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg border-2 border-amber-400 ring-2 ring-amber-400/50 relative">
+                                                <CardBack />
                                                 <span className="text-3xl sm:text-5xl text-white">?</span>
                                             </div>
                                         )
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
-                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative">
+                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative border border-slate-600">
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-contain" />
                                                 {matchedPairs.includes(card.pairId) && (
                                                     <button
@@ -972,7 +941,7 @@ export default function GamePage() {
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border shadow-lg overflow-hidden relative"
+                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border border-slate-600 shadow-lg overflow-hidden relative"
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
                                                 <div className="text-center overflow-hidden">
