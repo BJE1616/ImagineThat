@@ -2,7 +2,7 @@ import { sendEmail, emailTemplates } from '@/lib/email'
 
 export async function POST(request) {
     try {
-        const { type, to, data, testMode = true } = await request.json()
+        const { type, to, data } = await request.json()
 
         let emailContent
 
@@ -29,8 +29,7 @@ export async function POST(request) {
         const result = await sendEmail({
             to,
             subject: emailContent.subject,
-            html: emailContent.html,
-            testMode
+            html: emailContent.html
         })
 
         return Response.json(result)

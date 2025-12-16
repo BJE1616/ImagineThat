@@ -1,25 +1,44 @@
 import { Resend } from 'resend'
+import { supabase } from './supabase'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-// Whitelisted emails that will always receive emails (even in test mode)
-const WHITELISTED_EMAILS = [
-    'bje1616@gmail.com'
-]
+// Get email settings from database
+const getEmailSettings = async () => {
+    try {
+        const { data, error } = await supabase
+            .from('admin_settings')
+            .select('setting_key, setting_value')
+            .in('setting_key', ['email_test_mode', 'test_email_recipient'])
 
-// Check if email is whitelisted
-const isWhitelisted = (email) => {
-    return WHITELISTED_EMAILS.some(w => w.toLowerCase() === email.toLowerCase())
+        if (error) throw error
+
+        const settings = {}
+        data.forEach(item => {
+            settings[item.setting_key] = item.setting_value
+        })
+
+        return {
+            testMode: settings.email_test_mode === 'true',
+            testRecipient: settings.test_email_recipient || 'bje1616@gmail.com'
+        }
+    } catch (error) {
+        console.error('Error fetching email settings:', error)
+        // Default to test mode if we can't fetch settings
+        return { testMode: true, testRecipient: 'bje1616@gmail.com' }
+    }
 }
 
-export const sendEmail = async ({ to, subject, html, testMode = true }) => {
-    // If test mode is ON and email is NOT whitelisted, just log it
-    if (testMode && !isWhitelisted(to)) {
-        console.log('📧 TEST MODE - Email not sent:')
-        console.log('   To:', to)
+export const sendEmail = async ({ to, subject, html }) => {
+    const { testMode, testRecipient } = await getEmailSettings()
+
+    // If test mode is ON, redirect all emails to test recipient
+    if (testMode) {
+        console.log('📧 TEST MODE - Redirecting email:')
+        console.log('   Original To:', to)
+        console.log('   Sending To:', testRecipient)
         console.log('   Subject:', subject)
-        console.log('   (Add email to whitelist or disable test mode to send)')
-        return { success: true, testMode: true }
+        to = testRecipient
     }
 
     try {
@@ -36,7 +55,7 @@ export const sendEmail = async ({ to, subject, html, testMode = true }) => {
         }
 
         console.log('📧 Email sent to:', to)
-        return { success: true, id: data?.id }
+        return { success: true, id: data?.id, testMode }
     } catch (error) {
         console.error('Email error:', error)
         return { success: false, error: error.message }

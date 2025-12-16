@@ -18,11 +18,18 @@ export default function RegisterPage() {
     const [error, setError] = useState(null)
     const [message, setMessage] = useState(null)
 
+    const formatPhone = (value) => {
+        const numbers = value.replace(/\D/g, '')
+        if (numbers.length <= 3) return numbers
+        if (numbers.length <= 6) return `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`
+        return `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`
+    }
+
     const handleChange = (e) => {
         const { name, value } = e.target
         setFormData({
             ...formData,
-            [name]: value
+            [name]: name === 'phone' ? formatPhone(value) : value
         })
     }
 
@@ -33,7 +40,6 @@ export default function RegisterPage() {
         setMessage(null)
 
         try {
-            // Check if username is taken
             const { data: existingUser } = await supabase
                 .from('users')
                 .select('username')
@@ -46,7 +52,6 @@ export default function RegisterPage() {
                 return
             }
 
-            // Sign up the user
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
@@ -55,7 +60,6 @@ export default function RegisterPage() {
             if (authError) throw authError
 
             if (authData.user) {
-                // Create user record
                 const { error: userError } = await supabase
                     .from('users')
                     .insert([{
@@ -71,7 +75,21 @@ export default function RegisterPage() {
 
                 if (userError) throw userError
 
-                setMessage('Account created successfully! Please check your email to verify your account, then log in.')
+                try {
+                    await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'welcome',
+                            to: formData.email,
+                            data: { username: formData.username }
+                        })
+                    })
+                } catch (emailError) {
+                    console.error('Welcome email error:', emailError)
+                }
+
+                setMessage('Account created! Check your email to verify, then log in.')
             }
         } catch (error) {
             setError(error.message || 'Error creating account')
@@ -81,92 +99,91 @@ export default function RegisterPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 py-12 px-4">
-            <div className="max-w-md w-full space-y-8">
-                <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl mb-4">
-                        <span className="text-2xl font-bold text-slate-900">IT</span>
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 py-6 px-4">
+            <div className="max-w-md w-full">
+                <div className="text-center mb-4">
+                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl mb-2">
+                        <span className="text-lg font-bold text-slate-900">IT</span>
                     </div>
-                    <h2 className="text-3xl font-bold text-white">
-                        Create your account
-                    </h2>
-                    <p className="text-slate-400 mt-2">Join ImagineThat and start winning!</p>
+                    <h2 className="text-2xl font-bold text-white">Create your account</h2>
+                    <p className="text-slate-400 text-sm">Join ImagineThat and start winning!</p>
                 </div>
 
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit}>
                     {error && (
-                        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg">
+                        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm mb-3">
                             {error}
                         </div>
                     )}
 
                     {message && (
-                        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg">
+                        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-3 py-2 rounded-lg text-sm mb-3">
                             {message}
                         </div>
                     )}
 
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label htmlFor="firstName" className="block text-sm font-medium text-slate-300 mb-1">
-                                    First Name
-                                </label>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">First Name</label>
                                 <input
-                                    id="firstName"
                                     name="firstName"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                    placeholder="First name"
+                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    placeholder="First"
                                     value={formData.firstName}
                                     onChange={handleChange}
                                 />
                             </div>
-
                             <div>
-                                <label htmlFor="lastName" className="block text-sm font-medium text-slate-300 mb-1">
-                                    Last Name
-                                </label>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Last Name</label>
                                 <input
-                                    id="lastName"
                                     name="lastName"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                    placeholder="Last name"
+                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    placeholder="Last"
                                     value={formData.lastName}
                                     onChange={handleChange}
                                 />
                             </div>
                         </div>
 
-                        <div>
-                            <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-1">
-                                Username
-                            </label>
-                            <input
-                                id="username"
-                                name="username"
-                                type="text"
-                                required
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                placeholder="Choose a username"
-                                value={formData.username}
-                                onChange={handleChange}
-                            />
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Username</label>
+                                <input
+                                    name="username"
+                                    type="text"
+                                    required
+                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    placeholder="username"
+                                    value={formData.username}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Phone</label>
+                                <input
+                                    name="phone"
+                                    type="tel"
+                                    required
+                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    placeholder="(555) 123-4567"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                />
+                            </div>
                         </div>
 
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">
-                                Email Address
-                            </label>
+                            <label className="block text-xs font-medium text-slate-300 mb-1">Email</label>
                             <input
-                                id="email"
                                 name="email"
                                 type="email"
                                 required
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 placeholder="your.email@example.com"
                                 value={formData.email}
                                 onChange={handleChange}
@@ -174,31 +191,12 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="phone" className="block text-sm font-medium text-slate-300 mb-1">
-                                Phone Number
-                            </label>
+                            <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
                             <input
-                                id="phone"
-                                name="phone"
-                                type="tel"
-                                required
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                placeholder="(555) 123-4567"
-                                value={formData.phone}
-                                onChange={handleChange}
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">
-                                Password
-                            </label>
-                            <input
-                                id="password"
                                 name="password"
                                 type="password"
                                 required
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 placeholder="At least 6 characters"
                                 value={formData.password}
                                 onChange={handleChange}
@@ -209,16 +207,14 @@ export default function RegisterPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                        className="w-full mt-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
                     >
-                        {loading ? 'Creating account...' : 'Create Account'}
+                        {loading ? 'Creating...' : 'Create Account'}
                     </button>
 
-                    <p className="text-center text-slate-400">
+                    <p className="text-center text-slate-400 text-sm mt-3">
                         Already have an account?{' '}
-                        <a href="/auth/login" className="text-amber-400 hover:text-amber-300">
-                            Sign in
-                        </a>
+                        <a href="/auth/login" className="text-amber-400 hover:text-amber-300">Sign in</a>
                     </p>
                 </form>
             </div>

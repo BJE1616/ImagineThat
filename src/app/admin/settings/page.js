@@ -12,7 +12,9 @@ export default function AdminSettingsPage() {
         ad_price: '100',
         matrix_payout: '200',
         card_back_logo_url: '',
-        show_advertiser_cards: 'false'
+        show_advertiser_cards: 'false',
+        email_test_mode: 'true',
+        test_email_recipient: 'bje1616@gmail.com'
     })
     const [uploading, setUploading] = useState(false)
 
@@ -104,9 +106,9 @@ export default function AdminSettingsPage() {
     if (loading) {
         return (
             <div className="p-4">
-                <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                <div className="animate-pulse space-y-2">
+                    <div className="h-5 bg-slate-700 rounded w-40"></div>
+                    <div className="h-48 bg-slate-800 rounded"></div>
                 </div>
             </div>
         )
@@ -114,13 +116,13 @@ export default function AdminSettingsPage() {
 
     return (
         <div className="p-4">
-            <div className="mb-4">
+            <div className="mb-3">
                 <h1 className="text-lg font-bold text-white">Platform Settings</h1>
                 <p className="text-slate-400 text-xs">Configure ad campaigns, matrix payouts, and more</p>
             </div>
 
             {message && (
-                <div className={`mb-3 px-3 py-2 rounded text-xs ${message.includes('Error')
+                <div className={`mb-2 px-2 py-1.5 rounded text-xs ${message.includes('Error')
                     ? 'bg-red-500/10 border border-red-500/30 text-red-400'
                     : 'bg-green-500/10 border border-green-500/30 text-green-400'
                     }`}>
@@ -128,176 +130,193 @@ export default function AdminSettingsPage() {
                 </div>
             )}
 
-            <div className="space-y-3">
-                {/* Ad Campaign Settings */}
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <h2 className="text-sm font-bold text-white mb-3">💰 Ad Campaign Settings</h2>
+            <div className="space-y-2">
+                {/* Email Settings */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">📧 Email Settings</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="p-2 bg-slate-700/50 rounded">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-white font-medium text-xs">Email Test Mode</h3>
+                                    <p className="text-slate-400 text-[10px]">Only send to test address</p>
+                                </div>
+                                <button
+                                    onClick={() => handleChange('email_test_mode', settings.email_test_mode === 'true' ? 'false' : 'true')}
+                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.email_test_mode === 'true' ? 'bg-amber-500' : 'bg-green-500'}`}
+                                >
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.email_test_mode === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+                            {settings.email_test_mode === 'true' ? (
+                                <p className="text-amber-400 text-[10px] mt-1">🧪 Test Mode ON</p>
+                            ) : (
+                                <p className="text-green-400 text-[10px] mt-1">✅ Live Mode - Emails sent to all users</p>
+                            )}
+
+                            <div className="mt-2">
+                                <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Test Recipient</label>
+                                <select
+                                    value={settings.test_email_recipient}
+                                    onChange={(e) => handleChange('test_email_recipient', e.target.value)}
+                                    className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                >
+                                    <option value="bje1616@gmail.com">bje1616@gmail.com</option>
+                                    <option value="imaginethat.icu@gmail.com">imaginethat.icu@gmail.com</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-700/50 rounded p-2">
+                            <h3 className="text-white font-medium text-[10px] mb-1">Email Types</h3>
+                            <div className="text-slate-400 text-[10px] space-y-0.5">
+                                <p>• Welcome (new registrations)</p>
+                                <p>• Campaign activated</p>
+                                <p>• Campaign completed</p>
+                                <p>• Prize winner notification</p>
+                                <p>• Matrix completion</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ad Campaign Settings */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">💰 Ad Campaign Settings</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">
-                                Ad Campaign Price ($)
-                            </label>
+                            <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Ad Price ($)</label>
                             <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
                                 <input
                                     type="number"
                                     value={settings.ad_price}
                                     onChange={(e) => handleChange('ad_price', e.target.value)}
-                                    className="w-full pl-6 pr-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className="w-full pl-5 pr-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
                                 />
                             </div>
-                            <p className="text-slate-500 text-[10px] mt-0.5">How much users pay for an ad campaign</p>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">
-                                Guaranteed Views per Campaign
-                            </label>
+                            <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Guaranteed Views</label>
                             <input
                                 type="number"
                                 value={settings.guaranteed_views}
                                 onChange={(e) => handleChange('guaranteed_views', e.target.value)}
-                                className="w-full px-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
-                            <p className="text-slate-500 text-[10px] mt-0.5">Minimum views each advertiser is guaranteed</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Matrix Settings */}
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <h2 className="text-sm font-bold text-white mb-3">🔷 Matrix Settings</h2>
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">🔷 Matrix Settings</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">
-                                Matrix Completion Payout ($)
-                            </label>
+                            <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Matrix Payout ($)</label>
                             <div className="relative">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
                                 <input
                                     type="number"
                                     value={settings.matrix_payout}
                                     onChange={(e) => handleChange('matrix_payout', e.target.value)}
-                                    className="w-full pl-6 pr-3 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className="w-full pl-5 pr-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
                                 />
                             </div>
-                            <p className="text-slate-500 text-[10px] mt-0.5">Total payout when user completes their matrix</p>
                         </div>
 
                         <div className="bg-slate-700/50 rounded p-2">
-                            <h3 className="text-white font-medium text-xs mb-1">Matrix Structure</h3>
+                            <h3 className="text-white font-medium text-[10px] mb-1">Matrix Structure</h3>
                             <div className="text-slate-400 text-[10px] space-y-0.5">
                                 <p>• Spot 1: The user (paid advertiser)</p>
-                                <p>• Spots 2-3: Their direct referrals</p>
-                                <p>• Spots 4-7: Referrals of spots 2-3</p>
-                                <p>• All 7 spots must be paid advertisers</p>
+                                <p>• Spots 2-3: Direct referrals</p>
+                                <p>• Spots 4-7: Referrals of 2-3</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Card Back Settings */}
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <h2 className="text-sm font-bold text-white mb-3">🎴 Card Back Settings</h2>
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">🎴 Card Back Settings</h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Logo Upload */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">Company Logo</label>
+                            <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Company Logo</label>
                             <input
                                 type="file"
                                 accept="image/*"
                                 onChange={handleLogoUpload}
                                 disabled={uploading}
-                                className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-xs file:font-medium hover:file:bg-amber-400"
+                                className="w-full px-2 py-1 text-[10px] bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-[10px] file:font-medium hover:file:bg-amber-400"
                             />
-                            {uploading && <p className="text-amber-400 text-xs mt-1">Uploading...</p>}
-                            <p className="text-slate-500 text-[10px] mt-0.5">This logo shows on card backs by default</p>
+                            {uploading && <p className="text-amber-400 text-[10px] mt-1">Uploading...</p>}
 
-                            {/* Toggle for Advertiser Cards */}
-                            <div className="mt-3 p-2 bg-slate-700/50 rounded">
+                            <div className="mt-2 p-1.5 bg-slate-700/50 rounded">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h3 className="text-white font-medium text-xs">Show Advertiser Cards Instead</h3>
-                                        <p className="text-slate-400 text-[10px]">Display a random advertiser's card on card backs</p>
+                                        <h3 className="text-white font-medium text-[10px]">Show Advertiser Cards</h3>
+                                        <p className="text-slate-400 text-[10px]">Random card on backs</p>
                                     </div>
                                     <button
                                         onClick={() => handleChange('show_advertiser_cards', settings.show_advertiser_cards === 'true' ? 'false' : 'true')}
-                                        className={`relative w-10 h-5 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? 'bg-amber-500' : 'bg-slate-600'}`}
+                                        className={`relative w-9 h-4 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? 'bg-amber-500' : 'bg-slate-600'}`}
                                     >
-                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                        <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
                                     </button>
                                 </div>
-                                {settings.show_advertiser_cards === 'true' && (
-                                    <p className="text-amber-400 text-[10px] mt-2">
-                                        ✓ A random advertiser's card will be shown on card backs.
-                                    </p>
-                                )}
                             </div>
                         </div>
 
-                        {/* Preview */}
                         <div className="flex flex-col items-center justify-center">
-                            <p className="text-slate-400 text-xs mb-2">Current Card Back Preview:</p>
-                            <div className="w-24 h-16 rounded border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center overflow-hidden">
+                            <p className="text-slate-400 text-[10px] mb-1">Preview:</p>
+                            <div className="w-20 h-14 rounded border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center overflow-hidden">
                                 {settings.show_advertiser_cards === 'true' ? (
-                                    <div className="text-center p-1">
-                                        <span className="text-lg">🎴</span>
-                                        <p className="text-white text-[8px]">Advertiser Card</p>
+                                    <div className="text-center">
+                                        <span className="text-sm">🎴</span>
+                                        <p className="text-white text-[8px]">Advertiser</p>
                                     </div>
                                 ) : settings.card_back_logo_url ? (
-                                    <img
-                                        src={settings.card_back_logo_url}
-                                        alt="Logo preview"
-                                        className="max-w-full max-h-full object-contain p-1"
-                                    />
+                                    <img src={settings.card_back_logo_url} alt="Logo" className="max-w-full max-h-full object-contain p-1" />
                                 ) : (
-                                    <span className="text-2xl text-white">?</span>
+                                    <span className="text-lg text-white">?</span>
                                 )}
                             </div>
-                            <p className="text-slate-500 text-[10px] mt-1">
-                                {settings.show_advertiser_cards === 'true'
-                                    ? 'Random advertiser each game'
-                                    : settings.card_back_logo_url
-                                        ? 'Your logo'
-                                        : 'Upload a logo'}
-                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Payment Methods Info */}
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <h2 className="text-sm font-bold text-white mb-3">💳 Payment Methods</h2>
+                {/* Payment Methods */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">💳 Payment Methods</h2>
 
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-slate-700/50 rounded p-2 border border-slate-600">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">💳</span>
-                                <h3 className="text-white font-medium text-xs">Stripe</h3>
+                    <div className="grid grid-cols-3 gap-1.5">
+                        <div className="bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                            <div className="flex items-center gap-1 mb-0.5">
+                                <span className="text-sm">💳</span>
+                                <h3 className="text-white font-medium text-[10px]">Stripe</h3>
                             </div>
-                            <p className="text-slate-400 text-[10px]">Auto payments & refunds</p>
-                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded-full">Auto</span>
+                            <span className="inline-block px-1 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded">Auto</span>
                         </div>
 
-                        <div className="bg-slate-700/50 rounded p-2 border border-slate-600">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">💵</span>
-                                <h3 className="text-white font-medium text-xs">CashApp</h3>
+                        <div className="bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                            <div className="flex items-center gap-1 mb-0.5">
+                                <span className="text-sm">💵</span>
+                                <h3 className="text-white font-medium text-[10px]">CashApp</h3>
                             </div>
-                            <p className="text-slate-400 text-[10px]">Manual payouts required</p>
-                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] rounded-full">Manual</span>
+                            <span className="inline-block px-1 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] rounded">Manual</span>
                         </div>
 
-                        <div className="bg-slate-700/50 rounded p-2 border border-slate-600">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="text-lg">📱</span>
-                                <h3 className="text-white font-medium text-xs">Venmo</h3>
+                        <div className="bg-slate-700/50 rounded p-1.5 border border-slate-600">
+                            <div className="flex items-center gap-1 mb-0.5">
+                                <span className="text-sm">📱</span>
+                                <h3 className="text-white font-medium text-[10px]">Venmo</h3>
                             </div>
-                            <p className="text-slate-400 text-[10px]">Manual payouts required</p>
-                            <span className="inline-block mt-1 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] rounded-full">Manual</span>
+                            <span className="inline-block px-1 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] rounded">Manual</span>
                         </div>
                     </div>
                 </div>
@@ -307,7 +326,7 @@ export default function AdminSettingsPage() {
                     <button
                         onClick={handleSaveAll}
                         disabled={saving}
-                        className="px-4 py-1.5 text-sm bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                        className="px-3 py-1.5 text-xs bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
                     >
                         {saving ? 'Saving...' : 'Save All Settings'}
                     </button>
