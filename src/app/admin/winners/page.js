@@ -85,9 +85,30 @@ export default function AdminWinnersPage() {
         }
     }
 
+    const sendPrizeWinnerEmail = async (entry, rank, prizeAmount) => {
+        try {
+            await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'prize_winner',
+                    to: entry.user.email,
+                    data: {
+                        username: entry.user.username,
+                        rank: rank,
+                        prize: `$${prizeAmount}`
+                    }
+                })
+            })
+        } catch (error) {
+            console.error('Prize winner email error:', error)
+        }
+    }
+
     const togglePaymentStatus = async (entry, rank) => {
         setSaving(entry.id)
         const weekStartStr = getWeekStart(weekOffset).toISOString().split('T')[0]
+        const prizeAmount = getPrizeAmount(rank)
 
         try {
             const existingPayment = payments[entry.id]
@@ -105,6 +126,11 @@ export default function AdminWinnersPage() {
 
                 if (error) throw error
 
+                // Send email when marking as paid
+                if (newStatus === 'paid') {
+                    await sendPrizeWinnerEmail(entry, rank, prizeAmount)
+                }
+
                 setPayments(prev => ({
                     ...prev,
                     [entry.id]: { ...existingPayment, status: newStatus }
@@ -117,7 +143,7 @@ export default function AdminWinnersPage() {
                         user_id: entry.user_id,
                         week_start: weekStartStr,
                         rank: rank,
-                        prize_amount: getPrizeAmount(rank),
+                        prize_amount: prizeAmount,
                         status: 'paid',
                         paid_at: new Date().toISOString()
                     }])
@@ -125,6 +151,9 @@ export default function AdminWinnersPage() {
                     .single()
 
                 if (error) throw error
+
+                // Send email for new payment
+                await sendPrizeWinnerEmail(entry, rank, prizeAmount)
 
                 setPayments(prev => ({
                     ...prev,
