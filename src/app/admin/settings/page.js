@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminSettingsPage() {
     const [loading, setLoading] = useState(true)
@@ -17,6 +18,7 @@ export default function AdminSettingsPage() {
         test_email_recipient: 'bje1616@gmail.com'
     })
     const [uploading, setUploading] = useState(false)
+    const { theme, themes, updateTheme } = useTheme()
 
     useEffect(() => {
         loadSettings()
@@ -131,6 +133,36 @@ export default function AdminSettingsPage() {
             )}
 
             <div className="space-y-2">
+                {/* Theme Settings */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <h2 className="text-xs font-bold text-white mb-2">🎨 Site Theme</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div>
+                            <label className="block text-[10px] font-medium text-slate-300 mb-0.5">Color Theme</label>
+                            <select
+                                value={theme}
+                                onChange={(e) => updateTheme(e.target.value)}
+                                className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                            >
+                                {Object.entries(themes).map(([key, t]) => (
+                                    <option key={key} value={key}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <p className="text-slate-400 text-[10px]">Preview:</p>
+                            <div className="flex gap-1">
+                                <div className={`w-6 h-6 rounded bg-${themes[theme]?.accent || 'amber-500'}`}></div>
+                                <div className="w-6 h-6 rounded bg-slate-800 border border-slate-700"></div>
+                                <div className="w-6 h-6 rounded bg-slate-900"></div>
+                            </div>
+                            <p className="text-white text-[10px] font-medium">{themes[theme]?.name}</p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Email Settings */}
                 <div className="bg-slate-800 border border-slate-700 rounded p-2">
                     <h2 className="text-xs font-bold text-white mb-2">📧 Email Settings</h2>
