@@ -89,6 +89,7 @@ export default function AdminLayout({ children }) {
         { href: '/admin/users', label: 'User Management', icon: '👥' },
         { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
         { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
+        { href: '/admin/accounting', label: 'Accounting', icon: '📒' },
         { href: '/admin/game-settings', label: 'Game BB Settings', icon: '🎮' },
         { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
         { href: '/admin/settings', label: 'Platform Settings', icon: '⚙️' },
