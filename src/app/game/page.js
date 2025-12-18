@@ -896,17 +896,16 @@ export default function GamePage() {
                                                     <img
                                                         src={cardBackAdvertiser.image_url}
                                                         alt="Advertiser card"
-                                                        className="max-w-full max-h-full object-contain p-1"
+                                                        className="w-full h-full object-cover"
                                                     />
                                                 </div>
                                             ) : (
                                                 <div
-                                                    className={`w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border-2 border-${currentTheme.accentHover} shadow-lg overflow-hidden ring-2 ring-${currentTheme.accent}/50 relative`}
+                                                    className={`w-full h-full rounded-md sm:rounded-lg flex items-center justify-center border-2 border-${currentTheme.accentHover} shadow-lg overflow-hidden ring-2 ring-${currentTheme.accent}/50 relative`}
                                                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                                                 >
                                                     <CardBack />
-                                                    <h3 className="font-bold text-xs text-center truncate w-full" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.title}</h3>
-                                                    {cardBackAdvertiser.message && <p className="text-xs text-center line-clamp-2 mt-1" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.message}</p>}
+                                                    <h3 className="font-bold text-xs sm:text-sm text-center px-1" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>{cardBackAdvertiser.title}</h3>
                                                 </div>
                                             )
                                         ) : cardBackSetting?.card_back_logo_url ? (
@@ -943,15 +942,10 @@ export default function GamePage() {
                                             </div>
                                         ) : (
                                             <div
-                                                className={`w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border border-${currentTheme.border} shadow-lg overflow-hidden relative`}
+                                                className={`w-full h-full rounded-md sm:rounded-lg flex items-center justify-center border border-${currentTheme.border} shadow-lg overflow-hidden relative`}
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <div className="text-center overflow-hidden">
-                                                    <h3 className="font-bold text-xs truncate" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
-                                                </div>
-                                                <div className="text-center flex-1 flex items-center justify-center overflow-hidden px-1">
-                                                    {card.message && <p className="text-xs line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>{card.message}</p>}
-                                                </div>
+                                                <h3 className="font-bold text-xs sm:text-sm text-center px-1" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
                                                 {matchedPairs.includes(card.pairId) && (
                                                     <button
                                                         onClick={(e) => {
