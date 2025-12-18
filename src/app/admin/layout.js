@@ -13,6 +13,7 @@ export default function AdminLayout({ children }) {
     const [isAdmin, setIsAdmin] = useState(false)
     const [loading, setLoading] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(true)
+    const [expandedGroups, setExpandedGroups] = useState(['finances', 'overview'])
 
     useEffect(() => {
         checkAdmin()
@@ -57,6 +58,14 @@ export default function AdminLayout({ children }) {
         router.push('/admin/login')
     }
 
+    const toggleGroup = (groupKey) => {
+        setExpandedGroups(prev =>
+            prev.includes(groupKey)
+                ? prev.filter(g => g !== groupKey)
+                : [...prev, groupKey]
+        )
+    }
+
     if (pathname === '/admin/login') {
         return children
     }
@@ -76,24 +85,63 @@ export default function AdminLayout({ children }) {
         return null
     }
 
-    const navItems = [
-        { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
-        { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-        { href: '/admin/stats', label: 'Stats', icon: '📈' },
-        { href: '/admin/advertisers', label: 'Advertisers', icon: '📢' },
-        { href: '/admin/bonus', label: 'Bonus Views', icon: '🎁' },
-        { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
-        { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
-        { href: '/admin/payments', label: 'Payment History', icon: '💰' },
-        { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
-        { href: '/admin/users', label: 'User Management', icon: '👥' },
-        { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
-        { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
-        { href: '/admin/accounting', label: 'Accounting', icon: '📒' },
-        { href: '/admin/game-settings', label: 'Game BB Settings', icon: '🎮' },
-        { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
-        { href: '/admin/settings', label: 'Platform Settings', icon: '⚙️' },
+    const navGroups = [
+        {
+            key: 'overview',
+            label: 'Overview',
+            icon: '📊',
+            items: [
+                { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
+                { href: '/admin/stats', label: 'Stats', icon: '📉' },
+                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
+            ]
+        },
+        {
+            key: 'finances',
+            label: 'Finances',
+            icon: '💰',
+            items: [
+                { href: '/admin/accounting', label: 'Accounting', icon: '📒' },
+                { href: '/admin/payout-queue', label: 'Payout Queue', icon: '💸' },
+                { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
+                { href: '/admin/payments', label: 'Payment History', icon: '🧾' },
+            ]
+        },
+        {
+            key: 'games',
+            label: 'Games & Prizes',
+            icon: '🎮',
+            items: [
+                { href: '/admin/game-settings', label: 'Game BB Settings', icon: '🎰' },
+                { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
+                { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
+                { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
+                { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
+            ]
+        },
+        {
+            key: 'users',
+            label: 'Users',
+            icon: '👥',
+            items: [
+                { href: '/admin/users', label: 'User Management', icon: '👤' },
+                { href: '/admin/advertisers', label: 'Advertisers', icon: '📢' },
+            ]
+        },
+        {
+            key: 'settings',
+            label: 'Settings',
+            icon: '⚙️',
+            items: [
+                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
+                { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
+                { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
+            ]
+        },
     ]
+
+    const isItemActive = (href) => pathname === href
+    const isGroupActive = (group) => group.items.some(item => pathname === item.href)
 
     return (
         <div className={`min-h-screen bg-${currentTheme.bg} flex`}>
@@ -123,22 +171,46 @@ export default function AdminLayout({ children }) {
                 </div>
 
                 <nav className="flex-1 p-2 overflow-y-auto">
-                    <ul className="space-y-0.5">
-                        {navItems.map((item) => (
-                            <li key={item.href}>
-                                <Link
-                                    href={item.href}
-                                    className={`flex items-center gap-2 px-2 py-1.5 rounded transition-all text-sm ${pathname === item.href
-                                        ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`
-                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
-                                        }`}
-                                >
-                                    <span>{item.icon}</span>
-                                    {sidebarOpen && <span>{item.label}</span>}
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
+                    {navGroups.map((group) => (
+                        <div key={group.key} className="mb-1">
+                            <button
+                                onClick={() => toggleGroup(group.key)}
+                                className={`w-full flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${isGroupActive(group)
+                                        ? `text-${currentTheme.accent}`
+                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text}`
+                                    } hover:bg-${currentTheme.border}/50`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span>{group.icon}</span>
+                                    {sidebarOpen && <span className="font-medium">{group.label}</span>}
+                                </div>
+                                {sidebarOpen && (
+                                    <span className={`text-xs transition-transform ${expandedGroups.includes(group.key) ? 'rotate-90' : ''}`}>
+                                        ▶
+                                    </span>
+                                )}
+                            </button>
+
+                            {sidebarOpen && expandedGroups.includes(group.key) && (
+                                <ul className="ml-4 mt-0.5 space-y-0.5">
+                                    {group.items.map((item) => (
+                                        <li key={item.href}>
+                                            <Link
+                                                href={item.href}
+                                                className={`flex items-center gap-2 px-2 py-1 rounded transition-all text-xs ${isItemActive(item.href)
+                                                        ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border-l-2 border-${currentTheme.accent}`
+                                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
+                                                    }`}
+                                            >
+                                                <span>{item.icon}</span>
+                                                <span>{item.label}</span>
+                                            </Link>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    ))}
                 </nav>
 
                 <div className={`p-2 border-t border-${currentTheme.border}`}>
