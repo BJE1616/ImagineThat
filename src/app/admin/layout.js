@@ -103,6 +103,7 @@ export default function AdminLayout({ children }) {
             items: [
                 { href: '/admin/accounting', label: 'Accounting', icon: '📒' },
                 { href: '/admin/payout-queue', label: 'Payout Queue', icon: '💸' },
+                { href: '/admin/partner-withdrawals', label: 'Partner Withdrawals', icon: '🤝' },
                 { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
                 { href: '/admin/payments', label: 'Payment History', icon: '🧾' },
             ]
@@ -117,6 +118,7 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
                 { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
                 { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
+                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
             ]
         },
         {
@@ -176,8 +178,8 @@ export default function AdminLayout({ children }) {
                             <button
                                 onClick={() => toggleGroup(group.key)}
                                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${isGroupActive(group)
-                                        ? `text-${currentTheme.accent}`
-                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text}`
+                                    ? `text-${currentTheme.accent}`
+                                    : `text-${currentTheme.textMuted} hover:text-${currentTheme.text}`
                                     } hover:bg-${currentTheme.border}/50`}
                             >
                                 <div className="flex items-center gap-2">
@@ -198,8 +200,8 @@ export default function AdminLayout({ children }) {
                                             <Link
                                                 href={item.href}
                                                 className={`flex items-center gap-2 px-2 py-1 rounded transition-all text-xs ${isItemActive(item.href)
-                                                        ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border-l-2 border-${currentTheme.accent}`
-                                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
+                                                    ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border-l-2 border-${currentTheme.accent}`
+                                                    : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
                                                     }`}
                                             >
                                                 <span>{item.icon}</span>
