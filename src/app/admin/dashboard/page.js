@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminDashboardPage() {
+    const { currentTheme } = useTheme()
     const [stats, setStats] = useState({
         totalUsers: 0,
         activeUsersThisWeek: 0,
@@ -111,10 +113,10 @@ export default function AdminDashboardPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-36"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-36`}></div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-16 bg-slate-800 rounded"></div>
+                            <div key={i} className={`h-16 bg-${currentTheme.card} rounded`}></div>
                         ))}
                     </div>
                 </div>
@@ -126,7 +128,7 @@ export default function AdminDashboardPage() {
         { label: 'Total Users', value: stats.totalUsers, icon: '👥', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20', textColor: 'text-blue-400' },
         { label: 'Active This Week', value: stats.activeUsersThisWeek, icon: '🎮', bgColor: 'bg-green-500/10', borderColor: 'border-green-500/20', textColor: 'text-green-400' },
         { label: 'Games This Week', value: stats.gamesThisWeek, icon: '🃏', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20', textColor: 'text-purple-400' },
-        { label: 'Best Score', value: stats.topScoreThisWeek ?? '—', icon: '🏆', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20', textColor: 'text-amber-400' },
+        { label: 'Best Score', value: stats.topScoreThisWeek ?? '—', icon: '🏆', bgColor: `bg-${currentTheme.accent}/10`, borderColor: `border-${currentTheme.accent}/20`, textColor: `text-${currentTheme.accent}` },
         { label: 'Pending Payments', value: stats.pendingPayments, icon: '⏳', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/20', textColor: 'text-red-400', alert: stats.pendingPayments > 0 },
         { label: 'Paid This Week', value: stats.paidThisWeek, icon: '✅', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20', textColor: 'text-emerald-400' },
         { label: 'All-Time Games', value: stats.totalGamesAllTime, icon: '📊', bgColor: 'bg-indigo-500/10', borderColor: 'border-indigo-500/20', textColor: 'text-indigo-400' }
@@ -135,8 +137,8 @@ export default function AdminDashboardPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Dashboard</h1>
-                <p className="text-slate-400 text-xs">Welcome to the ImagineThat admin panel</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Dashboard</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Welcome to the ImagineThat admin panel</p>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
@@ -145,7 +147,7 @@ export default function AdminDashboardPage() {
                         {stat.alert && <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>}
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-slate-400 text-xs">{stat.label}</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>{stat.label}</p>
                                 <p className={`text-xl font-bold ${stat.textColor}`}>
                                     {stat.value.toLocaleString ? stat.value.toLocaleString() : stat.value}
                                 </p>
@@ -157,70 +159,70 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <h2 className="text-sm font-bold text-white mb-3">Quick Actions</h2>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
+                    <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>Quick Actions</h2>
                     <div className="grid grid-cols-2 gap-2">
-                        <Link href="/admin/winners" className="flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded hover:bg-amber-500/20 transition-all group">
+                        <Link href="/admin/winners" className={`flex items-center gap-2 p-2 bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded hover:bg-${currentTheme.accent}/20 transition-all group`}>
                             <span className="text-lg">🏆</span>
                             <div>
-                                <p className="text-white text-sm font-medium group-hover:text-amber-400 transition-colors">View Winners</p>
-                                <p className="text-slate-400 text-xs">Manage weekly prizes</p>
+                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-${currentTheme.accent} transition-colors`}>View Winners</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage weekly prizes</p>
                             </div>
                         </Link>
                         <Link href="/admin/payments" className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded hover:bg-green-500/20 transition-all group">
                             <span className="text-lg">💰</span>
                             <div>
-                                <p className="text-white text-sm font-medium group-hover:text-green-400 transition-colors">Payments</p>
-                                <p className="text-slate-400 text-xs">Track payment history</p>
+                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-green-400 transition-colors`}>Payments</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>Track payment history</p>
                             </div>
                         </Link>
                         <Link href="/admin/users" className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded hover:bg-blue-500/20 transition-all group">
                             <span className="text-lg">👥</span>
                             <div>
-                                <p className="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">Users</p>
-                                <p className="text-slate-400 text-xs">Manage accounts</p>
+                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-blue-400 transition-colors`}>Users</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage accounts</p>
                             </div>
                         </Link>
                         <Link href="/admin/archive" className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded hover:bg-purple-500/20 transition-all group">
                             <span className="text-lg">📚</span>
                             <div>
-                                <p className="text-white text-sm font-medium group-hover:text-purple-400 transition-colors">Archive</p>
-                                <p className="text-slate-400 text-xs">Historical winners</p>
+                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-purple-400 transition-colors`}>Archive</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>Historical winners</p>
                             </div>
                         </Link>
                     </div>
                 </div>
 
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
                     <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-sm font-bold text-white">This Week's Leaders</h2>
-                        <Link href="/admin/winners" className="text-amber-400 hover:text-amber-300 text-xs font-medium transition-colors">View all →</Link>
+                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>This Week's Leaders</h2>
+                        <Link href="/admin/winners" className={`text-${currentTheme.accent} hover:text-${currentTheme.accentHover} text-xs font-medium transition-colors`}>View all →</Link>
                     </div>
                     {recentWinners.length > 0 ? (
                         <div className="space-y-1.5">
                             {recentWinners.map((winner, index) => (
-                                <div key={winner.id} className="flex items-center gap-2 p-2 bg-slate-700/50 rounded">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${index === 0 ? 'bg-amber-500 text-slate-900' :
+                                <div key={winner.id} className={`flex items-center gap-2 p-2 bg-${currentTheme.border}/50 rounded`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${index === 0 ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` :
                                         index === 1 ? 'bg-slate-400 text-slate-900' :
                                             index === 2 ? 'bg-amber-700 text-white' :
-                                                'bg-slate-600 text-slate-300'
+                                                `bg-${currentTheme.border} text-${currentTheme.textMuted}`
                                         }`}>
                                         {index + 1}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-white text-sm font-medium truncate">{winner.user.username}</p>
-                                        <p className="text-slate-400 text-xs">{winner.moves} moves • {winner.time_seconds}s</p>
+                                        <p className={`text-${currentTheme.text} text-sm font-medium truncate`}>{winner.user.username}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-xs`}>{winner.moves} moves • {winner.time_seconds}s</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-amber-400 text-sm font-bold">{winner.score}</p>
-                                        <p className="text-slate-500 text-[10px]">score</p>
+                                        <p className={`text-${currentTheme.accent} text-sm font-bold`}>{winner.score}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>score</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <div className="text-center py-4">
-                            <p className="text-slate-400 text-sm">No games played this week yet</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>No games played this week yet</p>
                         </div>
                     )}
                 </div>

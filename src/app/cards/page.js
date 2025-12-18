@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function CardsPage() {
     const router = useRouter()
+    const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [cards, setCards] = useState([])
     const [loading, setLoading] = useState(true)
@@ -138,11 +140,10 @@ export default function CardsPage() {
     const handleImageChange = (e) => {
         const file = e.target.files[0]
         if (file) {
-            // Check file size (2MB limit)
-            const maxSize = 2 * 1024 * 1024 // 2MB in bytes
+            const maxSize = 2 * 1024 * 1024
             if (file.size > maxSize) {
                 alert('Image is too large. Maximum size is 2MB.')
-                e.target.value = '' // Clear the input
+                e.target.value = ''
                 return
             }
 
@@ -272,27 +273,27 @@ export default function CardsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium">Loading...</p>
+                    <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} font-medium`}>Loading...</p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-slate-900">
+        <div className={`min-h-screen bg-${currentTheme.bg}`}>
             <main className="max-w-4xl mx-auto px-4 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
-                        <p className="text-slate-400 text-sm mt-1">{cards.length}/{maxCards} cards created</p>
+                        <h1 className={`text-3xl font-bold text-${currentTheme.text}`}>My Business Cards</h1>
+                        <p className={`text-${currentTheme.textMuted} text-sm mt-1`}>{cards.length}/{maxCards} cards created</p>
                     </div>
                     {!showForm && cards.length < maxCards && (
                         <button
                             onClick={() => setShowForm(true)}
-                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                            className={`px-4 py-2 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all`}
                         >
                             + New Card
                         </button>
@@ -300,16 +301,16 @@ export default function CardsPage() {
                 </div>
 
                 {showForm && (
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 mb-8`}>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Create New Card</h2>
+                            <h2 className={`text-xl font-bold text-${currentTheme.text}`}>Create New Card</h2>
                             <button
                                 onClick={() => {
                                     setShowForm(false)
                                     setImagePreview(null)
                                     setImageFile(null)
                                 }}
-                                className="text-slate-400 hover:text-white"
+                                className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
                             >
                                 ✕ Cancel
                             </button>
@@ -320,8 +321,8 @@ export default function CardsPage() {
                                 type="button"
                                 onClick={() => setCardType('template')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'template'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 Create Card
@@ -330,8 +331,8 @@ export default function CardsPage() {
                                 type="button"
                                 onClick={() => setCardType('uploaded')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'uploaded'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 Upload Image
@@ -342,28 +343,28 @@ export default function CardsPage() {
                             {cardType === 'uploaded' ? (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
                                             Upload Business Card Image *
                                         </label>
                                         <input
                                             type="file"
                                             accept="image/*"
                                             onChange={handleImageChange}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                             required
                                         />
-                                        <p className="text-xs text-slate-400 mt-1">
+                                        <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
                                             Upload a photo or scan of your business card (max 2MB)
                                         </p>
                                     </div>
 
                                     {imagePreview && (
                                         <div className="mt-4">
-                                            <p className="text-sm font-medium text-slate-300 mb-2">Preview:</p>
+                                            <p className={`text-sm font-medium text-${currentTheme.textMuted} mb-2`}>Preview:</p>
                                             <img
                                                 src={imagePreview}
                                                 alt="Preview"
-                                                className="max-w-md rounded-lg border-2 border-slate-600"
+                                                className={`max-w-md rounded-lg border-2 border-${currentTheme.border}`}
                                             />
                                         </div>
                                     )}
@@ -371,15 +372,15 @@ export default function CardsPage() {
                             ) : (
                                 <>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-1">
-                                            Business Name * <span className="text-xs text-slate-400">(20 chars max)</span>
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                            Business Name * <span className={`text-xs text-${currentTheme.textMuted}`}>(20 chars max)</span>
                                         </label>
                                         <input
                                             type="text"
                                             name="business_name"
                                             required
                                             maxLength={20}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                             placeholder="Your Business Name"
                                             value={formData.business_name || ''}
                                             onChange={handleChange}
@@ -387,14 +388,14 @@ export default function CardsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-1">
-                                            Tagline / Message <span className="text-xs text-slate-400">(40 chars max)</span>
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                            Tagline / Message <span className={`text-xs text-${currentTheme.textMuted}`}>(40 chars max)</span>
                                         </label>
                                         <input
                                             type="text"
                                             name="tagline"
                                             maxLength={40}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                             placeholder="Your catchy tagline"
                                             value={formData.tagline || ''}
                                             onChange={handleChange}
@@ -403,13 +404,13 @@ export default function CardsPage() {
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-300 mb-1">
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
                                                 Phone
                                             </label>
                                             <input
                                                 type="tel"
                                                 name="phone"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                                 placeholder="(555)-555-5555"
                                                 value={formData.phone || ''}
                                                 onChange={handlePhoneChange}
@@ -418,13 +419,13 @@ export default function CardsPage() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-300 mb-1">
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
                                                 Email
                                             </label>
                                             <input
                                                 type="email"
                                                 name="email"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                                 placeholder="your@email.com"
                                                 value={formData.email || ''}
                                                 onChange={handleChange}
@@ -433,7 +434,7 @@ export default function CardsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                             Card Background Color
                                         </label>
                                         <div className="flex flex-wrap gap-2">
@@ -443,8 +444,8 @@ export default function CardsPage() {
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, card_color: color.value })}
                                                     className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
-                                                        ? 'border-amber-400 scale-110'
-                                                        : 'border-slate-600 hover:border-slate-400'
+                                                        ? `border-${currentTheme.accent} scale-110`
+                                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                                         }`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.name}
@@ -454,7 +455,7 @@ export default function CardsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                             Text Color
                                         </label>
                                         <div className="flex flex-wrap gap-2">
@@ -464,8 +465,8 @@ export default function CardsPage() {
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, text_color: color.value })}
                                                     className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
-                                                        ? 'border-amber-400 scale-110'
-                                                        : 'border-slate-600 hover:border-slate-400'
+                                                        ? `border-${currentTheme.accent} scale-110`
+                                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                                         }`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.name}
@@ -475,17 +476,17 @@ export default function CardsPage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                             Preview
                                         </label>
-                                        <p className="text-xs text-slate-400 mb-3">
+                                        <p className={`text-xs text-${currentTheme.textMuted} mb-3`}>
                                             📱 Your card appears small in the game. Phone & email show when players tap the 👁 icon.
                                         </p>
                                         <div className="flex gap-6 items-start flex-wrap">
                                             <div>
-                                                <p className="text-xs text-slate-500 mb-1">Full Preview:</p>
+                                                <p className={`text-xs text-${currentTheme.textMuted} mb-1`}>Full Preview:</p>
                                                 <div
-                                                    className="w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-slate-600"
+                                                    className={`w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-${currentTheme.border}`}
                                                     style={{ backgroundColor: formData.card_color }}
                                                 >
                                                     <div className="text-center">
@@ -505,9 +506,9 @@ export default function CardsPage() {
                                                 </div>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-slate-500 mb-1">In-Game Size:</p>
+                                                <p className={`text-xs text-${currentTheme.textMuted} mb-1`}>In-Game Size:</p>
                                                 <div
-                                                    className="w-24 aspect-[4/3] rounded-md p-1 flex flex-col justify-between border border-slate-600"
+                                                    className={`w-24 aspect-[4/3] rounded-md p-1 flex flex-col justify-between border border-${currentTheme.border}`}
                                                     style={{ backgroundColor: formData.card_color }}
                                                 >
                                                     <div className="text-center overflow-hidden">
@@ -530,7 +531,7 @@ export default function CardsPage() {
                             <button
                                 type="submit"
                                 disabled={uploading}
-                                className="w-full py-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:bg-slate-600 disabled:text-slate-400 font-bold transition-all"
+                                className={`w-full py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} rounded-lg hover:bg-${currentTheme.accentHover} disabled:bg-${currentTheme.border} disabled:text-${currentTheme.textMuted} font-bold transition-all`}
                             >
                                 {uploading ? 'Creating...' : 'Create Business Card'}
                             </button>
@@ -541,10 +542,10 @@ export default function CardsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
-                            <p className="text-slate-400 text-lg mb-4">You haven't created any business cards yet.</p>
+                            <p className={`text-${currentTheme.textMuted} text-lg mb-4`}>You haven't created any business cards yet.</p>
                             <button
                                 onClick={() => setShowForm(true)}
-                                className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                                className={`px-6 py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all`}
                             >
                                 Create Your First Card
                             </button>
@@ -553,7 +554,7 @@ export default function CardsPage() {
 
                     {cards.length >= maxCards && !showForm && (
                         <div className="col-span-full text-center py-4">
-                            <p className="text-slate-500 text-sm">You've reached the maximum of {maxCards} business cards.</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>You've reached the maximum of {maxCards} business cards.</p>
                         </div>
                     )}
 
@@ -568,7 +569,7 @@ export default function CardsPage() {
                             <button
                                 onClick={() => handleDelete(card.id)}
                                 className={`absolute -top-2 -right-2 z-10 p-2 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${isCardInUse(card.id)
-                                    ? 'bg-slate-500 text-slate-300 cursor-not-allowed'
+                                    ? `bg-${currentTheme.textMuted} text-${currentTheme.card} cursor-not-allowed`
                                     : 'bg-red-500 text-white hover:bg-red-600'
                                     }`}
                                 title={isCardInUse(card.id) ? 'Cannot delete - card is in use' : 'Delete card'}
@@ -585,7 +586,7 @@ export default function CardsPage() {
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className={`bg-slate-800 border rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'
+                                <div className={`bg-${currentTheme.card} border rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
                                     }`}>
                                     <img
                                         src={card.image_url}
@@ -595,7 +596,7 @@ export default function CardsPage() {
                                 </div>
                             ) : (
                                 <div
-                                    className={`rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'
+                                    className={`rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
                                         }`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >

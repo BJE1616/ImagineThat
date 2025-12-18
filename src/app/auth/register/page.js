@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function RegisterPage() {
     const router = useRouter()
+    const { currentTheme } = useTheme()
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -99,14 +101,14 @@ export default function RegisterPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 py-6 px-4">
+        <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg} py-6 px-4`}>
             <div className="max-w-md w-full">
                 <div className="text-center mb-4">
-                    <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl mb-2">
-                        <span className="text-lg font-bold text-slate-900">IT</span>
+                    <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-${currentTheme.accentHover} to-orange-500 rounded-xl mb-2`}>
+                        <span className={`text-lg font-bold text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`}>IT</span>
                     </div>
-                    <h2 className="text-2xl font-bold text-white">Create your account</h2>
-                    <p className="text-slate-400 text-sm">Join ImagineThat and start winning!</p>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text}`}>Create your account</h2>
+                    <p className={`text-${currentTheme.textMuted} text-sm`}>Join ImagineThat and start winning!</p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -122,27 +124,27 @@ export default function RegisterPage() {
                         </div>
                     )}
 
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 space-y-3`}>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">First Name</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>First Name</label>
                                 <input
                                     name="firstName"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="First"
                                     value={formData.firstName}
                                     onChange={handleChange}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Last Name</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Last Name</label>
                                 <input
                                     name="lastName"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="Last"
                                     value={formData.lastName}
                                     onChange={handleChange}
@@ -152,24 +154,24 @@ export default function RegisterPage() {
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Username</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Username</label>
                                 <input
                                     name="username"
                                     type="text"
                                     required
-                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="username"
                                     value={formData.username}
                                     onChange={handleChange}
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Phone</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Phone</label>
                                 <input
                                     name="phone"
                                     type="tel"
                                     required
-                                    className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="(555) 123-4567"
                                     value={formData.phone}
                                     onChange={handleChange}
@@ -178,12 +180,12 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">Email</label>
+                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Email</label>
                             <input
                                 name="email"
                                 type="email"
                                 required
-                                className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                 placeholder="your.email@example.com"
                                 value={formData.email}
                                 onChange={handleChange}
@@ -191,12 +193,12 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Password</label>
                             <input
                                 name="password"
                                 type="password"
                                 required
-                                className="w-full px-3 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                 placeholder="At least 6 characters"
                                 value={formData.password}
                                 onChange={handleChange}
@@ -207,14 +209,14 @@ export default function RegisterPage() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full mt-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                        className={`w-full mt-4 py-2.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
                     >
                         {loading ? 'Creating...' : 'Create Account'}
                     </button>
 
-                    <p className="text-center text-slate-400 text-sm mt-3">
+                    <p className={`text-center text-${currentTheme.textMuted} text-sm mt-3`}>
                         Already have an account?{' '}
-                        <a href="/auth/login" className="text-amber-400 hover:text-amber-300">Sign in</a>
+                        <a href="/auth/login" className={`text-${currentTheme.accent} hover:text-${currentTheme.accentHover}`}>Sign in</a>
                     </p>
                 </form>
             </div>

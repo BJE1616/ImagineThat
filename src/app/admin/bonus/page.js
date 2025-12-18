@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminBonusPage() {
+    const { currentTheme } = useTheme()
     const [loading, setLoading] = useState(true)
     const [users, setUsers] = useState([])
     const [selectedUser, setSelectedUser] = useState('')
@@ -141,7 +143,7 @@ export default function AdminBonusPage() {
         return (
             <div className="p-4">
                 <div className="flex items-center justify-center h-32">
-                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className={`w-6 h-6 border-2 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
                 </div>
             </div>
         )
@@ -150,16 +152,16 @@ export default function AdminBonusPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Give Bonus Views</h1>
-                <p className="text-slate-400 text-xs">Award extra views to advertisers</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Give Bonus Views</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Award extra views to advertisers</p>
             </div>
 
             {/* Give Bonus Form */}
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-4">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-4`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* User Selection */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
                             Select User *
                         </label>
                         <input
@@ -167,12 +169,12 @@ export default function AdminBonusPage() {
                             placeholder="Search by name or username..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-2 py-1.5 mb-1 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-400"
+                            className={`w-full px-2 py-1.5 mb-1 bg-${currentTheme.border} border border-${currentTheme.border} rounded text-sm text-${currentTheme.text} placeholder-${currentTheme.textMuted}`}
                         />
                         <select
                             value={selectedUser}
                             onChange={(e) => setSelectedUser(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm text-white"
+                            className={`w-full px-2 py-1.5 bg-${currentTheme.border} border border-${currentTheme.border} rounded text-sm text-${currentTheme.text}`}
                         >
                             <option value="">-- Select User --</option>
                             {filteredUsers.map(user => (
@@ -185,7 +187,7 @@ export default function AdminBonusPage() {
 
                     {/* Amount */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
                             Number of Bonus Views *
                         </label>
                         <input
@@ -194,35 +196,35 @@ export default function AdminBonusPage() {
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             placeholder="e.g. 50"
-                            className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-400"
+                            className={`w-full px-2 py-1.5 bg-${currentTheme.border} border border-${currentTheme.border} rounded text-sm text-${currentTheme.text} placeholder-${currentTheme.textMuted}`}
                         />
                     </div>
 
                     {/* Message (User sees this) */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
-                            Message to User <span className="text-slate-500">(visible)</span>
+                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
+                            Message to User <span className={`text-${currentTheme.textMuted}`}>(visible)</span>
                         </label>
                         <input
                             type="text"
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             placeholder="e.g. Thanks for your patience!"
-                            className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-400"
+                            className={`w-full px-2 py-1.5 bg-${currentTheme.border} border border-${currentTheme.border} rounded text-sm text-${currentTheme.text} placeholder-${currentTheme.textMuted}`}
                         />
                     </div>
 
                     {/* Reason (Admin only) */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1">
-                            Private Reason <span className="text-slate-500">(admin only)</span>
+                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
+                            Private Reason <span className={`text-${currentTheme.textMuted}`}>(admin only)</span>
                         </label>
                         <input
                             type="text"
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             placeholder="e.g. Customer complaint resolved"
-                            className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-400"
+                            className={`w-full px-2 py-1.5 bg-${currentTheme.border} border border-${currentTheme.border} rounded text-sm text-${currentTheme.text} placeholder-${currentTheme.textMuted}`}
                         />
                     </div>
                 </div>
@@ -231,7 +233,7 @@ export default function AdminBonusPage() {
                     <button
                         onClick={handleGiveBonus}
                         disabled={giving || !selectedUser || !amount}
-                        className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 text-sm font-bold rounded hover:from-amber-400 hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`px-4 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-sm font-bold rounded hover:from-${currentTheme.accentHover} hover:to-orange-400 disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                         {giving ? 'Giving...' : 'Give Bonus Views'}
                     </button>
@@ -245,33 +247,33 @@ export default function AdminBonusPage() {
             </div>
 
             {/* History */}
-            <h2 className="text-sm font-bold text-white mb-2">Recent Bonus History</h2>
-            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
+            <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>Recent Bonus History</h2>
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-700">
+                    <thead className={`bg-${currentTheme.border}`}>
                         <tr>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">Date</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">User</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">Amount</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">Message</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">Reason</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-slate-300">Given By</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>Date</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>User</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>Amount</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>Message</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>Reason</th>
+                            <th className={`px-3 py-2 text-left text-xs font-medium text-${currentTheme.textMuted}`}>Given By</th>
                         </tr>
                     </thead>
                     <tbody>
                         {history.length === 0 ? (
                             <tr>
-                                <td colSpan="6" className="px-3 py-6 text-center text-slate-400 text-sm">
+                                <td colSpan="6" className={`px-3 py-6 text-center text-${currentTheme.textMuted} text-sm`}>
                                     No bonus views have been given yet
                                 </td>
                             </tr>
                         ) : (
                             history.map((item) => (
-                                <tr key={item.id} className="border-t border-slate-700">
-                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                <tr key={item.id} className={`border-t border-${currentTheme.border}`}>
+                                    <td className={`px-3 py-2 text-xs text-${currentTheme.textMuted}`}>
                                         {new Date(item.created_at).toLocaleDateString()}
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-white">
+                                    <td className={`px-3 py-2 text-xs text-${currentTheme.text}`}>
                                         {item.user?.first_name && item.user?.last_name
                                             ? `${item.user.first_name} ${item.user.last_name}`
                                             : item.user?.username || 'Unknown'}
@@ -279,13 +281,13 @@ export default function AdminBonusPage() {
                                     <td className="px-3 py-2 text-xs text-green-400 font-bold">
                                         +{item.amount}
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                    <td className={`px-3 py-2 text-xs text-${currentTheme.textMuted}`}>
                                         {item.message || '-'}
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-slate-400 italic">
+                                    <td className={`px-3 py-2 text-xs text-${currentTheme.textMuted} italic`}>
                                         {item.reason || '-'}
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                    <td className={`px-3 py-2 text-xs text-${currentTheme.textMuted}`}>
                                         {item.admin?.username || 'Unknown'}
                                     </td>
                                 </tr>

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminUsersPage() {
+    const { currentTheme } = useTheme()
     const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -278,8 +280,8 @@ export default function AdminUsersPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -289,10 +291,10 @@ export default function AdminUsersPage() {
         <div className="p-4">
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 w-full max-w-md mx-4">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4 w-full max-w-md mx-4`}>
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-white">Quick Add User</h3>
-                            <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">✕</button>
+                            <h3 className={`text-sm font-bold text-${currentTheme.text}`}>Quick Add User</h3>
+                            <button onClick={() => setShowAddModal(false)} className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}>✕</button>
                         </div>
 
                         {addError && (
@@ -310,67 +312,67 @@ export default function AdminUsersPage() {
                         <div className="space-y-2">
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-0.5">First Name</label>
+                                    <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>First Name</label>
                                     <input
                                         type="text"
                                         value={newUser.firstName}
                                         onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                         placeholder="First"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-0.5">Last Name</label>
+                                    <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Last Name</label>
                                     <input
                                         type="text"
                                         value={newUser.lastName}
                                         onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                                        className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                         placeholder="Last"
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-0.5">Username *</label>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Username *</label>
                                 <input
                                     type="text"
                                     value={newUser.username}
                                     onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                     placeholder="username"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-0.5">Email *</label>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Email *</label>
                                 <input
                                     type="email"
                                     value={newUser.email}
                                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                     placeholder="email@example.com"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-0.5">Password *</label>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Password *</label>
                                 <input
                                     type="text"
                                     value={newUser.password}
                                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                     placeholder="password123"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-[10px] text-slate-400 mb-0.5">Phone</label>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Phone</label>
                                 <input
                                     type="text"
                                     value={newUser.phone}
                                     onChange={(e) => setNewUser({ ...newUser, phone: formatPhone(e.target.value) })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                     placeholder="(555) 123-4567"
                                 />
                             </div>
@@ -380,22 +382,22 @@ export default function AdminUsersPage() {
                                     <button
                                         type="button"
                                         onClick={() => setNewUser({ ...newUser, isAdmin: !newUser.isAdmin })}
-                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.isAdmin ? 'bg-amber-500' : 'bg-slate-600'}`}
+                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.isAdmin ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
                                     >
                                         <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.isAdmin ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
                                     </button>
-                                    <span className="text-xs text-slate-300">Make Admin</span>
+                                    <span className={`text-xs text-${currentTheme.textMuted}`}>Make Admin</span>
                                 </label>
 
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <button
                                         type="button"
                                         onClick={() => setNewUser({ ...newUser, emailVerified: !newUser.emailVerified })}
-                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.emailVerified ? 'bg-green-500' : 'bg-slate-600'}`}
+                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.emailVerified ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
                                     >
                                         <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.emailVerified ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
                                     </button>
-                                    <span className="text-xs text-slate-300">Email Verified</span>
+                                    <span className={`text-xs text-${currentTheme.textMuted}`}>Email Verified</span>
                                 </label>
                             </div>
                         </div>
@@ -403,14 +405,14 @@ export default function AdminUsersPage() {
                         <div className="flex gap-2 mt-4">
                             <button
                                 onClick={() => setShowAddModal(false)}
-                                className="flex-1 py-1.5 bg-slate-700 text-slate-300 text-xs font-medium rounded hover:bg-slate-600"
+                                className={`flex-1 py-1.5 bg-${currentTheme.border} text-${currentTheme.textMuted} text-xs font-medium rounded hover:bg-${currentTheme.card}`}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleAddUser}
                                 disabled={addingUser || !newUser.username || !newUser.email || !newUser.password}
-                                className="flex-1 py-1.5 bg-amber-500 text-slate-900 text-xs font-bold rounded hover:bg-amber-400 disabled:opacity-50"
+                                className={`flex-1 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded hover:bg-${currentTheme.accentHover} disabled:opacity-50`}
                             >
                                 {addingUser ? 'Creating...' : 'Create User'}
                             </button>
@@ -421,12 +423,12 @@ export default function AdminUsersPage() {
 
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <h1 className="text-lg font-bold text-white">User Management</h1>
-                    <p className="text-slate-400 text-xs">View and manage user accounts</p>
+                    <h1 className={`text-lg font-bold text-${currentTheme.text}`}>User Management</h1>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>View and manage user accounts</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="px-3 py-1.5 bg-amber-500 text-slate-900 text-xs font-bold rounded hover:bg-amber-400"
+                    className={`px-3 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded hover:bg-${currentTheme.accentHover}`}
                 >
                     + Add User
                 </button>
@@ -434,19 +436,19 @@ export default function AdminUsersPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total Users</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Total Users</p>
                     <p className="text-xl font-bold text-blue-400">{stats.total}</p>
                 </div>
                 <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Active</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Active</p>
                     <p className="text-xl font-bold text-green-400">{stats.active}</p>
                 </div>
                 <div className="bg-red-500/10 border border-red-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Disabled</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Disabled</p>
                     <p className="text-xl font-bold text-red-400">{stats.disabled}</p>
                 </div>
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">New This Week</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>New This Week</p>
                     <p className="text-xl font-bold text-purple-400">{stats.newThisWeek}</p>
                 </div>
             </div>
@@ -458,7 +460,7 @@ export default function AdminUsersPage() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search by username, email, or name..."
-                        className="w-full px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className={`w-full px-3 py-1.5 text-sm bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                     />
                 </div>
                 <div className="flex gap-1">
@@ -466,7 +468,7 @@ export default function AdminUsersPage() {
                         <button
                             key={tab}
                             onClick={() => setFilter(tab)}
-                            className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === tab ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                            className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === tab ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`}`}
                         >
                             {tab}
                         </button>
@@ -475,16 +477,16 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="flex gap-3">
-                <div className={`${selectedUser ? 'w-2/3' : 'w-full'} bg-slate-800 border border-slate-700 rounded overflow-hidden transition-all`}>
+                <div className={`${selectedUser ? 'w-2/3' : 'w-full'} bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden transition-all`}>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-slate-700">
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">User</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Email</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Joined</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Status</th>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Actions</th>
+                                <tr className={`border-b border-${currentTheme.border}`}>
+                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>User</th>
+                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
+                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Joined</th>
+                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
+                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -492,7 +494,7 @@ export default function AdminUsersPage() {
                                     <tr
                                         key={user.id}
                                         onClick={() => openUserDetails(user)}
-                                        className={`border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer ${selectedUser?.id === user.id ? 'bg-slate-700/50' : ''}`}
+                                        className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30 cursor-pointer ${selectedUser?.id === user.id ? `bg-${currentTheme.border}/50` : ''}`}
                                     >
                                         <td className="py-2 px-3">
                                             <div className="flex items-center gap-2">
@@ -500,16 +502,16 @@ export default function AdminUsersPage() {
                                                     {user.username?.charAt(0).toUpperCase() || '?'}
                                                 </div>
                                                 <div>
-                                                    <p className="text-white font-medium text-xs">{user.username}</p>
-                                                    {user.first_name && <p className="text-slate-400 text-[10px]">{user.first_name} {user.last_name}</p>}
+                                                    <p className={`text-${currentTheme.text} font-medium text-xs`}>{user.username}</p>
+                                                    {user.first_name && <p className={`text-${currentTheme.textMuted} text-[10px]`}>{user.first_name} {user.last_name}</p>}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-2 px-3 text-slate-300 text-xs">{user.email}</td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs">{formatDate(user.created_at)}</td>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{user.email}</td>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{formatDate(user.created_at)}</td>
                                         <td className="py-2 px-3">
                                             <div className="flex items-center gap-1">
-                                                {user.is_admin && <span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-medium rounded-full">Admin</span>}
+                                                {user.is_admin && <span className={`px-1.5 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-[10px] font-medium rounded-full`}>Admin</span>}
                                                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${user.is_disabled ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                                                     {user.is_disabled ? 'Disabled' : 'Active'}
                                                 </span>
@@ -525,7 +527,7 @@ export default function AdminUsersPage() {
                                         </td>
                                     </tr>
                                 )) : (
-                                    <tr><td colSpan="5" className="py-8 text-center text-slate-400 text-sm">No users found</td></tr>
+                                    <tr><td colSpan="5" className={`py-8 text-center text-${currentTheme.textMuted} text-sm`}>No users found</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -533,10 +535,10 @@ export default function AdminUsersPage() {
                 </div>
 
                 {selectedUser && (
-                    <div className="w-1/3 bg-slate-800 border border-slate-700 rounded p-3">
+                    <div className={`w-1/3 bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-bold text-white">User Details</h3>
-                            <button onClick={() => setSelectedUser(null)} className="text-slate-400 hover:text-white text-sm">✕</button>
+                            <h3 className={`text-sm font-bold text-${currentTheme.text}`}>User Details</h3>
+                            <button onClick={() => setSelectedUser(null)} className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-sm`}>✕</button>
                         </div>
 
                         <div className="flex items-center gap-3 mb-3">
@@ -544,8 +546,8 @@ export default function AdminUsersPage() {
                                 {selectedUser.username?.charAt(0).toUpperCase() || '?'}
                             </div>
                             <div>
-                                <p className="text-white font-bold text-sm">{selectedUser.username}</p>
-                                <p className="text-slate-400 text-xs">{selectedUser.email}</p>
+                                <p className={`text-${currentTheme.text} font-bold text-sm`}>{selectedUser.username}</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>{selectedUser.email}</p>
                             </div>
                         </div>
 
@@ -556,18 +558,18 @@ export default function AdminUsersPage() {
                         )}
 
                         {editMode === 'password' && (
-                            <div className="mb-3 p-2 bg-slate-700/50 rounded">
-                                <label className="block text-[10px] text-slate-400 mb-1">New Password</label>
+                            <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded`}>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-1`}>New Password</label>
                                 <input
                                     type="text"
                                     value={editData.password}
                                     onChange={(e) => setEditData({ password: e.target.value })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white mb-2"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} mb-2`}
                                     placeholder="Enter new password"
                                 />
                                 <div className="flex gap-1">
-                                    <button onClick={cancelEdit} className="flex-1 py-1 bg-slate-600 text-white text-xs rounded">Cancel</button>
-                                    <button onClick={saveEdit} disabled={editLoading || !editData.password} className="flex-1 py-1 bg-amber-500 text-slate-900 text-xs font-bold rounded disabled:opacity-50">
+                                    <button onClick={cancelEdit} className={`flex-1 py-1 bg-${currentTheme.border} text-${currentTheme.text} text-xs rounded`}>Cancel</button>
+                                    <button onClick={saveEdit} disabled={editLoading || !editData.password} className={`flex-1 py-1 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded disabled:opacity-50`}>
                                         {editLoading ? '...' : 'Save'}
                                     </button>
                                 </div>
@@ -575,17 +577,17 @@ export default function AdminUsersPage() {
                         )}
 
                         {editMode === 'email' && (
-                            <div className="mb-3 p-2 bg-slate-700/50 rounded">
-                                <label className="block text-[10px] text-slate-400 mb-1">Email Address</label>
+                            <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded`}>
+                                <label className={`block text-[10px] text-${currentTheme.textMuted} mb-1`}>Email Address</label>
                                 <input
                                     type="email"
                                     value={editData.email}
                                     onChange={(e) => setEditData({ email: e.target.value })}
-                                    className="w-full px-2 py-1.5 text-xs bg-slate-700 border border-slate-600 rounded text-white mb-2"
+                                    className={`w-full px-2 py-1.5 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} mb-2`}
                                 />
                                 <div className="flex gap-1">
-                                    <button onClick={cancelEdit} className="flex-1 py-1 bg-slate-600 text-white text-xs rounded">Cancel</button>
-                                    <button onClick={saveEdit} disabled={editLoading || !editData.email} className="flex-1 py-1 bg-amber-500 text-slate-900 text-xs font-bold rounded disabled:opacity-50">
+                                    <button onClick={cancelEdit} className={`flex-1 py-1 bg-${currentTheme.border} text-${currentTheme.text} text-xs rounded`}>Cancel</button>
+                                    <button onClick={saveEdit} disabled={editLoading || !editData.email} className={`flex-1 py-1 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded disabled:opacity-50`}>
                                         {editLoading ? '...' : 'Save'}
                                     </button>
                                 </div>
@@ -593,37 +595,37 @@ export default function AdminUsersPage() {
                         )}
 
                         {editMode === 'details' && (
-                            <div className="mb-3 p-2 bg-slate-700/50 rounded space-y-2">
+                            <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded space-y-2`}>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-0.5">First Name</label>
+                                    <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>First Name</label>
                                     <input
                                         type="text"
                                         value={editData.firstName}
                                         onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
-                                        className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-0.5">Last Name</label>
+                                    <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Last Name</label>
                                     <input
                                         type="text"
                                         value={editData.lastName}
                                         onChange={(e) => setEditData({ ...editData, lastName: e.target.value })}
-                                        className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-slate-400 mb-0.5">Phone</label>
+                                    <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>Phone</label>
                                     <input
                                         type="text"
                                         value={editData.phone}
                                         onChange={(e) => setEditData({ ...editData, phone: formatPhone(e.target.value) })}
-                                        className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
                                     />
                                 </div>
                                 <div className="flex gap-1">
-                                    <button onClick={cancelEdit} className="flex-1 py-1 bg-slate-600 text-white text-xs rounded">Cancel</button>
-                                    <button onClick={saveEdit} disabled={editLoading} className="flex-1 py-1 bg-amber-500 text-slate-900 text-xs font-bold rounded disabled:opacity-50">
+                                    <button onClick={cancelEdit} className={`flex-1 py-1 bg-${currentTheme.border} text-${currentTheme.text} text-xs rounded`}>Cancel</button>
+                                    <button onClick={saveEdit} disabled={editLoading} className={`flex-1 py-1 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded disabled:opacity-50`}>
                                         {editLoading ? '...' : 'Save'}
                                     </button>
                                 </div>
@@ -633,43 +635,43 @@ export default function AdminUsersPage() {
                         {!editMode && (
                             <>
                                 <div className="space-y-1.5 mb-3 text-xs">
-                                    <div className="flex justify-between py-1 border-b border-slate-700">
-                                        <span className="text-slate-400">Name</span>
-                                        <span className="text-white">{selectedUser.first_name} {selectedUser.last_name || '—'}</span>
+                                    <div className={`flex justify-between py-1 border-b border-${currentTheme.border}`}>
+                                        <span className={`text-${currentTheme.textMuted}`}>Name</span>
+                                        <span className={`text-${currentTheme.text}`}>{selectedUser.first_name} {selectedUser.last_name || '—'}</span>
                                     </div>
-                                    <div className="flex justify-between py-1 border-b border-slate-700">
-                                        <span className="text-slate-400">Phone</span>
-                                        <span className="text-white">{selectedUser.phone || '—'}</span>
+                                    <div className={`flex justify-between py-1 border-b border-${currentTheme.border}`}>
+                                        <span className={`text-${currentTheme.textMuted}`}>Phone</span>
+                                        <span className={`text-${currentTheme.text}`}>{selectedUser.phone || '—'}</span>
                                     </div>
-                                    <div className="flex justify-between py-1 border-b border-slate-700">
-                                        <span className="text-slate-400">Referral ID</span>
-                                        <span className="text-white font-mono text-[10px]">{selectedUser.referral_id || '—'}</span>
+                                    <div className={`flex justify-between py-1 border-b border-${currentTheme.border}`}>
+                                        <span className={`text-${currentTheme.textMuted}`}>Referral ID</span>
+                                        <span className={`text-${currentTheme.text} font-mono text-[10px]`}>{selectedUser.referral_id || '—'}</span>
                                     </div>
-                                    <div className="flex justify-between py-1 border-b border-slate-700">
-                                        <span className="text-slate-400">Joined</span>
-                                        <span className="text-white">{formatDate(selectedUser.created_at)}</span>
+                                    <div className={`flex justify-between py-1 border-b border-${currentTheme.border}`}>
+                                        <span className={`text-${currentTheme.textMuted}`}>Joined</span>
+                                        <span className={`text-${currentTheme.text}`}>{formatDate(selectedUser.created_at)}</span>
                                     </div>
-                                    <div className="flex justify-between py-1 border-b border-slate-700">
-                                        <span className="text-slate-400">Referrals</span>
-                                        <span className="text-white">{selectedUser.simple_referral_count || 0}</span>
+                                    <div className={`flex justify-between py-1 border-b border-${currentTheme.border}`}>
+                                        <span className={`text-${currentTheme.textMuted}`}>Referrals</span>
+                                        <span className={`text-${currentTheme.text}`}>{selectedUser.simple_referral_count || 0}</span>
                                     </div>
                                 </div>
 
                                 {userStats[selectedUser.id] && (
                                     <div className="mb-3">
-                                        <h4 className="text-white font-semibold text-xs mb-2">Game Stats</h4>
+                                        <h4 className={`text-${currentTheme.text} font-semibold text-xs mb-2`}>Game Stats</h4>
                                         <div className="grid grid-cols-2 gap-1.5">
-                                            <div className="bg-slate-700/50 rounded p-2">
-                                                <p className="text-slate-400 text-[10px]">Total Games</p>
-                                                <p className="text-white font-bold text-sm">{userStats[selectedUser.id].totalGames}</p>
+                                            <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Games</p>
+                                                <p className={`text-${currentTheme.text} font-bold text-sm`}>{userStats[selectedUser.id].totalGames}</p>
                                             </div>
-                                            <div className="bg-slate-700/50 rounded p-2">
-                                                <p className="text-slate-400 text-[10px]">Best Score</p>
-                                                <p className="text-amber-400 font-bold text-sm">{userStats[selectedUser.id].bestScore ?? '—'}</p>
+                                            <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Best Score</p>
+                                                <p className={`text-${currentTheme.accent} font-bold text-sm`}>{userStats[selectedUser.id].bestScore ?? '—'}</p>
                                             </div>
-                                            <div className="bg-slate-700/50 rounded p-2 col-span-2">
-                                                <p className="text-slate-400 text-[10px]">Average Score</p>
-                                                <p className="text-white font-bold text-sm">{userStats[selectedUser.id].averageScore ?? '—'}</p>
+                                            <div className={`bg-${currentTheme.border}/50 rounded p-2 col-span-2`}>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Average Score</p>
+                                                <p className={`text-${currentTheme.text} font-bold text-sm`}>{userStats[selectedUser.id].averageScore ?? '—'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -691,7 +693,7 @@ export default function AdminUsersPage() {
                                         </button>
                                         <button
                                             onClick={() => startEdit('details')}
-                                            className="py-1.5 bg-slate-600 text-white text-[10px] font-medium rounded hover:bg-slate-500"
+                                            className={`py-1.5 bg-${currentTheme.border} text-${currentTheme.text} text-[10px] font-medium rounded hover:bg-${currentTheme.card}`}
                                         >
                                             Edit Info
                                         </button>
@@ -704,7 +706,7 @@ export default function AdminUsersPage() {
                                     </button>
                                     <button
                                         onClick={() => toggleAdminStatus(selectedUser)}
-                                        className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_admin ? 'bg-slate-600 text-white hover:bg-slate-500' : 'bg-amber-600 text-white hover:bg-amber-500'}`}
+                                        className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_admin ? `bg-${currentTheme.border} text-${currentTheme.text} hover:bg-${currentTheme.card}` : `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} hover:bg-${currentTheme.accentHover}`}`}
                                     >
                                         {selectedUser.is_admin ? 'Remove Admin' : 'Make Admin'}
                                     </button>

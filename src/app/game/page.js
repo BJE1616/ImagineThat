@@ -3,9 +3,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function GamePage() {
     const router = useRouter()
+    const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [cards, setCards] = useState([])
     const [flippedCards, setFlippedCards] = useState([])
@@ -590,22 +592,22 @@ export default function GamePage() {
     }
 
     const CardBack = () => (
-        <div className="absolute top-1 right-1 bg-amber-400 text-slate-900 text-[8px] font-bold px-1 rounded z-10">TAP</div>
+        <div className={`absolute top-1 right-1 bg-${currentTheme.accentHover} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-[8px] font-bold px-1 rounded z-10`}>TAP</div>
     )
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium">Loading...</p>
+                    <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} font-medium`}>Loading...</p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-slate-900">
+        <div className={`min-h-screen bg-${currentTheme.bg}`}>
             {viewingCard && (
                 <div
                     className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
@@ -616,11 +618,11 @@ export default function GamePage() {
                         onClick={(e) => e.stopPropagation()}
                     >
                         {viewingCard.card_type === 'uploaded' && viewingCard.image_url ? (
-                            <div className="bg-slate-800">
+                            <div className={`bg-${currentTheme.card}`}>
                                 <img src={viewingCard.image_url} alt="Card" className="w-full h-auto" />
                                 <button
                                     onClick={() => setViewingCard(null)}
-                                    className="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white font-medium"
+                                    className={`w-full py-2 bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.text} font-medium`}
                                 >
                                     Close
                                 </button>
@@ -707,7 +709,7 @@ export default function GamePage() {
                     <div className="flex justify-center mb-4">
                         <button
                             onClick={() => setShowLeaderboard(!showLeaderboard)}
-                            className="px-4 py-2 sm:px-6 sm:py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all text-sm sm:text-base"
+                            className={`px-4 py-2 sm:px-6 sm:py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all text-sm sm:text-base`}
                         >
                             🏆 {showLeaderboard ? 'Hide' : 'Show'} Leaderboards
                         </button>
@@ -716,68 +718,68 @@ export default function GamePage() {
 
                 {showLeaderboard && !gameStarted && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4`}>
+                            <h2 className={`text-lg sm:text-xl font-bold text-${currentTheme.text} mb-3 flex items-center gap-2`}>
                                 <span className="text-green-400">🟢</span> Easy Mode (12 Cards)
                             </h2>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-xs sm:text-sm">
                                     <thead>
-                                        <tr className="border-b border-slate-700">
-                                            <th className="text-left py-2 text-slate-400">#</th>
-                                            <th className="text-left py-2 text-slate-400">Player</th>
-                                            <th className="text-left py-2 text-slate-400">Moves</th>
-                                            <th className="text-left py-2 text-slate-400">Time</th>
-                                            <th className="text-left py-2 text-slate-400">Score</th>
+                                        <tr className={`border-b border-${currentTheme.border}`}>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>#</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Player</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Moves</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Time</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Score</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {easyLeaderboard.map((entry, index) => (
-                                            <tr key={entry.id} className="border-b border-slate-700/50">
-                                                <td className="py-2 text-white">{index + 1}</td>
-                                                <td className="py-2 text-white">{entry.users.username}</td>
-                                                <td className="py-2 text-slate-300">{entry.moves}</td>
-                                                <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
-                                                <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
+                                            <tr key={entry.id} className={`border-b border-${currentTheme.border}/50`}>
+                                                <td className={`py-2 text-${currentTheme.text}`}>{index + 1}</td>
+                                                <td className={`py-2 text-${currentTheme.text}`}>{entry.users.username}</td>
+                                                <td className={`py-2 text-${currentTheme.textMuted}`}>{entry.moves}</td>
+                                                <td className={`py-2 text-${currentTheme.textMuted}`}>{entry.time_seconds}s</td>
+                                                <td className={`py-2 text-${currentTheme.accent} font-bold`}>{entry.score}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 {easyLeaderboard.length === 0 && (
-                                    <p className="text-center text-slate-400 py-4 text-sm">No scores yet!</p>
+                                    <p className={`text-center text-${currentTheme.textMuted} py-4 text-sm`}>No scores yet!</p>
                                 )}
                             </div>
                         </div>
 
-                        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 flex items-center gap-2">
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4`}>
+                            <h2 className={`text-lg sm:text-xl font-bold text-${currentTheme.text} mb-3 flex items-center gap-2`}>
                                 <span className="text-red-400">🔴</span> Challenge Mode (16 Cards)
                             </h2>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-xs sm:text-sm">
                                     <thead>
-                                        <tr className="border-b border-slate-700">
-                                            <th className="text-left py-2 text-slate-400">#</th>
-                                            <th className="text-left py-2 text-slate-400">Player</th>
-                                            <th className="text-left py-2 text-slate-400">Moves</th>
-                                            <th className="text-left py-2 text-slate-400">Time</th>
-                                            <th className="text-left py-2 text-slate-400">Score</th>
+                                        <tr className={`border-b border-${currentTheme.border}`}>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>#</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Player</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Moves</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Time</th>
+                                            <th className={`text-left py-2 text-${currentTheme.textMuted}`}>Score</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {challengeLeaderboard.map((entry, index) => (
-                                            <tr key={entry.id} className="border-b border-slate-700/50">
-                                                <td className="py-2 text-white">{index + 1}</td>
-                                                <td className="py-2 text-white">{entry.users.username}</td>
-                                                <td className="py-2 text-slate-300">{entry.moves}</td>
-                                                <td className="py-2 text-slate-300">{entry.time_seconds}s</td>
-                                                <td className="py-2 text-amber-400 font-bold">{entry.score}</td>
+                                            <tr key={entry.id} className={`border-b border-${currentTheme.border}/50`}>
+                                                <td className={`py-2 text-${currentTheme.text}`}>{index + 1}</td>
+                                                <td className={`py-2 text-${currentTheme.text}`}>{entry.users.username}</td>
+                                                <td className={`py-2 text-${currentTheme.textMuted}`}>{entry.moves}</td>
+                                                <td className={`py-2 text-${currentTheme.textMuted}`}>{entry.time_seconds}s</td>
+                                                <td className={`py-2 text-${currentTheme.accent} font-bold`}>{entry.score}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 {challengeLeaderboard.length === 0 && (
-                                    <p className="text-center text-slate-400 py-4 text-sm">No scores yet!</p>
+                                    <p className={`text-center text-${currentTheme.textMuted} py-4 text-sm`}>No scores yet!</p>
                                 )}
                             </div>
                         </div>
@@ -785,12 +787,12 @@ export default function GamePage() {
                 )}
 
                 {!user && !gameStarted && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-3 rounded-lg mb-4 text-sm">
+                    <div className={`bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/30 text-${currentTheme.accent} px-4 py-3 rounded-lg mb-4 text-sm`}>
                         <p className="text-center">
                             <strong>Want to compete for prizes?</strong>
                             <button
                                 onClick={() => router.push('/auth/register')}
-                                className="ml-2 underline hover:text-amber-300"
+                                className={`ml-2 underline hover:text-${currentTheme.accentHover}`}
                             >
                                 Sign up now!
                             </button>
@@ -800,8 +802,8 @@ export default function GamePage() {
 
                 {!gameStarted && (
                     <div className="text-center py-8">
-                        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Choose Your Challenge!</h2>
-                        <p className="text-sm sm:text-lg text-slate-400 mb-6">
+                        <h2 className={`text-2xl sm:text-3xl font-bold text-${currentTheme.text} mb-3`}>Choose Your Challenge!</h2>
+                        <p className={`text-sm sm:text-lg text-${currentTheme.textMuted} mb-6`}>
                             Match all pairs. Lower score wins!
                         </p>
                         <div className="flex gap-3 justify-center">
@@ -825,14 +827,14 @@ export default function GamePage() {
 
                 {gameStarted && (
                     <>
-                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 sm:p-4 mb-3">
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2 sm:p-4 mb-3`}>
                             <div className="flex justify-between items-center text-xs sm:text-base">
-                                <span className="text-white"><span className="text-slate-400">M:</span> {moves}</span>
-                                <span className="text-white"><span className="text-slate-400">T:</span> {getElapsedTime()}s</span>
-                                <span className="text-white"><span className="text-slate-400">✓:</span> {matchedPairs.length}/{gameMode === 'easy' ? 6 : 8}</span>
+                                <span className={`text-${currentTheme.text}`}><span className={`text-${currentTheme.textMuted}`}>M:</span> {moves}</span>
+                                <span className={`text-${currentTheme.text}`}><span className={`text-${currentTheme.textMuted}`}>T:</span> {getElapsedTime()}s</span>
+                                <span className={`text-${currentTheme.text}`}><span className={`text-${currentTheme.textMuted}`}>✓:</span> {matchedPairs.length}/{gameMode === 'easy' ? 6 : 8}</span>
                                 <button
                                     onClick={playAgain}
-                                    className="px-2 py-1 sm:px-3 sm:py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-all text-xs sm:text-sm"
+                                    className={`px-2 py-1 sm:px-3 sm:py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.card} transition-all text-xs sm:text-sm`}
                                 >
                                     Quit
                                 </button>
@@ -871,7 +873,7 @@ export default function GamePage() {
                                             playAgain()
                                             setShowLeaderboard(true)
                                         }}
-                                        className="px-6 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                                        className={`px-6 py-2 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all`}
                                     >
                                         View Leaderboard
                                     </button>
@@ -889,7 +891,7 @@ export default function GamePage() {
                                     {!isCardFlipped(card) ? (
                                         cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser ? (
                                             cardBackAdvertiser.card_type === 'uploaded' && cardBackAdvertiser.image_url ? (
-                                                <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-amber-400 bg-slate-800 flex items-center justify-center ring-2 ring-amber-400/50 relative">
+                                                <div className={`w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-${currentTheme.accentHover} bg-${currentTheme.card} flex items-center justify-center ring-2 ring-${currentTheme.accent}/50 relative`}>
                                                     <CardBack />
                                                     <img
                                                         src={cardBackAdvertiser.image_url}
@@ -899,7 +901,7 @@ export default function GamePage() {
                                                 </div>
                                             ) : (
                                                 <div
-                                                    className="w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border-2 border-amber-400 shadow-lg overflow-hidden ring-2 ring-amber-400/50 relative"
+                                                    className={`w-full h-full rounded-md sm:rounded-lg p-1 flex flex-col justify-center items-center border-2 border-${currentTheme.accentHover} shadow-lg overflow-hidden ring-2 ring-${currentTheme.accent}/50 relative`}
                                                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                                                 >
                                                     <CardBack />
@@ -908,7 +910,7 @@ export default function GamePage() {
                                                 </div>
                                             )
                                         ) : cardBackSetting?.card_back_logo_url ? (
-                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-amber-400 bg-indigo-600 flex items-center justify-center ring-2 ring-amber-400/50 relative">
+                                            <div className={`w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden border-2 border-${currentTheme.accentHover} bg-indigo-600 flex items-center justify-center ring-2 ring-${currentTheme.accent}/50 relative`}>
                                                 <CardBack />
                                                 <img
                                                     src={cardBackSetting.card_back_logo_url}
@@ -917,14 +919,14 @@ export default function GamePage() {
                                                 />
                                             </div>
                                         ) : (
-                                            <div className="w-full h-full bg-indigo-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg border-2 border-amber-400 ring-2 ring-amber-400/50 relative">
+                                            <div className={`w-full h-full bg-indigo-600 rounded-md sm:rounded-lg flex items-center justify-center shadow-lg border-2 border-${currentTheme.accentHover} ring-2 ring-${currentTheme.accent}/50 relative`}>
                                                 <CardBack />
                                                 <span className="text-3xl sm:text-5xl text-white">?</span>
                                             </div>
                                         )
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
-                                            <div className="w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative border border-slate-600">
+                                            <div className={`w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative border border-${currentTheme.border}`}>
                                                 <img src={card.image_url} alt="Card" className="w-full h-full object-contain" />
                                                 {matchedPairs.includes(card.pairId) && (
                                                     <button
@@ -941,7 +943,7 @@ export default function GamePage() {
                                             </div>
                                         ) : (
                                             <div
-                                                className="w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border border-slate-600 shadow-lg overflow-hidden relative"
+                                                className={`w-full h-full rounded-md sm:rounded-lg p-1 sm:p-2 flex flex-col justify-between border border-${currentTheme.border} shadow-lg overflow-hidden relative`}
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
                                                 <div className="text-center overflow-hidden">

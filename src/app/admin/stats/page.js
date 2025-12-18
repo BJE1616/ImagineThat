@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/lib/ThemeContext';
 
 export default function AdminStatsPage() {
+    const { currentTheme } = useTheme();
     const [stats, setStats] = useState({
         users: { total: 0, admins: 0, regular: 0, thisWeek: 0, thisMonth: 0 },
         campaigns: { total: 0, active: 0, queued: 0, pending: 0, completed: 0, cancelled: 0, thisWeek: 0, thisMonth: 0 },
@@ -94,9 +96,9 @@ export default function AdminStatsPage() {
 
     function StatRow({ label, value, even }) {
         return (
-            <div className={`flex justify-between px-3 py-1.5 ${even ? 'bg-slate-800' : 'bg-slate-700/50'}`}>
-                <span className="text-slate-300">{label}</span>
-                <span className="text-white font-medium">{value}</span>
+            <div className={`flex justify-between px-3 py-1.5 ${even ? `bg-${currentTheme.card}` : `bg-${currentTheme.border}/50`}`}>
+                <span className={`text-${currentTheme.textMuted}`}>{label}</span>
+                <span className={`text-${currentTheme.text} font-medium`}>{value}</span>
             </div>
         );
     }
@@ -107,16 +109,16 @@ export default function AdminStatsPage() {
             <div className="mb-2">
                 <button
                     onClick={() => toggleSection(sectionKey)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 transition"
+                    className={`w-full flex items-center justify-between px-3 py-2 bg-${currentTheme.card} hover:bg-${currentTheme.border} rounded border border-${currentTheme.border} transition`}
                 >
                     <div className="flex items-center gap-2">
-                        <span className="text-amber-400 text-xs">{isOpen ? '▼' : '▶'}</span>
-                        <span className="text-sm font-semibold text-white">{title}</span>
+                        <span className={`text-${currentTheme.accent} text-xs`}>{isOpen ? '▼' : '▶'}</span>
+                        <span className={`text-sm font-semibold text-${currentTheme.text}`}>{title}</span>
                     </div>
-                    <span className="text-xs text-slate-400">{summary}</span>
+                    <span className={`text-xs text-${currentTheme.textMuted}`}>{summary}</span>
                 </button>
                 {isOpen && (
-                    <div className="mt-1 rounded overflow-hidden border border-slate-700">
+                    <div className={`mt-1 rounded overflow-hidden border border-${currentTheme.border}`}>
                         {children}
                     </div>
                 )}
@@ -127,9 +129,9 @@ export default function AdminStatsPage() {
     if (loading) {
         return (
             <div className="p-4">
-                <h1 className="text-lg font-bold text-white mb-3">Platform Stats</h1>
+                <h1 className={`text-lg font-bold text-${currentTheme.text} mb-3`}>Platform Stats</h1>
                 <div className="flex items-center justify-center h-32">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500"></div>
+                    <div className={`animate-spin rounded-full h-6 w-6 border-b-2 border-${currentTheme.accent}`}></div>
                 </div>
             </div>
         );
@@ -138,10 +140,10 @@ export default function AdminStatsPage() {
     return (
         <div className="p-4 max-w-md">
             <div className="flex items-center justify-between mb-4">
-                <h1 className="text-lg font-bold text-white">Platform Stats</h1>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Platform Stats</h1>
                 <button
                     onClick={fetchStats}
-                    className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded transition"
+                    className={`text-xs bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.textMuted} px-2 py-1 rounded transition`}
                 >
                     Refresh
                 </button>

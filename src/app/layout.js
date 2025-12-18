@@ -1,6 +1,7 @@
 import './globals.css'
 import Navbar from '../components/Navbar'
 import { ThemeProvider } from '@/lib/ThemeContext'
+import ThemeWrapper from '@/components/ThemeWrapper'
 
 export const metadata = {
   title: 'ImagineThat - Creative Advertising Platform',
@@ -12,8 +13,10 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="antialiased">
         <ThemeProvider>
-          <Navbar />
-          {children}
+          <ThemeWrapper>
+            <Navbar />
+            {children}
+          </ThemeWrapper>
         </ThemeProvider>
       </body>
     </html>

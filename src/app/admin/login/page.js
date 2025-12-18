@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
 
 const ADMIN_EMAILS = ['admin@imaginethat.com'] // Add your admin email(s) here
 
 export default function AdminLoginPage() {
     const router = useRouter()
+    const { currentTheme } = useTheme()
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
@@ -50,22 +52,22 @@ export default function AdminLoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className={`min-h-screen bg-${currentTheme.bg} flex items-center justify-center p-4`}>
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl"></div>
+                <div className={`absolute top-1/4 left-1/4 w-96 h-96 bg-${currentTheme.accent}/10 rounded-full blur-3xl`}></div>
                 <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl"></div>
             </div>
 
             <div className="relative w-full max-w-md">
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl mb-4 shadow-lg shadow-amber-500/25">
-                        <span className="text-2xl font-bold text-slate-900">IT</span>
+                    <div className={`inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-${currentTheme.accentHover} to-orange-500 rounded-2xl mb-4 shadow-lg shadow-${currentTheme.accent}/25`}>
+                        <span className={`text-2xl font-bold text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`}>IT</span>
                     </div>
-                    <h1 className="text-2xl font-bold text-white">ImagineThat Admin</h1>
-                    <p className="text-slate-400 mt-1">Sign in to access the admin panel</p>
+                    <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>ImagineThat Admin</h1>
+                    <p className={`text-${currentTheme.textMuted} mt-1`}>Sign in to access the admin panel</p>
                 </div>
 
-                <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-xl">
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-2xl p-8 shadow-xl`}>
                     <form onSubmit={handleLogin} className="space-y-5">
                         {error && (
                             <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
@@ -74,7 +76,7 @@ export default function AdminLoginPage() {
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                 Email Address
                             </label>
                             <input
@@ -82,13 +84,13 @@ export default function AdminLoginPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                className={`w-full px-4 py-3 bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent} focus:border-transparent transition-all`}
                                 placeholder="admin@example.com"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                 Password
                             </label>
                             <input
@@ -96,7 +98,7 @@ export default function AdminLoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                                className={`w-full px-4 py-3 bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent} focus:border-transparent transition-all`}
                                 placeholder="••••••••"
                             />
                         </div>
@@ -104,23 +106,23 @@ export default function AdminLoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-semibold rounded-lg hover:from-amber-400 hover:to-orange-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className={`w-full py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-semibold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent} focus:ring-offset-2 focus:ring-offset-${currentTheme.card} transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                             {loading ? 'Signing in...' : 'Sign In'}
                         </button>
                     </form>
 
-                    <div className="mt-6 pt-6 border-t border-slate-700">
-                        <p className="text-center text-slate-400 text-sm">
+                    <div className={`mt-6 pt-6 border-t border-${currentTheme.border}`}>
+                        <p className={`text-center text-${currentTheme.textMuted} text-sm`}>
                             Not an admin?{' '}
-                            <a href="/dashboard" className="text-amber-400 hover:text-amber-300 transition-colors">
+                            <a href="/dashboard" className={`text-${currentTheme.accent} hover:text-${currentTheme.accentHover} transition-colors`}>
                                 Go to user dashboard
                             </a>
                         </p>
                     </div>
                 </div>
 
-                <p className="text-center text-slate-500 text-sm mt-6">
+                <p className={`text-center text-${currentTheme.textMuted} text-sm mt-6`}>
                     © 2024 ImagineThat. All rights reserved.
                 </p>
             </div>

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminAdvertisersPage() {
+    const { currentTheme } = useTheme()
     const [loading, setLoading] = useState(true)
     const [campaigns, setCampaigns] = useState([])
     const [stats, setStats] = useState({
@@ -91,13 +93,13 @@ export default function AdminAdvertisersPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
                     <div className="grid grid-cols-4 gap-2">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-14 bg-slate-800 rounded"></div>
+                            <div key={i} className={`h-14 bg-${currentTheme.card} rounded`}></div>
                         ))}
                     </div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -106,26 +108,26 @@ export default function AdminAdvertisersPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Advertisers</h1>
-                <p className="text-slate-400 text-xs">Manage ad campaigns and track views</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Advertisers</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage ad campaigns and track views</p>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total Campaigns</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Total Campaigns</p>
                     <p className="text-xl font-bold text-blue-400">{stats.totalCampaigns}</p>
                 </div>
                 <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Active Campaigns</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Active Campaigns</p>
                     <p className="text-xl font-bold text-green-400">{stats.activeCampaigns}</p>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total Revenue</p>
-                    <p className="text-xl font-bold text-amber-400">${stats.totalRevenue}</p>
+                <div className={`bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded p-3`}>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Total Revenue</p>
+                    <p className={`text-xl font-bold text-${currentTheme.accent}`}>${stats.totalRevenue}</p>
                 </div>
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total Views</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Total Views</p>
                     <p className="text-xl font-bold text-purple-400">{stats.totalViews.toLocaleString()}</p>
                 </div>
             </div>
@@ -137,8 +139,8 @@ export default function AdminAdvertisersPage() {
                         key={tab}
                         onClick={() => setFilter(tab)}
                         className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === tab
-                            ? 'bg-amber-500 text-slate-900'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                            : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                             }`}
                     >
                         {tab}
@@ -147,26 +149,26 @@ export default function AdminAdvertisersPage() {
             </div>
 
             {/* Campaigns Table */}
-            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-slate-700">
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Advertiser</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Payment</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Date</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Views Progress</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium">Status</th>
+                            <tr className={`border-b border-${currentTheme.border}`}>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium`}>Advertiser</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium`}>Payment</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium`}>Date</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium`}>Views Progress</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium`}>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {campaigns.length > 0 ? campaigns.map(campaign => (
-                                <tr key={campaign.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                                <tr key={campaign.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30`}>
                                     <td className="py-2 px-3">
-                                        <p className="text-white font-medium">
+                                        <p className={`text-${currentTheme.text} font-medium`}>
                                             {campaign.users?.username || 'Unknown'}
                                         </p>
-                                        <p className="text-slate-400 text-xs">
+                                        <p className={`text-${currentTheme.textMuted} text-xs`}>
                                             {campaign.users?.email}
                                         </p>
                                     </td>
@@ -175,26 +177,26 @@ export default function AdminAdvertisersPage() {
                                             <span className="text-sm">{getPaymentMethodIcon(campaign.payment_method)}</span>
                                             <span className="text-green-400 font-medium">${campaign.amount_paid}</span>
                                         </div>
-                                        <p className="text-slate-500 text-xs capitalize">{campaign.payment_method}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-xs capitalize`}>{campaign.payment_method}</p>
                                     </td>
-                                    <td className="py-2 px-3 text-slate-300 text-xs">
+                                    <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>
                                         {formatDate(campaign.paid_at)}
                                     </td>
                                     <td className="py-2 px-3">
                                         <div className="w-full max-w-36">
                                             <div className="flex justify-between text-xs mb-0.5">
-                                                <span className="text-slate-400">
+                                                <span className={`text-${currentTheme.textMuted}`}>
                                                     {getTotalViews(campaign).toLocaleString()} / {campaign.views_guaranteed?.toLocaleString()}
                                                 </span>
-                                                <span className="text-slate-400">
+                                                <span className={`text-${currentTheme.textMuted}`}>
                                                     {Math.round(getViewProgress(campaign))}%
                                                 </span>
                                             </div>
-                                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className={`h-1.5 bg-${currentTheme.border} rounded-full overflow-hidden`}>
                                                 <div
                                                     className={`h-full rounded-full ${getViewProgress(campaign) >= 100
                                                         ? 'bg-green-500'
-                                                        : 'bg-amber-500'
+                                                        : `bg-${currentTheme.accent}`
                                                         }`}
                                                     style={{ width: `${getViewProgress(campaign)}%` }}
                                                 ></div>
@@ -209,7 +211,7 @@ export default function AdminAdvertisersPage() {
                                     <td className="py-2 px-3">
                                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${campaign.status === 'active'
                                             ? 'bg-green-500/20 text-green-400'
-                                            : 'bg-slate-500/20 text-slate-400'
+                                            : `bg-${currentTheme.textMuted}/20 text-${currentTheme.textMuted}`
                                             }`}>
                                             {campaign.status}
                                         </span>
@@ -217,7 +219,7 @@ export default function AdminAdvertisersPage() {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="5" className="py-8 text-center text-slate-400 text-sm">
+                                    <td colSpan="5" className={`py-8 text-center text-${currentTheme.textMuted} text-sm`}>
                                         No ad campaigns yet
                                     </td>
                                 </tr>

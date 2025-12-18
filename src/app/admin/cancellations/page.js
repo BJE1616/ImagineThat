@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminCancellationsPage() {
+    const { currentTheme } = useTheme()
     const [cancellations, setCancellations] = useState([])
     const [loading, setLoading] = useState(true)
 
@@ -45,8 +47,8 @@ export default function AdminCancellationsPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -55,24 +57,24 @@ export default function AdminCancellationsPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Campaign Cancellations</h1>
-                <p className="text-slate-400 text-xs">View all cancelled campaigns and details</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Campaign Cancellations</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>View all cancelled campaigns and details</p>
             </div>
 
             {/* Summary Stats */}
             <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-slate-800 border border-slate-700 rounded p-2">
-                    <p className="text-slate-400 text-[10px]">Total Cancellations</p>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Cancellations</p>
                     <p className="text-sm font-bold text-red-400">{cancellations.length}</p>
                 </div>
-                <div className="bg-slate-800 border border-slate-700 rounded p-2">
-                    <p className="text-slate-400 text-[10px]">Views Forfeited</p>
-                    <p className="text-sm font-bold text-amber-400">
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Views Forfeited</p>
+                    <p className={`text-sm font-bold text-${currentTheme.accent}`}>
                         {cancellations.reduce((sum, c) => sum + (c.views_remaining_at_cancel || 0), 0).toLocaleString()}
                     </p>
                 </div>
-                <div className="bg-slate-800 border border-slate-700 rounded p-2">
-                    <p className="text-slate-400 text-[10px]">Revenue (Cancelled)</p>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Revenue (Cancelled)</p>
                     <p className="text-sm font-bold text-green-400">
                         ${cancellations.reduce((sum, c) => sum + (c.amount_paid || 0), 0).toLocaleString()}
                     </p>
@@ -81,24 +83,24 @@ export default function AdminCancellationsPage() {
 
             {/* Cancellation Cards */}
             {cancellations.length === 0 ? (
-                <div className="bg-slate-800 border border-slate-700 rounded p-6 text-center">
-                    <p className="text-slate-400 text-sm">No cancelled campaigns yet</p>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-6 text-center`}>
+                    <p className={`text-${currentTheme.textMuted} text-sm`}>No cancelled campaigns yet</p>
                 </div>
             ) : (
                 <div className="space-y-3">
                     {cancellations.map((cancel) => (
-                        <div key={cancel.id} className="bg-slate-800 border border-slate-700 rounded p-3">
+                        <div key={cancel.id} className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
                             {/* Header Row - User & Date */}
                             <div className="flex items-start justify-between mb-3">
                                 <div>
-                                    <p className="text-white font-medium text-sm">{cancel.user?.username || 'Unknown'}</p>
-                                    <p className="text-slate-400 text-[10px]">{cancel.user?.email || ''}</p>
+                                    <p className={`text-${currentTheme.text} font-medium text-sm`}>{cancel.user?.username || 'Unknown'}</p>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>{cancel.user?.email || ''}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-white text-xs">
+                                    <p className={`text-${currentTheme.text} text-xs`}>
                                         {cancel.cancelled_at ? new Date(cancel.cancelled_at).toLocaleDateString() : 'N/A'}
                                     </p>
-                                    <p className="text-slate-400 text-[10px]">
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>
                                         {cancel.cancelled_at ? new Date(cancel.cancelled_at).toLocaleTimeString() : ''}
                                     </p>
                                 </div>
@@ -106,25 +108,25 @@ export default function AdminCancellationsPage() {
 
                             {/* Stats Row */}
                             <div className="grid grid-cols-4 gap-2 mb-3">
-                                <div className="bg-slate-700/50 rounded p-2">
-                                    <p className="text-slate-400 text-[10px]">Views Used</p>
-                                    <p className="text-white text-xs font-medium">
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Views Used</p>
+                                    <p className={`text-${currentTheme.text} text-xs font-medium`}>
                                         {getTotalViews(cancel).toLocaleString()}
-                                        <span className="text-slate-400 font-normal"> / {cancel.views_guaranteed?.toLocaleString()}</span>
+                                        <span className={`text-${currentTheme.textMuted} font-normal`}> / {cancel.views_guaranteed?.toLocaleString()}</span>
                                     </p>
                                 </div>
-                                <div className="bg-slate-700/50 rounded p-2">
-                                    <p className="text-slate-400 text-[10px]">Forfeited</p>
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Forfeited</p>
                                     <p className="text-red-400 text-xs font-medium">
                                         {(cancel.views_remaining_at_cancel || 0).toLocaleString()}
                                     </p>
                                 </div>
-                                <div className="bg-slate-700/50 rounded p-2">
-                                    <p className="text-slate-400 text-[10px]">Paid</p>
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Paid</p>
                                     <p className="text-green-400 text-xs font-medium">${cancel.amount_paid || 0}</p>
                                 </div>
-                                <div className="bg-slate-700/50 rounded p-2">
-                                    <p className="text-slate-400 text-[10px]">Confirmed</p>
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Confirmed</p>
                                     {cancel.cancelled_confirmation === 'END CAMPAIGN' ? (
                                         <span className="text-green-400 text-xs font-medium">✓ Verified</span>
                                     ) : (
@@ -134,9 +136,9 @@ export default function AdminCancellationsPage() {
                             </div>
 
                             {/* Reason Row */}
-                            <div className="bg-slate-700/30 rounded p-2 border-l-2 border-amber-500">
-                                <p className="text-slate-400 text-[10px] mb-0.5">Reason</p>
-                                <p className="text-slate-200 text-xs">{cancel.cancelled_reason || 'No reason provided'}</p>
+                            <div className={`bg-${currentTheme.border}/30 rounded p-2 border-l-2 border-${currentTheme.accent}`}>
+                                <p className={`text-${currentTheme.textMuted} text-[10px] mb-0.5`}>Reason</p>
+                                <p className={`text-${currentTheme.text} text-xs`}>{cancel.cancelled_reason || 'No reason provided'}</p>
                             </div>
                         </div>
                     ))}

@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdvertisePage() {
     const router = useRouter()
+    const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -296,7 +298,6 @@ export default function AdvertisePage() {
                         message: `Congratulations! Your matrix is complete. Your payout of $${matrix.payout_amount || settings.matrix_payout} is being processed!`
                     }])
 
-                // Send matrix complete email
                 try {
                     const { data: matrixUser } = await supabase
                         .from('users')
@@ -366,7 +367,6 @@ export default function AdvertisePage() {
 
             setCampaignId(campaign.id)
 
-            // Send campaign activated email if status is active
             if (newStatus === 'active') {
                 try {
                     await fetch('/api/send-email', {
@@ -441,10 +441,10 @@ export default function AdvertisePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 text-sm">Loading...</p>
+                    <div className={`w-10 h-10 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} text-sm`}>Loading...</p>
                 </div>
             </div>
         )
@@ -452,17 +452,17 @@ export default function AdvertisePage() {
 
     if (businessCards.length === 0) {
         return (
-            <div className="min-h-screen bg-slate-900 py-12 px-4">
+            <div className={`min-h-screen bg-${currentTheme.bg} py-12 px-4`}>
                 <div className="max-w-md mx-auto">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 text-center`}>
                         <span className="text-4xl mb-4 block">🃏</span>
-                        <h2 className="text-xl font-bold text-white mb-2">Create Your Business Card First</h2>
-                        <p className="text-slate-400 mb-6">
+                        <h2 className={`text-xl font-bold text-${currentTheme.text} mb-2`}>Create Your Business Card First</h2>
+                        <p className={`text-${currentTheme.textMuted} mb-6`}>
                             Before you can start advertising, you need to create your business card. This is what everyone will see!
                         </p>
                         <button
                             onClick={() => router.push('/cards')}
-                            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
+                            className={`px-6 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all`}
                         >
                             Create Business Card
                         </button>
@@ -474,46 +474,46 @@ export default function AdvertisePage() {
 
     if (step === 2) {
         return (
-            <div className="min-h-screen bg-slate-900 py-12 px-4">
+            <div className={`min-h-screen bg-${currentTheme.bg} py-12 px-4`}>
                 <div className="max-w-md mx-auto">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-center">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 text-center`}>
                         <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                             <span className="text-3xl">✓</span>
                         </div>
                         <h2 className="text-2xl font-bold text-green-400 mb-2">Payment Verified!</h2>
-                        <p className="text-slate-400 mb-6">Your ad campaign is now active.</p>
+                        <p className={`text-${currentTheme.textMuted} mb-6`}>Your ad campaign is now active.</p>
 
-                        <div className="bg-slate-700/50 rounded-lg p-4 mb-6">
-                            <h3 className="text-lg font-bold text-white mb-2">🔷 Join the Referral Matrix?</h3>
-                            <p className="text-slate-400 text-sm mb-4">
+                        <div className={`bg-${currentTheme.border}/50 rounded-lg p-4 mb-6`}>
+                            <h3 className={`text-lg font-bold text-${currentTheme.text} mb-2`}>🔷 Join the Referral Matrix?</h3>
+                            <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
                                 Fill 6 spots and earn <span className="text-green-400 font-bold">${settings.matrix_payout}</span> back!
                             </p>
 
                             <div className="flex justify-center mb-2">
-                                <div className="w-12 h-8 bg-amber-500/30 border border-amber-500 rounded text-xs flex items-center justify-center text-amber-400">You</div>
+                                <div className={`w-12 h-8 bg-${currentTheme.accent}/30 border border-${currentTheme.accent} rounded text-xs flex items-center justify-center text-${currentTheme.accent}`}>You</div>
                             </div>
                             <div className="flex justify-center gap-4 mb-2">
-                                <div className="w-10 h-6 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">2</div>
-                                <div className="w-10 h-6 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">3</div>
+                                <div className={`w-10 h-6 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>2</div>
+                                <div className={`w-10 h-6 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>3</div>
                             </div>
                             <div className="flex justify-center gap-2">
-                                <div className="w-8 h-5 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">4</div>
-                                <div className="w-8 h-5 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">5</div>
-                                <div className="w-8 h-5 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">6</div>
-                                <div className="w-8 h-5 bg-slate-600 border border-slate-500 rounded text-xs flex items-center justify-center text-slate-400">7</div>
+                                <div className={`w-8 h-5 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>4</div>
+                                <div className={`w-8 h-5 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>5</div>
+                                <div className={`w-8 h-5 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>6</div>
+                                <div className={`w-8 h-5 bg-${currentTheme.border} border border-${currentTheme.textMuted} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>7</div>
                             </div>
                         </div>
 
                         <div className="flex gap-4">
                             <button
                                 onClick={() => handleMatrixChoice(false)}
-                                className="flex-1 py-3 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600 transition-all"
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg hover:bg-${currentTheme.card} transition-all`}
                             >
                                 No Thanks
                             </button>
                             <button
                                 onClick={() => handleMatrixChoice(true)}
-                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all"
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all`}
                             >
                                 Yes, Join!
                             </button>
@@ -526,23 +526,23 @@ export default function AdvertisePage() {
 
     if (step === 3) {
         return (
-            <div className="min-h-screen bg-slate-900 py-12 px-4">
+            <div className={`min-h-screen bg-${currentTheme.bg} py-12 px-4`}>
                 <div className="max-w-md mx-auto">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                        <h2 className="text-xl font-bold text-white mb-2 text-center">Who Referred You?</h2>
-                        <p className="text-slate-400 text-sm mb-6 text-center">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6`}>
+                        <h2 className={`text-xl font-bold text-${currentTheme.text} mb-2 text-center`}>Who Referred You?</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-6 text-center`}>
                             Enter their username to be placed in their matrix, or skip to be auto-placed.
                         </p>
 
                         <div className="mb-6">
-                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                 Referrer's Username (Optional)
                             </label>
                             <input
                                 type="text"
                                 value={referredBy}
                                 onChange={handleReferralChange}
-                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                 placeholder="Enter username"
                             />
                             {referrerName && (
@@ -551,7 +551,7 @@ export default function AdvertisePage() {
                                 </p>
                             )}
                             {referrerNotFound && referredBy.length >= 2 && (
-                                <p className="text-amber-400 text-sm mt-2">
+                                <p className={`text-${currentTheme.accent} text-sm mt-2`}>
                                     ⚠ User not found or doesn't have an active matrix
                                 </p>
                             )}
@@ -567,14 +567,14 @@ export default function AdvertisePage() {
                             <button
                                 onClick={handleJoinMatrix}
                                 disabled={processing}
-                                className="flex-1 py-3 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600 transition-all disabled:opacity-50"
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg hover:bg-${currentTheme.card} transition-all disabled:opacity-50`}
                             >
                                 {processing ? 'Processing...' : 'Skip (Auto-place me)'}
                             </button>
                             <button
                                 onClick={handleJoinMatrix}
                                 disabled={processing || (referredBy && !referrerName)}
-                                className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
                             >
                                 {processing ? 'Processing...' : 'Join Matrix'}
                             </button>
@@ -586,20 +586,20 @@ export default function AdvertisePage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-900 py-12 px-4">
+        <div className={`min-h-screen bg-${currentTheme.bg} py-12 px-4`}>
             <div className="max-w-4xl mx-auto">
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-white">Start Advertising</h1>
-                    <p className="text-slate-400 mt-2">Get your business card seen by thousands!</p>
+                    <h1 className={`text-3xl font-bold text-${currentTheme.text}`}>Start Advertising</h1>
+                    <p className={`text-${currentTheme.textMuted} mt-2`}>Get your business card seen by thousands!</p>
                 </div>
 
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 mb-8`}>
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold text-white">🃏 Select Card for This Campaign</h2>
+                        <h2 className={`text-xl font-bold text-${currentTheme.text}`}>🃏 Select Card for This Campaign</h2>
                         {businessCards.length < 5 && (
                             <button
                                 onClick={() => router.push('/cards')}
-                                className="px-3 py-1 bg-slate-700 text-slate-300 text-sm rounded-lg hover:bg-slate-600"
+                                className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.textMuted} text-sm rounded-lg hover:bg-${currentTheme.card}`}
                             >
                                 + Create New Card
                             </button>
@@ -612,8 +612,8 @@ export default function AdvertisePage() {
                                 key={card.id}
                                 onClick={() => setSelectedCardId(card.id)}
                                 className={`p-4 rounded-lg border-2 transition-all text-left ${selectedCardId === card.id
-                                    ? 'border-amber-500 bg-amber-500/10'
-                                    : 'border-slate-600 hover:border-slate-500'
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
@@ -624,96 +624,96 @@ export default function AdvertisePage() {
                                             className="w-16 h-16 object-cover rounded-lg"
                                         />
                                     ) : (
-                                        <div className="w-16 h-16 bg-slate-700 rounded-lg flex items-center justify-center">
+                                        <div className={`w-16 h-16 bg-${currentTheme.border} rounded-lg flex items-center justify-center`}>
                                             <span className="text-2xl">🃏</span>
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-white font-medium truncate">{card.business_name}</p>
-                                        <p className="text-slate-400 text-sm truncate">{card.tagline || 'No tagline'}</p>
+                                        <p className={`text-${currentTheme.text} font-medium truncate`}>{card.business_name}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-sm truncate`}>{card.tagline || 'No tagline'}</p>
                                     </div>
                                     {selectedCardId === card.id && (
-                                        <span className="text-amber-400 text-xl">✓</span>
+                                        <span className={`text-${currentTheme.accent} text-xl`}>✓</span>
                                     )}
                                 </div>
                             </button>
                         ))}
                     </div>
 
-                    <p className="text-slate-500 text-sm mt-4">
+                    <p className={`text-${currentTheme.textMuted} text-sm mt-4`}>
                         {businessCards.length}/5 cards created
                     </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl p-6 mb-8">
-                    <h2 className="text-xl font-bold text-white mb-4">📦 Ad Package</h2>
+                <div className={`bg-gradient-to-br from-${currentTheme.accent}/20 to-orange-500/20 border border-${currentTheme.accent}/30 rounded-xl p-6 mb-8`}>
+                    <h2 className={`text-xl font-bold text-${currentTheme.text} mb-4`}>📦 Ad Package</h2>
 
                     <div className="space-y-4">
-                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                            <span className="text-slate-300">Guaranteed Views</span>
-                            <span className="text-white font-bold">{parseInt(settings.guaranteed_views).toLocaleString()}</span>
+                        <div className={`flex justify-between items-center py-3 border-b border-${currentTheme.border}`}>
+                            <span className={`text-${currentTheme.textMuted}`}>Guaranteed Views</span>
+                            <span className={`text-${currentTheme.text} font-bold`}>{parseInt(settings.guaranteed_views).toLocaleString()}</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                            <span className="text-slate-300">Your Card in Memory Game</span>
+                        <div className={`flex justify-between items-center py-3 border-b border-${currentTheme.border}`}>
+                            <span className={`text-${currentTheme.textMuted}`}>Your Card in Memory Game</span>
                             <span className="text-green-400">✓ Included</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                            <span className="text-slate-300">Bonus Views Possible</span>
+                        <div className={`flex justify-between items-center py-3 border-b border-${currentTheme.border}`}>
+                            <span className={`text-${currentTheme.textMuted}`}>Bonus Views Possible</span>
                             <span className="text-green-400">✓ Yes</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                            <span className="text-slate-300">View Tracking Dashboard</span>
+                        <div className={`flex justify-between items-center py-3 border-b border-${currentTheme.border}`}>
+                            <span className={`text-${currentTheme.textMuted}`}>View Tracking Dashboard</span>
                             <span className="text-green-400">✓ Included</span>
                         </div>
-                        <div className="flex justify-between items-center py-3 border-b border-slate-700">
-                            <span className="text-slate-300">Optional Referral Matrix</span>
+                        <div className={`flex justify-between items-center py-3 border-b border-${currentTheme.border}`}>
+                            <span className={`text-${currentTheme.textMuted}`}>Optional Referral Matrix</span>
                             <span className="text-green-400">✓ Included</span>
                         </div>
                         <div className="flex justify-between items-center py-3">
-                            <span className="text-slate-300 text-lg font-medium">Total Price</span>
-                            <span className="text-amber-400 font-bold text-2xl">${settings.ad_price}</span>
+                            <span className={`text-${currentTheme.textMuted} text-lg font-medium`}>Total Price</span>
+                            <span className={`text-${currentTheme.accent} font-bold text-2xl`}>${settings.ad_price}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-                    <h2 className="text-xl font-bold text-white mb-4">💳 Payment Method</h2>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6`}>
+                    <h2 className={`text-xl font-bold text-${currentTheme.text} mb-4`}>💳 Payment Method</h2>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <button
                             onClick={() => setPaymentMethod('stripe')}
                             className={`p-4 rounded-lg border-2 transition-all ${paymentMethod === 'stripe'
-                                ? 'border-amber-500 bg-amber-500/10'
-                                : 'border-slate-600 hover:border-slate-500'
+                                ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                 }`}
                         >
                             <span className="text-2xl block mb-2">💳</span>
-                            <p className="text-white font-medium">Credit Card</p>
-                            <p className="text-slate-400 text-sm">via Stripe</p>
+                            <p className={`text-${currentTheme.text} font-medium`}>Credit Card</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>via Stripe</p>
                         </button>
 
                         <button
                             onClick={() => setPaymentMethod('cashapp')}
                             className={`p-4 rounded-lg border-2 transition-all ${paymentMethod === 'cashapp'
-                                ? 'border-amber-500 bg-amber-500/10'
-                                : 'border-slate-600 hover:border-slate-500'
+                                ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                 }`}
                         >
                             <span className="text-2xl block mb-2">💵</span>
-                            <p className="text-white font-medium">CashApp</p>
-                            <p className="text-slate-400 text-sm">Manual payment</p>
+                            <p className={`text-${currentTheme.text} font-medium`}>CashApp</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>Manual payment</p>
                         </button>
 
                         <button
                             onClick={() => setPaymentMethod('venmo')}
                             className={`p-4 rounded-lg border-2 transition-all ${paymentMethod === 'venmo'
-                                ? 'border-amber-500 bg-amber-500/10'
-                                : 'border-slate-600 hover:border-slate-500'
+                                ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                 }`}
                         >
                             <span className="text-2xl block mb-2">📱</span>
-                            <p className="text-white font-medium">Venmo</p>
-                            <p className="text-slate-400 text-sm">Manual payment</p>
+                            <p className={`text-${currentTheme.text} font-medium`}>Venmo</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>Manual payment</p>
                         </button>
                     </div>
                 </div>
@@ -731,18 +731,18 @@ export default function AdvertisePage() {
                     <button
                         onClick={handlePurchase}
                         disabled={processing || !selectedCardId}
-                        className="px-12 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 font-bold text-lg rounded-lg hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                        className={`px-12 py-4 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-lg rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
                     >
                         {processing ? 'Processing...' : `Pay $${settings.ad_price} & Start Campaign`}
                     </button>
 
                     {!selectedCardId && (
-                        <p className="text-amber-400 text-sm mt-2">
+                        <p className={`text-${currentTheme.accent} text-sm mt-2`}>
                             Please select a card above
                         </p>
                     )}
 
-                    <p className="text-slate-500 text-sm mt-4">
+                    <p className={`text-${currentTheme.textMuted} text-sm mt-4`}>
                         By purchasing, you agree to our terms of service.
                     </p>
                 </div>

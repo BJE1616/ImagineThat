@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminLayout({ children }) {
     const router = useRouter()
     const pathname = usePathname()
+    const { currentTheme } = useTheme()
     const [isAdmin, setIsAdmin] = useState(false)
     const [loading, setLoading] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -61,10 +63,10 @@ export default function AdminLayout({ children }) {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium">Loading admin panel...</p>
+                    <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} font-medium`}>Loading admin panel...</p>
                 </div>
             </div>
         )
@@ -91,23 +93,23 @@ export default function AdminLayout({ children }) {
     ]
 
     return (
-        <div className="min-h-screen bg-slate-900 flex">
-            <aside className={`${sidebarOpen ? 'w-52' : 'w-14'} bg-slate-800 border-r border-slate-700 transition-all duration-300 flex flex-col`}>
-                <div className="p-2 border-b border-slate-700">
+        <div className={`min-h-screen bg-${currentTheme.bg} flex`}>
+            <aside className={`${sidebarOpen ? 'w-52' : 'w-14'} bg-${currentTheme.card} border-r border-${currentTheme.border} transition-all duration-300 flex flex-col`}>
+                <div className={`p-2 border-b border-${currentTheme.border}`}>
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center text-slate-900 font-bold text-sm">
+                        <div className={`w-8 h-8 bg-gradient-to-br from-${currentTheme.accentHover} to-orange-500 rounded-lg flex items-center justify-center text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-sm`}>
                             IT
                         </div>
                         {sidebarOpen && (
                             <div>
-                                <h1 className="text-white font-bold text-sm">ImagineThat</h1>
-                                <p className="text-[10px] text-slate-400">Admin Panel</p>
+                                <h1 className={`text-${currentTheme.text} font-bold text-sm`}>ImagineThat</h1>
+                                <p className={`text-[10px] text-${currentTheme.textMuted}`}>Admin Panel</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="p-2 border-b border-slate-700">
+                <div className={`p-2 border-b border-${currentTheme.border}`}>
                     <Link
                         href="/game"
                         className="flex items-center gap-2 px-2 py-1.5 rounded text-green-400 hover:bg-green-500/20 transition-all text-sm"
@@ -124,8 +126,8 @@ export default function AdminLayout({ children }) {
                                 <Link
                                     href={item.href}
                                     className={`flex items-center gap-2 px-2 py-1.5 rounded transition-all text-sm ${pathname === item.href
-                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                        : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                                        ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`
+                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
                                         }`}
                                 >
                                     <span>{item.icon}</span>
@@ -136,10 +138,10 @@ export default function AdminLayout({ children }) {
                     </ul>
                 </nav>
 
-                <div className="p-2 border-t border-slate-700">
+                <div className={`p-2 border-t border-${currentTheme.border}`}>
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="w-full flex items-center justify-center gap-2 px-2 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded transition-all text-sm mb-1"
+                        className={`w-full flex items-center justify-center gap-2 px-2 py-1.5 text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50 rounded transition-all text-sm mb-1`}
                     >
                         <span>{sidebarOpen ? '◀' : '▶'}</span>
                         {sidebarOpen && <span>Collapse</span>}

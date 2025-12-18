@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminWinnersPage() {
+    const { currentTheme } = useTheme()
     const [leaderboard, setLeaderboard] = useState([])
     const [payments, setPayments] = useState({})
     const [loading, setLoading] = useState(true)
@@ -126,7 +128,6 @@ export default function AdminWinnersPage() {
 
                 if (error) throw error
 
-                // Send email when marking as paid
                 if (newStatus === 'paid') {
                     await sendPrizeWinnerEmail(entry, rank, prizeAmount)
                 }
@@ -152,7 +153,6 @@ export default function AdminWinnersPage() {
 
                 if (error) throw error
 
-                // Send email for new payment
                 await sendPrizeWinnerEmail(entry, rank, prizeAmount)
 
                 setPayments(prev => ({
@@ -174,18 +174,18 @@ export default function AdminWinnersPage() {
     }
 
     const getRankBadge = (rank) => {
-        if (rank === 1) return { emoji: '🥇', color: 'bg-amber-500 text-slate-900' }
+        if (rank === 1) return { emoji: '🥇', color: `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` }
         if (rank === 2) return { emoji: '🥈', color: 'bg-slate-400 text-slate-900' }
         if (rank === 3) return { emoji: '🥉', color: 'bg-amber-700 text-white' }
-        return { emoji: rank.toString(), color: 'bg-slate-600 text-slate-300' }
+        return { emoji: rank.toString(), color: `bg-${currentTheme.border} text-${currentTheme.textMuted}` }
     }
 
     if (loading) {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -194,49 +194,49 @@ export default function AdminWinnersPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Weekly Winners</h1>
-                <p className="text-slate-400 text-xs">Manage prize payments for top players</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Weekly Winners</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage prize payments for top players</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
                 <div className="flex items-center justify-between">
                     <button
                         onClick={() => setWeekOffset(prev => prev + 1)}
-                        className="px-3 py-1.5 bg-slate-700 text-slate-300 text-sm rounded hover:bg-slate-600 transition-colors"
+                        className={`px-3 py-1.5 bg-${currentTheme.border} text-${currentTheme.textMuted} text-sm rounded hover:bg-${currentTheme.card} transition-colors`}
                     >
                         ← Prev
                     </button>
                     <div className="text-center">
-                        <p className="text-white font-semibold text-sm">{currentWeek}</p>
-                        <p className="text-slate-400 text-xs">
+                        <p className={`text-${currentTheme.text} font-semibold text-sm`}>{currentWeek}</p>
+                        <p className={`text-${currentTheme.textMuted} text-xs`}>
                             {weekOffset === 0 ? 'Current Week' : `${weekOffset} week${weekOffset > 1 ? 's' : ''} ago`}
                         </p>
                     </div>
                     <button
                         onClick={() => setWeekOffset(prev => Math.max(0, prev - 1))}
                         disabled={weekOffset === 0}
-                        className="px-3 py-1.5 bg-slate-700 text-slate-300 text-sm rounded hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`px-3 py-1.5 bg-${currentTheme.border} text-${currentTheme.textMuted} text-sm rounded hover:bg-${currentTheme.card} transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                         Next →
                     </button>
                 </div>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-slate-700">
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Rank</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Player</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Email</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Mode</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Moves</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Time</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Score</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Prize</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Status</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Action</th>
+                            <tr className={`border-b border-${currentTheme.border}`}>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Mode</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Moves</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Time</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Score</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Prize</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -249,47 +249,47 @@ export default function AdminWinnersPage() {
                                     const prizeAmount = getPrizeAmount(rank)
 
                                     return (
-                                        <tr key={entry.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                                        <tr key={entry.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30 transition-colors`}>
                                             <td className="py-2 px-3">
                                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${badge.color}`}>
                                                     {rank <= 3 ? badge.emoji : rank}
                                                 </div>
                                             </td>
                                             <td className="py-2 px-3">
-                                                <p className="text-white font-medium text-xs">{entry.user.username}</p>
+                                                <p className={`text-${currentTheme.text} font-medium text-xs`}>{entry.user.username}</p>
                                                 {entry.user.first_name && (
-                                                    <p className="text-slate-400 text-[10px]">{entry.user.first_name} {entry.user.last_name}</p>
+                                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>{entry.user.first_name} {entry.user.last_name}</p>
                                                 )}
                                             </td>
-                                            <td className="py-2 px-3 text-slate-300 text-xs">{entry.user.email}</td>
+                                            <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
                                             <td className="py-2 px-3">
                                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${entry.game_mode === 'easy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                                                     }`}>
                                                     {entry.game_mode === 'easy' ? '12' : '16'}
                                                 </span>
                                             </td>
-                                            <td className="py-2 px-3 text-slate-300 text-xs">{entry.moves}</td>
-                                            <td className="py-2 px-3 text-slate-300 text-xs">{entry.time_seconds}s</td>
+                                            <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.moves}</td>
+                                            <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.time_seconds}s</td>
                                             <td className="py-2 px-3">
-                                                <span className="text-amber-400 font-bold text-sm">{entry.score}</span>
+                                                <span className={`text-${currentTheme.accent} font-bold text-sm`}>{entry.score}</span>
                                             </td>
                                             <td className="py-2 px-3">
                                                 {prizeAmount > 0 ? (
                                                     <span className="text-green-400 font-semibold text-xs">${prizeAmount}</span>
                                                 ) : (
-                                                    <span className="text-slate-500 text-xs">—</span>
+                                                    <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
                                                 )}
                                             </td>
                                             <td className="py-2 px-3">
                                                 {prizeAmount > 0 ? (
                                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid
                                                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                        : `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`
                                                         }`}>
                                                         {isPaid ? '✓ Paid' : 'Pending'}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-slate-500 text-xs">—</span>
+                                                    <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
                                                 )}
                                             </td>
                                             <td className="py-2 px-3">
@@ -298,7 +298,7 @@ export default function AdminWinnersPage() {
                                                         onClick={() => togglePaymentStatus(entry, rank)}
                                                         disabled={saving === entry.id}
                                                         className={`px-2 py-1 rounded text-xs font-medium transition-all ${isPaid
-                                                            ? 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                                                            ? `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                                             : 'bg-green-600 text-white hover:bg-green-500'
                                                             } disabled:opacity-50 disabled:cursor-not-allowed`}
                                                     >
@@ -311,7 +311,7 @@ export default function AdminWinnersPage() {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan="10" className="py-8 text-center text-slate-400">
+                                    <td colSpan="10" className={`py-8 text-center text-${currentTheme.textMuted}`}>
                                         <p className="text-sm">No games played this week</p>
                                         <p className="text-xs mt-1">Winners will appear here when players complete games</p>
                                     </td>
@@ -324,21 +324,21 @@ export default function AdminWinnersPage() {
 
             {leaderboard.length > 0 && (
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                        <p className="text-slate-400 text-xs">Total Players</p>
-                        <p className="text-lg font-bold text-white">{leaderboard.length}</p>
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
+                        <p className={`text-${currentTheme.textMuted} text-xs`}>Total Players</p>
+                        <p className={`text-lg font-bold text-${currentTheme.text}`}>{leaderboard.length}</p>
                     </div>
-                    <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                        <p className="text-slate-400 text-xs">Prizes Pending</p>
-                        <p className="text-lg font-bold text-amber-400">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
+                        <p className={`text-${currentTheme.textMuted} text-xs`}>Prizes Pending</p>
+                        <p className={`text-lg font-bold text-${currentTheme.accent}`}>
                             ${leaderboard.slice(0, 5).reduce((sum, _, i) => {
                                 const payment = payments[leaderboard[i]?.id]
                                 return payment?.status === 'paid' ? sum : sum + getPrizeAmount(i + 1)
                             }, 0)}
                         </p>
                     </div>
-                    <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                        <p className="text-slate-400 text-xs">Prizes Paid</p>
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
+                        <p className={`text-${currentTheme.textMuted} text-xs`}>Prizes Paid</p>
                         <p className="text-lg font-bold text-green-400">
                             ${leaderboard.slice(0, 5).reduce((sum, _, i) => {
                                 const payment = payments[leaderboard[i]?.id]

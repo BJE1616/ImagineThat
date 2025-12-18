@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminPaymentsPage() {
+    const { currentTheme } = useTheme()
     const [payments, setPayments] = useState([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState('all')
@@ -111,13 +113,13 @@ export default function AdminPaymentsPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
                     <div className="grid grid-cols-3 gap-2">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="h-14 bg-slate-800 rounded"></div>
+                            <div key={i} className={`h-14 bg-${currentTheme.card} rounded`}></div>
                         ))}
                     </div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -126,25 +128,25 @@ export default function AdminPaymentsPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Payment History</h1>
-                <p className="text-slate-400 text-xs">Track all prize payments</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Payment History</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Track all prize payments</p>
             </div>
 
             <div className="grid grid-cols-3 gap-2 mb-4">
                 <div className="bg-green-500/10 border border-green-500/20 rounded p-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-xs">Total Paid</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>Total Paid</p>
                             <p className="text-xl font-bold text-green-400">${stats.totalPaid.toLocaleString()}</p>
                         </div>
                         <span className="text-xl">✅</span>
                     </div>
                 </div>
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded p-3">
+                <div className={`bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded p-3`}>
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-xs">Pending</p>
-                            <p className="text-xl font-bold text-amber-400">${stats.totalPending.toLocaleString()}</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>Pending</p>
+                            <p className={`text-xl font-bold text-${currentTheme.accent}`}>${stats.totalPending.toLocaleString()}</p>
                         </div>
                         <span className="text-xl">⏳</span>
                     </div>
@@ -152,7 +154,7 @@ export default function AdminPaymentsPage() {
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded p-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-slate-400 text-xs">This Month</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>This Month</p>
                             <p className="text-xl font-bold text-blue-400">${stats.paymentsThisMonth.toLocaleString()}</p>
                         </div>
                         <span className="text-xl">📅</span>
@@ -170,8 +172,8 @@ export default function AdminPaymentsPage() {
                         key={tab.value}
                         onClick={() => setFilter(tab.value)}
                         className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${filter === tab.value
-                            ? 'bg-amber-500 text-slate-900'
-                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                            : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                             }`}
                     >
                         {tab.label}
@@ -179,37 +181,37 @@ export default function AdminPaymentsPage() {
                 ))}
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded overflow-hidden">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b border-slate-700">
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Date</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Player</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Email</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Week</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Rank</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Amount</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Status</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Paid At</th>
-                                <th className="text-left py-2 px-3 text-slate-400 font-medium text-xs">Action</th>
+                            <tr className={`border-b border-${currentTheme.border}`}>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Date</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Week</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Amount</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Paid At</th>
+                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {payments.length > 0 ? (
                                 payments.map(payment => (
-                                    <tr key={payment.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                                        <td className="py-2 px-3 text-slate-300 text-xs">{formatDate(payment.created_at)}</td>
+                                    <tr key={payment.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30 transition-colors`}>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{formatDate(payment.created_at)}</td>
                                         <td className="py-2 px-3">
-                                            <p className="text-white font-medium text-xs">{payment.user.username}</p>
+                                            <p className={`text-${currentTheme.text} font-medium text-xs`}>{payment.user.username}</p>
                                         </td>
-                                        <td className="py-2 px-3 text-slate-300 text-xs">{payment.user.email}</td>
-                                        <td className="py-2 px-3 text-slate-300 text-xs">{payment.week_start}</td>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{payment.user.email}</td>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{payment.week_start}</td>
                                         <td className="py-2 px-3">
-                                            <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${payment.rank === 1 ? 'bg-amber-500 text-slate-900' :
+                                            <span className={`w-6 h-6 rounded-full inline-flex items-center justify-center font-bold text-xs ${payment.rank === 1 ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` :
                                                 payment.rank === 2 ? 'bg-slate-400 text-slate-900' :
                                                     payment.rank === 3 ? 'bg-amber-700 text-white' :
-                                                        'bg-slate-600 text-slate-300'
+                                                        `bg-${currentTheme.border} text-${currentTheme.textMuted}`
                                                 }`}>
                                                 {payment.rank}
                                             </span>
@@ -220,12 +222,12 @@ export default function AdminPaymentsPage() {
                                         <td className="py-2 px-3">
                                             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${payment.status === 'paid'
                                                 ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                : `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border border-${currentTheme.accent}/30`
                                                 }`}>
                                                 {payment.status === 'paid' ? '✓ Paid' : 'Pending'}
                                             </span>
                                         </td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs">{formatDate(payment.paid_at)}</td>
+                                        <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{formatDate(payment.paid_at)}</td>
                                         <td className="py-2 px-3">
                                             <button
                                                 onClick={() => updatePaymentStatus(
@@ -233,7 +235,7 @@ export default function AdminPaymentsPage() {
                                                     payment.status === 'paid' ? 'pending' : 'paid'
                                                 )}
                                                 className={`px-2 py-1 rounded text-xs font-medium transition-all ${payment.status === 'paid'
-                                                    ? 'bg-slate-600 text-slate-300 hover:bg-slate-500'
+                                                    ? `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                                     : 'bg-green-600 text-white hover:bg-green-500'
                                                     }`}
                                             >
@@ -244,7 +246,7 @@ export default function AdminPaymentsPage() {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="9" className="py-8 text-center text-slate-400">
+                                    <td colSpan="9" className={`py-8 text-center text-${currentTheme.textMuted}`}>
                                         <p className="text-sm">No payment records found</p>
                                         <p className="text-xs mt-1">Payments will appear here when prizes are marked as paid</p>
                                     </td>

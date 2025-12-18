@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminPrizesPage() {
+    const { currentTheme } = useTheme()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [uploading, setUploading] = useState(false)
@@ -201,8 +203,8 @@ export default function AdminPrizesPage() {
         return (
             <div className="p-4">
                 <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                 </div>
             </div>
         )
@@ -211,33 +213,33 @@ export default function AdminPrizesPage() {
     return (
         <div className="p-4">
             <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">Prize Settings</h1>
-                <p className="text-slate-400 text-xs">Configure prizes for the current week</p>
+                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Prize Settings</h1>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Configure prizes for the current week</p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
                 <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-sm font-bold text-white">Current Week</h2>
-                    <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-full text-xs font-medium">
+                    <h2 className={`text-sm font-bold text-${currentTheme.text}`}>Current Week</h2>
+                    <span className={`px-2 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-full text-xs font-medium`}>
                         {formatWeekRange()}
                     </span>
                 </div>
-                <p className="text-slate-400 text-xs">
+                <p className={`text-${currentTheme.textMuted} text-xs`}>
                     Week ends Sunday at midnight CST. Winners will be finalized after that time.
                 </p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
-                <h2 className="text-sm font-bold text-white mb-3">Prize Configuration</h2>
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>Prize Configuration</h2>
 
                 <div className="mb-3">
-                    <label className="block text-xs font-medium text-slate-300 mb-2">Prize Type</label>
+                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Prize Type</label>
                     <div className="flex gap-1 flex-wrap">
                         <button
                             onClick={() => setPrizeType('cash')}
                             className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'cash'
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                 }`}
                         >
                             💵 Cash
@@ -245,8 +247,8 @@ export default function AdminPrizesPage() {
                         <button
                             onClick={() => setPrizeType('merchandise')}
                             className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'merchandise'
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                 }`}
                         >
                             🎽 Merch
@@ -254,8 +256,8 @@ export default function AdminPrizesPage() {
                         <button
                             onClick={() => setPrizeType('custom')}
                             className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${prizeType === 'custom'
-                                ? 'bg-amber-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                 }`}
                         >
                             ✏️ Custom
@@ -269,14 +271,14 @@ export default function AdminPrizesPage() {
                             type="checkbox"
                             checked={isSurprise}
                             onChange={(e) => setIsSurprise(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-amber-500 focus:ring-amber-500"
+                            className={`w-4 h-4 rounded border-${currentTheme.border} bg-${currentTheme.border} text-${currentTheme.accent} focus:ring-${currentTheme.accent}`}
                         />
-                        <span className="text-slate-300 text-xs">🎁 Keep prize a surprise</span>
+                        <span className={`text-${currentTheme.textMuted} text-xs`}>🎁 Keep prize a surprise</span>
                     </label>
                 </div>
 
                 <div className="mb-3">
-                    <label className="block text-xs font-medium text-slate-300 mb-2">Number of Winners</label>
+                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Number of Winners</label>
                     <div className="flex gap-1 flex-wrap">
                         {[1, 2, 3, 4, 5, 10, 15, 20].map(num => (
                             <button
@@ -284,7 +286,7 @@ export default function AdminPrizesPage() {
                                 onClick={() => handleNumberOfWinnersChange(num)}
                                 className={`px-2 py-1 rounded text-xs font-medium transition-all ${numberOfWinners === num
                                     ? 'bg-green-500 text-white'
-                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 {num === 1 ? '1st' : `Top ${num}`}
@@ -294,29 +296,29 @@ export default function AdminPrizesPage() {
                 </div>
 
                 <div className="mb-3">
-                    <label className="block text-xs font-medium text-slate-300 mb-2">
+                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
                         {prizeType === 'cash' ? 'Prize Amounts' : 'Prize Details'}
                     </label>
                     <div className="space-y-1.5">
                         {prizeAmounts.map((amount, index) => (
                             <div key={index} className="flex items-center gap-2 flex-wrap">
-                                <span className={`w-14 text-xs font-medium ${index === 0 ? 'text-amber-400' :
-                                    index === 1 ? 'text-slate-300' :
+                                <span className={`w-14 text-xs font-medium ${index === 0 ? `text-${currentTheme.accent}` :
+                                    index === 1 ? `text-${currentTheme.textMuted}` :
                                         index === 2 ? 'text-amber-600' :
-                                            'text-slate-400'
+                                            `text-${currentTheme.textMuted}`
                                     }`}>
                                     {getOrdinal(index + 1)}
                                 </span>
 
                                 {prizeType === 'cash' && (
                                     <div className="relative">
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
                                         <input
                                             type="number"
                                             value={amount}
                                             onChange={(e) => handleAmountChange(index, e.target.value)}
                                             placeholder="0"
-                                            className="w-24 pl-5 pr-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            className={`w-24 pl-5 pr-2 py-1 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                         />
                                     </div>
                                 )}
@@ -327,7 +329,7 @@ export default function AdminPrizesPage() {
                                         value={prizeDescriptions[index] || ''}
                                         onChange={(e) => handleDescriptionChange(index, e.target.value)}
                                         placeholder={prizeType === 'merchandise' ? 'e.g., T-Shirt, Hat' : 'Describe prize...'}
-                                        className="flex-1 min-w-48 px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        className={`flex-1 min-w-48 px-2 py-1 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                                     />
                                 )}
                             </div>
@@ -335,9 +337,9 @@ export default function AdminPrizesPage() {
                     </div>
 
                     {prizeType === 'cash' && (
-                        <div className="mt-2 pt-2 border-t border-slate-700">
+                        <div className={`mt-2 pt-2 border-t border-${currentTheme.border}`}>
                             <div className="flex items-center gap-2">
-                                <span className="w-14 text-xs font-bold text-white">Total</span>
+                                <span className={`w-14 text-xs font-bold text-${currentTheme.text}`}>Total</span>
                                 <span className="text-lg font-bold text-green-400">${calculateTotal()}</span>
                             </div>
                         </div>
@@ -345,7 +347,7 @@ export default function AdminPrizesPage() {
                 </div>
 
                 <div className="mb-3">
-                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
                         Announcement Text
                     </label>
                     <textarea
@@ -353,7 +355,7 @@ export default function AdminPrizesPage() {
                         onChange={(e) => setAnnouncementText(e.target.value)}
                         placeholder="e.g., This week's grand prize: $100 for the top player!"
                         rows={2}
-                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className={`w-full px-2 py-1.5 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                     />
                 </div>
 
@@ -369,41 +371,41 @@ export default function AdminPrizesPage() {
                 <button
                     onClick={savePrize}
                     disabled={saving}
-                    className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-900 text-sm font-bold rounded hover:from-amber-400 hover:to-orange-400 transition-all disabled:opacity-50"
+                    className={`px-4 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-sm font-bold rounded hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
                 >
                     {saving ? 'Saving...' : currentPrize ? 'Update Prize' : 'Save Prize'}
                 </button>
             </div>
 
             {/* Card Back Image Section */}
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-3">
-                <h2 className="text-sm font-bold text-white mb-2">🃏 Card Back Image</h2>
-                <p className="text-slate-400 text-xs mb-3">
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>🃏 Card Back Image</h2>
+                <p className={`text-${currentTheme.textMuted} text-xs mb-3`}>
                     Upload a logo or image to display on the back of game cards.
                 </p>
 
                 <div className="flex items-start gap-4">
                     <div className="flex-1">
                         <label className="block mb-2">
-                            <span className="text-xs font-medium text-slate-300 mb-1 block">Upload Image</span>
+                            <span className={`text-xs font-medium text-${currentTheme.textMuted} mb-1 block`}>Upload Image</span>
                             <input
                                 type="file"
                                 accept="image/*"
                                 onChange={handleImageUpload}
                                 disabled={uploading}
-                                className="block w-full text-xs text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-xs file:font-medium hover:file:bg-amber-400 file:cursor-pointer cursor-pointer"
+                                className={`block w-full text-xs text-${currentTheme.textMuted} file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-${currentTheme.accent} file:text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} file:text-xs file:font-medium hover:file:bg-${currentTheme.accentHover} file:cursor-pointer cursor-pointer`}
                             />
                         </label>
-                        {uploading && <p className="text-amber-400 text-xs mt-1">Uploading...</p>}
+                        {uploading && <p className={`text-${currentTheme.accent} text-xs mt-1`}>Uploading...</p>}
 
                         <div className="mt-2">
-                            <span className="text-xs font-medium text-slate-300 mb-1 block">Or paste image URL</span>
+                            <span className={`text-xs font-medium text-${currentTheme.textMuted} mb-1 block`}>Or paste image URL</span>
                             <input
                                 type="text"
                                 value={cardBackImageUrl}
                                 onChange={(e) => setCardBackImageUrl(e.target.value)}
                                 placeholder="https://example.com/image.png"
-                                className="w-full px-2 py-1 text-sm bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                className={`w-full px-2 py-1 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
                             />
                         </div>
 
@@ -418,8 +420,8 @@ export default function AdminPrizesPage() {
                     </div>
 
                     <div className="w-24">
-                        <p className="text-xs font-medium text-slate-300 mb-1">Preview</p>
-                        <div className="w-20 h-28 rounded shadow-lg overflow-hidden border border-slate-600">
+                        <p className={`text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Preview</p>
+                        <div className={`w-20 h-28 rounded shadow-lg overflow-hidden border border-${currentTheme.border}`}>
                             {cardBackImageUrl ? (
                                 <img
                                     src={cardBackImageUrl}
@@ -436,8 +438,8 @@ export default function AdminPrizesPage() {
                 </div>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                <h2 className="text-sm font-bold text-white mb-2">Preview (What Players See)</h2>
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
+                <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>Preview (What Players See)</h2>
                 <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded p-3">
                     <div className="text-center">
                         <p className="text-white text-xs font-bold mb-1">🏆 This Week's Prize 🏆</p>
