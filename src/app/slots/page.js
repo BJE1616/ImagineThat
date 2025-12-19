@@ -20,7 +20,6 @@ export default function SlotMachinePage() {
     const [dailyWinnings, setDailyWinnings] = useState(0)
     const [dailyWinCap, setDailyWinCap] = useState(100)
     const [dailySpinsUsed, setDailySpinsUsed] = useState(0)
-    const [dailySpinCap] = useState(50)
     const [maxFreeSpins, setMaxFreeSpins] = useState(5)
     const [reels, setReels] = useState([null, null, null])
     const [cards, setCards] = useState([])
@@ -30,6 +29,12 @@ export default function SlotMachinePage() {
     const [celebration, setCelebration] = useState(null)
     const [message, setMessage] = useState(null)
     const [viewedAdvertisersToday, setViewedAdvertisersToday] = useState(new Set())
+
+    // ===== LEADERBOARD STATE =====
+    const [leaderboard, setLeaderboard] = useState([])
+    const [userRank, setUserRank] = useState(null)
+    const [unclaimedReward, setUnclaimedReward] = useState(null)
+    const [claimingReward, setClaimingReward] = useState(false)
 
     // ===== ODDS SETTINGS =====
     const [odds, setOdds] = useState({
@@ -42,6 +47,14 @@ export default function SlotMachinePage() {
         jackpotMultiplier: 4.0
     })
 
+    // ===== ENTRY MODE SETTINGS =====
+    const entryRewards = {
+        lose: 0,
+        pair: 1,
+        triple: 3,
+        jackpot: 5
+    }
+
     useEffect(() => {
         loadData()
     }, [])
@@ -53,6 +66,7 @@ export default function SlotMachinePage() {
         await checkUser()
         await loadCards()
         await loadRecentWinners()
+        await loadLeaderboard()
         setLoading(false)
     }
 
@@ -118,17 +132,192 @@ export default function SlotMachinePage() {
                 setDailySpinsUsed(0)
             }
 
+            // Load weekly entries (sum of drawing_entries from this week)
             const weekStart = getWeekStart()
-            const { data: weeklySpins } = await supabase
-                .from('slot_machine_spins')
-                .select('id')
+            const { data: weeklyData } = await supabase
+                .from('user_daily_spins')
+                .select('drawing_entries')
                 .eq('user_id', authUser.id)
-                .gte('created_at', weekStart.toISOString())
+                .gte('spin_date', weekStart.toISOString().split('T')[0])
 
-            setWeeklyEntries(weeklySpins?.length || 0)
+            const totalEntries = weeklyData?.reduce((sum, day) => sum + (day.drawing_entries || 0), 0) || 0
+            setWeeklyEntries(totalEntries)
+
+            // Check for unclaimed rewards
+            await checkUnclaimedRewards(authUser.id)
 
         } catch (error) {
             console.error('Error checking user:', error)
+        }
+    }
+
+    // ===== CHECK UNCLAIMED REWARDS =====
+    const checkUnclaimedRewards = async (userId) => {
+        try {
+            const { data } = await supabase
+                .from('daily_leaderboard_results')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('claimed', false)
+                .order('result_date', { ascending: false })
+                .limit(1)
+                .single()
+
+            if (data) {
+                setUnclaimedReward(data)
+            }
+        } catch (error) {
+            // No unclaimed rewards
+        }
+    }
+
+    // ===== CLAIM REWARD =====
+    const claimReward = async () => {
+        if (!unclaimedReward || claimingReward) return
+        setClaimingReward(true)
+
+        try {
+            // Update balance
+            const { data: balanceData } = await supabase
+                .from('bb_balances')
+                .select('*')
+                .eq('user_id', user.id)
+                .single()
+
+            if (balanceData) {
+                await supabase
+                    .from('bb_balances')
+                    .update({
+                        balance: balanceData.balance + unclaimedReward.bonus_tokens_awarded,
+                        lifetime_earned: (balanceData.lifetime_earned || 0) + unclaimedReward.bonus_tokens_awarded,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('user_id', user.id)
+
+                setTokenBalance(prev => prev + unclaimedReward.bonus_tokens_awarded)
+            }
+
+            // Add transaction record
+            await supabase
+                .from('bb_transactions')
+                .insert([{
+                    user_id: user.id,
+                    type: 'earn',
+                    amount: unclaimedReward.bonus_tokens_awarded,
+                    source: 'leaderboard_reward',
+                    description: `Daily leaderboard #${unclaimedReward.place} reward`
+                }])
+
+            // Add drawing entries to today's record
+            const today = new Date().toISOString().split('T')[0]
+            const { data: todayData } = await supabase
+                .from('user_daily_spins')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('spin_date', today)
+                .single()
+
+            if (todayData) {
+                await supabase
+                    .from('user_daily_spins')
+                    .update({
+                        drawing_entries: (todayData.drawing_entries || 0) + unclaimedReward.bonus_entries_awarded
+                    })
+                    .eq('id', todayData.id)
+            } else {
+                await supabase
+                    .from('user_daily_spins')
+                    .insert([{
+                        user_id: user.id,
+                        spin_date: today,
+                        free_spins_used: 0,
+                        paid_spins: 0,
+                        tokens_won: 0,
+                        tokens_wagered: 0,
+                        drawing_entries: unclaimedReward.bonus_entries_awarded
+                    }])
+            }
+
+            setWeeklyEntries(prev => prev + unclaimedReward.bonus_entries_awarded)
+
+            // Mark as claimed
+            await supabase
+                .from('daily_leaderboard_results')
+                .update({
+                    claimed: true,
+                    claimed_at: new Date().toISOString()
+                })
+                .eq('id', unclaimedReward.id)
+
+            setCelebration({
+                type: 'reward',
+                tokens: unclaimedReward.bonus_tokens_awarded,
+                entries: unclaimedReward.bonus_entries_awarded,
+                place: unclaimedReward.place
+            })
+            setTimeout(() => setCelebration(null), 3000)
+
+            setUnclaimedReward(null)
+        } catch (error) {
+            console.error('Error claiming reward:', error)
+            setMessage({ type: 'error', text: 'Failed to claim reward. Please try again.' })
+        }
+
+        setClaimingReward(false)
+    }
+
+    // ===== LOAD LEADERBOARD =====
+    const loadLeaderboard = async () => {
+        try {
+            const today = new Date().toISOString().split('T')[0]
+
+            // Get all users' spins for today
+            const { data: spinsData } = await supabase
+                .from('user_daily_spins')
+                .select('user_id, free_spins_used, paid_spins')
+                .eq('spin_date', today)
+                .order('free_spins_used', { ascending: false })
+
+            if (!spinsData || spinsData.length === 0) {
+                setLeaderboard([])
+                return
+            }
+
+            // Calculate total spins and sort
+            const leaderboardData = spinsData.map(s => ({
+                user_id: s.user_id,
+                total_spins: (s.free_spins_used || 0) + (s.paid_spins || 0)
+            })).sort((a, b) => b.total_spins - a.total_spins)
+
+            // Get usernames
+            const userIds = leaderboardData.map(l => l.user_id)
+            const { data: users } = await supabase
+                .from('users')
+                .select('id, username')
+                .in('id', userIds)
+
+            const leaderboardWithNames = leaderboardData.map((l, index) => ({
+                ...l,
+                username: users?.find(u => u.id === l.user_id)?.username || 'Player',
+                rank: index + 1
+            }))
+
+            // Determine how many to show: 3, 5, or 10
+            let showCount = 3
+            if (leaderboardWithNames.length >= 10) showCount = 10
+            else if (leaderboardWithNames.length >= 5) showCount = 5
+
+            setLeaderboard(leaderboardWithNames.slice(0, showCount))
+
+            // Find current user's rank
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            if (authUser) {
+                const userEntry = leaderboardWithNames.find(l => l.user_id === authUser.id)
+                setUserRank(userEntry?.rank || null)
+            }
+
+        } catch (error) {
+            console.error('Error loading leaderboard:', error)
         }
     }
 
@@ -216,12 +405,11 @@ export default function SlotMachinePage() {
 
     // ===== CHECK IF CAN SPIN =====
     const hitWinCap = dailyWinnings >= dailyWinCap
-    const hitSpinCap = dailySpinsUsed >= dailySpinCap
     const hasFreeSpin = freeSpinsLeft > 0
     const canAffordPaidSpin = tokenBalance >= selectedBet
 
-    // After win cap: can still spin for FREE (entries only)
-    const canSpin = !hitSpinCap && (hitWinCap || hasFreeSpin || canAffordPaidSpin)
+    // Entry mode: still costs tokens (not free anymore)
+    const canSpin = hasFreeSpin || canAffordPaidSpin
 
     // ===== SPIN =====
     const spin = async () => {
@@ -231,8 +419,8 @@ export default function SlotMachinePage() {
             return
         }
 
-        // Free spin if: has free spins OR hit win cap (entry-only mode)
-        const usingFreeSpin = freeSpinsLeft > 0 || hitWinCap
+        // Free spin only if has free spins (entry mode now costs tokens)
+        const usingFreeSpin = freeSpinsLeft > 0
         const cost = usingFreeSpin ? 0 : selectedBet
 
         setSpinning(true)
@@ -307,41 +495,69 @@ export default function SlotMachinePage() {
 
         setReels(finalReels)
 
-        // No winnings if already hit cap (entry-only mode)
+        // Calculate winnings
         const betAmount = usingFreeSpin ? 1 : cost
-        let winAmount = hitWinCap ? 0 : Math.floor(betAmount * winMultiplier)
+        let winAmount = 0
+        let entriesEarned = 0
 
-        const remainingCap = dailyWinCap - dailyWinnings
-        if (winAmount > remainingCap) {
-            winAmount = Math.max(0, remainingCap)
+        if (hitWinCap) {
+            // ENTRY MODE: Win tokens based on multiplier, but also earn bonus entries
+            winAmount = Math.floor(betAmount * winMultiplier)
+            entriesEarned = entryRewards[resultType]
+        } else {
+            // NORMAL MODE: Just win tokens
+            winAmount = Math.floor(betAmount * winMultiplier)
+            entriesEarned = 1 // Every spin = 1 entry in normal mode
         }
 
-        setResult({ type: resultType, amount: winAmount, entryOnly: hitWinCap })
+        // Cap winnings to remaining daily cap (only in normal mode)
+        if (!hitWinCap) {
+            const remainingCap = dailyWinCap - dailyWinnings
+            if (winAmount > remainingCap) {
+                winAmount = Math.max(0, remainingCap)
+            }
+        }
+
+        setResult({
+            type: resultType,
+            amount: winAmount,
+            entries: entriesEarned,
+            entryMode: hitWinCap
+        })
 
         if (winAmount > 0) {
             setTokenBalance(prev => prev + winAmount)
-            setDailyWinnings(prev => prev + winAmount)
+            if (!hitWinCap) {
+                setDailyWinnings(prev => prev + winAmount)
+            }
 
             if (resultType === 'jackpot') {
-                setCelebration({ type: 'jackpot', amount: winAmount })
+                setCelebration({ type: 'jackpot', amount: winAmount, entries: entriesEarned })
             } else if (resultType === 'triple') {
-                setCelebration({ type: 'triple', amount: winAmount })
-            } else {
-                setCelebration({ type: 'pair', amount: winAmount })
+                setCelebration({ type: 'triple', amount: winAmount, entries: entriesEarned })
+            } else if (resultType === 'pair') {
+                setCelebration({ type: 'pair', amount: winAmount, entries: entriesEarned })
             }
+            setTimeout(() => setCelebration(null), 2500)
+        } else if (hitWinCap && entriesEarned > 0) {
+            // Entry mode win but no tokens (pair = break even means 0 net)
+            setCelebration({ type: 'entries', entries: entriesEarned })
             setTimeout(() => setCelebration(null), 2500)
         }
 
-        if (freeSpinsLeft > 0 && !hitWinCap) {
+        if (freeSpinsLeft > 0) {
             setFreeSpinsLeft(prev => prev - 1)
         }
 
         setDailySpinsUsed(prev => prev + 1)
-        setWeeklyEntries(prev => prev + 1)
+        setWeeklyEntries(prev => prev + entriesEarned)
 
-        await saveSpinResult(usingFreeSpin, cost, winAmount, resultType, finalReels)
+        await saveSpinResult(usingFreeSpin, cost, winAmount, resultType, finalReels, entriesEarned)
 
         setSpinning(false)
+
+        // Refresh leaderboard after spin
+        loadLeaderboard()
 
         if (winAmount >= 5) {
             loadRecentWinners()
@@ -349,7 +565,7 @@ export default function SlotMachinePage() {
     }
 
     // ===== SAVE SPIN =====
-    const saveSpinResult = async (usingFreeSpin, cost, winAmount, resultType, finalReels) => {
+    const saveSpinResult = async (usingFreeSpin, cost, winAmount, resultType, finalReels, entriesEarned) => {
         try {
             await supabase
                 .from('slot_machine_spins')
@@ -373,10 +589,11 @@ export default function SlotMachinePage() {
                 await supabase
                     .from('user_daily_spins')
                     .update({
-                        free_spins_used: (freeSpinsLeft > 0 && !hitWinCap) ? existing.free_spins_used + 1 : existing.free_spins_used,
+                        free_spins_used: usingFreeSpin ? existing.free_spins_used + 1 : existing.free_spins_used,
                         paid_spins: (!usingFreeSpin) ? existing.paid_spins + 1 : existing.paid_spins,
                         tokens_won: existing.tokens_won + winAmount,
-                        tokens_wagered: existing.tokens_wagered + (usingFreeSpin ? 0 : cost)
+                        tokens_wagered: existing.tokens_wagered + (usingFreeSpin ? 0 : cost),
+                        drawing_entries: (existing.drawing_entries || 0) + entriesEarned
                     })
                     .eq('id', existing.id)
             } else {
@@ -385,15 +602,17 @@ export default function SlotMachinePage() {
                     .insert([{
                         user_id: user.id,
                         spin_date: today,
-                        free_spins_used: (freeSpinsLeft > 0 && !hitWinCap) ? 1 : 0,
+                        free_spins_used: usingFreeSpin ? 1 : 0,
                         paid_spins: (!usingFreeSpin) ? 1 : 0,
                         tokens_won: winAmount,
-                        tokens_wagered: usingFreeSpin ? 0 : cost
+                        tokens_wagered: usingFreeSpin ? 0 : cost,
+                        drawing_entries: entriesEarned
                     }])
             }
 
-            if (winAmount > 0 || !usingFreeSpin) {
-                const netChange = winAmount - (usingFreeSpin ? 0 : cost)
+            // Update balance
+            const netChange = winAmount - (usingFreeSpin ? 0 : cost)
+            if (netChange !== 0) {
                 const { data: balanceData } = await supabase
                     .from('bb_balances')
                     .select('*')
@@ -410,31 +629,33 @@ export default function SlotMachinePage() {
                         })
                         .eq('user_id', user.id)
                 }
-
-                if (winAmount > 0) {
-                    await supabase
-                        .from('bb_transactions')
-                        .insert([{
-                            user_id: user.id,
-                            type: 'earn',
-                            amount: winAmount,
-                            source: 'slot_machine',
-                            description: `Slot machine ${resultType} win`
-                        }])
-                }
-                if (!usingFreeSpin && cost > 0) {
-                    await supabase
-                        .from('bb_transactions')
-                        .insert([{
-                            user_id: user.id,
-                            type: 'spend',
-                            amount: cost,
-                            source: 'slot_machine',
-                            description: 'Slot machine spin'
-                        }])
-                }
             }
 
+            // Record transactions
+            if (winAmount > 0) {
+                await supabase
+                    .from('bb_transactions')
+                    .insert([{
+                        user_id: user.id,
+                        type: 'earn',
+                        amount: winAmount,
+                        source: 'slot_machine',
+                        description: `Slot machine ${resultType} win`
+                    }])
+            }
+            if (!usingFreeSpin && cost > 0) {
+                await supabase
+                    .from('bb_transactions')
+                    .insert([{
+                        user_id: user.id,
+                        type: 'spend',
+                        amount: cost,
+                        source: 'slot_machine',
+                        description: 'Slot machine spin'
+                    }])
+            }
+
+            // Track ad views
             for (const card of finalReels) {
                 if (card?.user_id) {
                     const isFirstView = !viewedAdvertisersToday.has(card.user_id)
@@ -485,8 +706,21 @@ export default function SlotMachinePage() {
         return username.substring(0, 3) + '***'
     }
 
+    const getRankEmoji = (rank) => {
+        if (rank === 1) return '🥇'
+        if (rank === 2) return '🥈'
+        if (rank === 3) return '🥉'
+        return `#${rank}`
+    }
+
+    const getRewardForPlace = (place) => {
+        if (place === 1) return { entries: 10, tokens: 50 }
+        if (place === 2) return { entries: 5, tokens: 25 }
+        if (place === 3) return { entries: 3, tokens: 10 }
+        return { entries: 0, tokens: 0 }
+    }
+
     const winCapPercent = Math.min(100, (dailyWinnings / dailyWinCap) * 100)
-    const spinCapPercent = Math.min(100, (dailySpinsUsed / dailySpinCap) * 100)
 
     // ===== LOADING =====
     if (loading) {
@@ -504,19 +738,62 @@ export default function SlotMachinePage() {
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                     <div className="text-center animate-bounce">
-                        <div className={`text-3xl font-bold drop-shadow-lg ${celebration.type === 'jackpot' ? 'text-yellow-400 text-4xl' :
-                            celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'
-                            }`}>
-                            +{celebration.amount} Tokens!
-                        </div>
-                        <div className="text-4xl mt-1">
-                            {celebration.type === 'jackpot' ? '🎉🎊🎉' : celebration.type === 'triple' ? '🎉' : '✨'}
-                        </div>
+                        {celebration.type === 'reward' ? (
+                            <>
+                                <div className="text-3xl font-bold text-yellow-400 drop-shadow-lg">
+                                    🎉 #{celebration.place} Reward Claimed!
+                                </div>
+                                <div className="text-xl text-white mt-2">
+                                    +{celebration.tokens} 🪙 &nbsp; +{celebration.entries} 🎟️
+                                </div>
+                            </>
+                        ) : celebration.type === 'entries' ? (
+                            <>
+                                <div className="text-2xl font-bold text-purple-400 drop-shadow-lg">
+                                    🎟️ +{celebration.entries} Entries!
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className={`text-3xl font-bold drop-shadow-lg ${celebration.type === 'jackpot' ? 'text-yellow-400 text-4xl' :
+                                    celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'
+                                    }`}>
+                                    +{celebration.amount} Tokens!
+                                </div>
+                                {celebration.entries > 1 && (
+                                    <div className="text-lg text-purple-400 mt-1">
+                                        +{celebration.entries} 🎟️ Entries!
+                                    </div>
+                                )}
+                                <div className="text-4xl mt-1">
+                                    {celebration.type === 'jackpot' ? '🎉🎊🎉' : celebration.type === 'triple' ? '🎉' : '✨'}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
 
             <div className="max-w-xs sm:max-w-sm md:max-w-md mx-auto">
+                {/* ===== UNCLAIMED REWARD BANNER ===== */}
+                {unclaimedReward && (
+                    <div className="mb-3 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500 rounded-lg p-3 text-center">
+                        <p className="text-yellow-400 font-bold text-sm mb-1">
+                            🎉 You placed #{unclaimedReward.place} yesterday!
+                        </p>
+                        <p className="text-yellow-200 text-xs mb-2">
+                            Reward: +{unclaimedReward.bonus_tokens_awarded} 🪙 &nbsp; +{unclaimedReward.bonus_entries_awarded} 🎟️
+                        </p>
+                        <button
+                            onClick={claimReward}
+                            disabled={claimingReward}
+                            className="bg-gradient-to-r from-yellow-500 to-orange-500 text-slate-900 font-bold px-4 py-1.5 rounded-lg text-sm hover:from-yellow-400 hover:to-orange-400 active:scale-95 transition-all"
+                        >
+                            {claimingReward ? 'Claiming...' : '🎁 Claim Reward!'}
+                        </button>
+                    </div>
+                )}
+
                 {/* ===== HEADER ===== */}
                 <div className="text-center mb-2">
                     <h1 className="text-lg font-bold text-white">🎰 Lucky Cards</h1>
@@ -535,10 +812,10 @@ export default function SlotMachinePage() {
                 )}
 
                 {/* ===== WIN CAP MESSAGE ===== */}
-                {hitWinCap && !hitSpinCap && (
+                {hitWinCap && (
                     <div className="mb-2 p-2 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
                         <p className="text-purple-400 text-xs font-bold">🎟️ Entry Mode Active!</p>
-                        <p className="text-purple-300 text-[10px]">You've maxed today's winnings. Keep spinning for drawing entries!</p>
+                        <p className="text-purple-300 text-[10px]">You've hit today's free token cap. Now your wins earn drawing entries instead!</p>
                     </div>
                 )}
 
@@ -577,8 +854,8 @@ export default function SlotMachinePage() {
                                                 className={`w-full h-full flex items-center justify-center p-1 ${spinning ? 'blur-sm' : ''}`}
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <p className="text-[7px] font-bold text-center leading-tight" style={{ color: card.text_color || '#FFF' }}>
-                                                    {card.title?.substring(0, 15)}
+                                                <p className="text-[9px] font-bold text-center leading-tight break-words" style={{ color: card.text_color || '#FFF' }}>
+                                                    {card.title}
                                                 </p>
                                             </div>
                                         )
@@ -593,14 +870,15 @@ export default function SlotMachinePage() {
 
                         {/* Result */}
                         {result && !spinning && (
-                            <div className={`mt-2 text-center py-1 rounded text-xs ${result.entryOnly ? 'bg-purple-500/30 text-purple-400' :
+                            <div className={`mt-2 text-center py-1 rounded text-xs ${result.entryMode ? 'bg-purple-500/30 text-purple-400' :
                                 result.type === 'jackpot' ? 'bg-yellow-500/30 text-yellow-400' :
                                     result.type === 'triple' ? 'bg-green-500/20 text-green-400' :
                                         result.type === 'pair' ? 'bg-blue-500/20 text-blue-400' :
                                             'bg-slate-700/50 text-slate-400'
                                 }`}>
-                                {result.entryOnly ? (
-                                    result.type === 'lose' ? '🎟️ +1 Entry!' : `🎟️ ${result.type.toUpperCase()}! +1 Entry!`
+                                {result.entryMode ? (
+                                    result.type === 'lose' ? '❌ No entries earned' :
+                                        `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} +${result.entries} 🎟️${result.amount > 0 ? ` +${result.amount} 🪙` : ''}`
                                 ) : (
                                     result.type === 'lose' ? 'No match - Try again!' :
                                         `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} Won ${result.amount} tokens!`
@@ -613,7 +891,7 @@ export default function SlotMachinePage() {
                     <div className="grid grid-cols-2 gap-1 mb-2 text-[9px]">
                         <div className="bg-black/30 rounded p-1.5">
                             <div className="flex justify-between text-slate-300 mb-0.5">
-                                <span>Won Today:</span>
+                                <span>Bonus Tokens Won Today:</span>
                                 <span className="text-yellow-400">{dailyWinnings}/{dailyWinCap}</span>
                             </div>
                             <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
@@ -623,13 +901,10 @@ export default function SlotMachinePage() {
                         </div>
                         <div className="bg-black/30 rounded p-1.5">
                             <div className="flex justify-between text-slate-300 mb-0.5">
-                                <span>Spins Today:</span>
-                                <span className="text-blue-400">{dailySpinsUsed}/{dailySpinCap}</span>
+                                <span>Total Spins Today:</span>
+                                <span className="text-blue-400 font-bold">{dailySpinsUsed}</span>
                             </div>
-                            <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 transition-all" style={{ width: `${spinCapPercent}%` }}></div>
-                            </div>
-                            <p className="text-slate-500 text-[7px] mt-0.5">Resets at midnight</p>
+                            <p className="text-slate-500 text-[7px] mt-0.5">Your total for the leaderboard</p>
                         </div>
                     </div>
 
@@ -643,8 +918,8 @@ export default function SlotMachinePage() {
                         </div>
                     </div>
 
-                    {/* Bet Selector - only show if not in entry mode and no free spins */}
-                    {!hitWinCap && freeSpinsLeft === 0 && (
+                    {/* Bet Selector - show when no free spins */}
+                    {freeSpinsLeft === 0 && (
                         <div className="flex items-center justify-center gap-1 mb-2">
                             <span className="text-white text-[10px]">Bet:</span>
                             {[1, 5, 10].map(bet => (
@@ -653,7 +928,7 @@ export default function SlotMachinePage() {
                                     onClick={() => setSelectedBet(bet)}
                                     disabled={spinning}
                                     className={`px-2 py-1 rounded text-xs font-bold transition-all ${selectedBet === bet
-                                        ? 'bg-yellow-500 text-slate-900 scale-105'
+                                        ? hitWinCap ? 'bg-purple-500 text-white scale-105' : 'bg-yellow-500 text-slate-900 scale-105'
                                         : 'bg-slate-700 text-white hover:bg-slate-600'
                                         }`}
                                 >
@@ -665,10 +940,10 @@ export default function SlotMachinePage() {
 
                     {/* Spin Cost Info */}
                     <div className="text-center text-[10px] text-slate-300 mb-2">
-                        {hitWinCap ? (
-                            <span className="text-purple-400">🎟️ Entry Mode - Spins are FREE!</span>
-                        ) : freeSpinsLeft > 0 ? (
+                        {freeSpinsLeft > 0 ? (
                             <span className="text-green-400">✨ This spin is FREE!</span>
+                        ) : hitWinCap ? (
+                            <span className="text-purple-300 font-bold">🎟️ Betting {selectedBet} token{selectedBet > 1 ? 's' : ''} to win the daily contest</span>
                         ) : (
                             <span>This spin costs <span className="text-yellow-400 font-bold">{selectedBet} token{selectedBet > 1 ? 's' : ''}</span></span>
                         )}
@@ -688,11 +963,10 @@ export default function SlotMachinePage() {
                             }`}
                     >
                         {spinning ? '🎰 Spinning...' :
-                            hitSpinCap ? '🛑 Spin Cap Reached' :
-                                hitWinCap ? '🎟️ NOW SPINNING FOR WEEKLY DRAWINGS ADDITIONAL ENTRIES!' :
-                                    !canAffordPaidSpin && !hasFreeSpin ? '🪙 Need Tokens' :
-                                        freeSpinsLeft > 0 ? '🎁 FREE SPIN!' :
-                                            `🎰 SPIN (${selectedBet} tokens)`}
+                            !canAffordPaidSpin && !hasFreeSpin ? '🪙 Need Tokens' :
+                                freeSpinsLeft > 0 ? '🎁 FREE SPIN!' :
+                                    hitWinCap ? `🎟️ SPIN FOR ENTRIES (${selectedBet} tokens)` :
+                                        `🎰 SPIN (${selectedBet} tokens)`}
                     </button>
 
                     {/* Pay Table */}
@@ -703,16 +977,62 @@ export default function SlotMachinePage() {
                             <div>🎴🎴🎴<br />Triple = {odds.tripleMultiplier}x</div>
                             <div>⭐⭐⭐<br />Jackpot = {odds.jackpotMultiplier}x</div>
                         </div>
-                    </div>
-
-                    {/* Weekly Entry Info */}
-                    <div className="mt-1 text-center text-[8px] text-slate-400">
-                        🎟️ Every spin = 1 entry into weekly prize drawing!
+                        {hitWinCap && (
+                            <div className="mt-1 pt-1 border-t border-slate-600">
+                                <p className="text-purple-400 font-bold text-[9px] text-center mb-1">🎟️ Entry Mode Rewards</p>
+                                <div className="grid grid-cols-3 gap-1 text-center text-purple-300 text-[8px]">
+                                    <div>Pair<br />+1 entry</div>
+                                    <div>Triple<br />+3 entries</div>
+                                    <div>Jackpot<br />+5 entries</div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
+                {/* ===== DAILY LEADERBOARD ===== */}
+                {leaderboard.length > 0 && (
+                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
+                        <h2 className="text-white font-bold text-xs mb-1">🏆 Today's Top Spinners</h2>
+                        <div className="space-y-0.5">
+                            {leaderboard.map((entry, i) => (
+                                <div
+                                    key={i}
+                                    className={`flex items-center justify-between text-[10px] rounded px-2 py-0.5 ${entry.user_id === user?.id
+                                        ? 'bg-yellow-500/20 border border-yellow-500/50'
+                                        : 'bg-slate-700/30'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm">{getRankEmoji(entry.rank)}</span>
+                                        <span className={entry.user_id === user?.id ? 'text-yellow-400 font-bold' : 'text-slate-300'}>
+                                            {entry.user_id === user?.id ? 'You' : maskUsername(entry.username)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-400 font-bold">{entry.total_spins} spins</span>
+                                        {entry.rank <= 3 && (
+                                            <span className="text-[9px] text-slate-500">
+                                                (+{getRewardForPlace(entry.rank).tokens}🪙 +{getRewardForPlace(entry.rank).entries}🎟️)
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {userRank && userRank > leaderboard.length && (
+                            <div className="mt-1 text-center text-[10px] text-slate-400">
+                                Your rank: #{userRank}
+                            </div>
+                        )}
+                        <div className="mt-1 text-center text-xs text-slate-300">
+                            Top 3 win bonus tokens + entries at midnight!
+                        </div>
+                    </div>
+                )}
+
                 {/* ===== NEED TOKENS? ===== */}
-                {!hitWinCap && !canAffordPaidSpin && freeSpinsLeft === 0 && (
+                {!canAffordPaidSpin && freeSpinsLeft === 0 && (
                     <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
                         <p className="text-white font-bold text-xs mb-1">💡 Need more tokens?</p>
                         <div className="space-y-1">
