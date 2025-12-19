@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-export default function GameBBSettingsPage() {
+// ===== TOKEN SETTINGS PAGE =====
+// Admin page to configure token rewards for each game
+
+export default function TokenSettingsPage() {
+    // ===== STATE =====
     const [games, setGames] = useState([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(null)
@@ -13,6 +17,7 @@ export default function GameBBSettingsPage() {
         loadGames()
     }, [])
 
+    // ===== LOAD GAMES =====
     const loadGames = async () => {
         try {
             const { data, error } = await supabase
@@ -30,6 +35,7 @@ export default function GameBBSettingsPage() {
         }
     }
 
+    // ===== UPDATE GAME SETTING =====
     const updateGame = async (gameId, field, value) => {
         setSaving(gameId)
         setMessage(null)
@@ -57,6 +63,7 @@ export default function GameBBSettingsPage() {
         }
     }
 
+    // ===== INPUT HANDLERS =====
     const handleInputChange = (gameId, field, value, isNumber = false) => {
         const newValue = isNumber ? (value === '' ? null : Number(value)) : value
         setGames(games.map(g =>
@@ -69,6 +76,7 @@ export default function GameBBSettingsPage() {
         updateGame(gameId, field, newValue)
     }
 
+    // ===== LOADING STATE =====
     if (loading) {
         return (
             <div className="p-6">
@@ -77,22 +85,29 @@ export default function GameBBSettingsPage() {
         )
     }
 
+    // ===== MAIN RENDER =====
     return (
         <div className="p-6">
+
+            {/* ===== HEADER ===== */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white">Game BB Settings</h1>
-                <p className="text-slate-400 mt-1">Configure Bonus Bucks for each game</p>
+                <h1 className="text-2xl font-bold text-white">🪙 Token Settings</h1>
+                <p className="text-slate-400 mt-1">Configure Token rewards for each game</p>
             </div>
 
+            {/* ===== MESSAGE ===== */}
             {message && (
                 <div className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {message.text}
                 </div>
             )}
 
+            {/* ===== GAME CARDS ===== */}
             <div className="space-y-4">
                 {games.map(game => (
                     <div key={game.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+
+                        {/* ----- Game Header ----- */}
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-white">{game.game_name}</h2>
@@ -109,6 +124,7 @@ export default function GameBBSettingsPage() {
                             </label>
                         </div>
 
+                        {/* ----- Token Settings Grid ----- */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             <div>
                                 <label className="block text-slate-400 text-xs mb-1">Award Chance %</label>
@@ -124,7 +140,7 @@ export default function GameBBSettingsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-slate-400 text-xs mb-1">Min BB</label>
+                                <label className="block text-slate-400 text-xs mb-1">Min Tokens</label>
                                 <input
                                     type="number"
                                     min="0"
@@ -136,7 +152,7 @@ export default function GameBBSettingsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-slate-400 text-xs mb-1">Max BB</label>
+                                <label className="block text-slate-400 text-xs mb-1">Max Tokens</label>
                                 <input
                                     type="number"
                                     min="0"
@@ -148,7 +164,7 @@ export default function GameBBSettingsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-slate-400 text-xs mb-1">Daily BB Cap</label>
+                                <label className="block text-slate-400 text-xs mb-1">Daily Token Cap</label>
                                 <input
                                     type="number"
                                     min="0"
@@ -186,6 +202,7 @@ export default function GameBBSettingsPage() {
                             </div>
                         </div>
 
+                        {/* ----- Slot Machine Extra Settings ----- */}
                         {game.game_key.includes('slot_machine') && (
                             <div className="mt-4 pt-4 border-t border-slate-700">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -213,12 +230,13 @@ export default function GameBBSettingsPage() {
                 ))}
             </div>
 
+            {/* ===== SETTINGS GUIDE ===== */}
             <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-lg p-4">
                 <h3 className="text-white font-semibold mb-2">📖 Settings Guide</h3>
                 <div className="text-slate-400 text-sm space-y-1">
-                    <p><strong>Award Chance %:</strong> Probability of earning BB per play (100 = always)</p>
-                    <p><strong>Min/Max BB:</strong> Range of BB awarded when won</p>
-                    <p><strong>Daily BB Cap:</strong> Max BB a user can earn from this game per day</p>
+                    <p><strong>Award Chance %:</strong> Probability of earning Tokens per play (100 = always)</p>
+                    <p><strong>Min/Max Tokens:</strong> Range of Tokens awarded when won</p>
+                    <p><strong>Daily Token Cap:</strong> Max Tokens a user can earn from this game per day</p>
                     <p><strong>Daily Play Cap:</strong> Max plays allowed per day (blank = unlimited)</p>
                     <p><strong>Free Plays/Day:</strong> Free plays given daily (slot machines)</p>
                     <p><strong>Win % (RTP):</strong> Return to player percentage (slot machines)</p>

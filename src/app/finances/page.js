@@ -4,20 +4,26 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+// ===== FINANCES PAGE =====
+// Shows user's Token balance, transaction history, and cash payouts
+
 export default function FinancesPage() {
     const router = useRouter()
+
+    // ===== STATE =====
     const [loading, setLoading] = useState(true)
     const [user, setUser] = useState(null)
-    const [bbBalance, setBbBalance] = useState(null)
-    const [bbTransactions, setBbTransactions] = useState([])
+    const [tokenBalance, setTokenBalance] = useState(null)
+    const [tokenTransactions, setTokenTransactions] = useState([])
     const [pendingPayouts, setPendingPayouts] = useState([])
     const [payoutHistory, setPayoutHistory] = useState([])
-    const [activeTab, setActiveTab] = useState('bb')
+    const [activeTab, setActiveTab] = useState('tokens')
 
     useEffect(() => {
         checkUser()
     }, [])
 
+    // ===== AUTH CHECK =====
     const checkUser = async () => {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -33,31 +39,34 @@ export default function FinancesPage() {
         }
     }
 
+    // ===== LOAD ALL DATA =====
     const loadData = async (userId) => {
         setLoading(true)
         await Promise.all([
-            loadBBBalance(userId),
-            loadBBTransactions(userId),
+            loadTokenBalance(userId),
+            loadTokenTransactions(userId),
             loadPendingPayouts(userId),
             loadPayoutHistory(userId)
         ])
         setLoading(false)
     }
 
-    const loadBBBalance = async (userId) => {
+    // ===== LOAD TOKEN BALANCE =====
+    const loadTokenBalance = async (userId) => {
         try {
             const { data } = await supabase
                 .from('bb_balances')
                 .select('*')
                 .eq('user_id', userId)
                 .single()
-            setBbBalance(data)
+            setTokenBalance(data)
         } catch (error) {
-            console.log('No BB balance found')
+            console.log('No Token balance found')
         }
     }
 
-    const loadBBTransactions = async (userId) => {
+    // ===== LOAD TOKEN TRANSACTIONS =====
+    const loadTokenTransactions = async (userId) => {
         try {
             const { data } = await supabase
                 .from('bb_transactions')
@@ -65,12 +74,13 @@ export default function FinancesPage() {
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(50)
-            setBbTransactions(data || [])
+            setTokenTransactions(data || [])
         } catch (error) {
-            console.error('Error loading BB transactions:', error)
+            console.error('Error loading Token transactions:', error)
         }
     }
 
+    // ===== LOAD PENDING PAYOUTS =====
     const loadPendingPayouts = async (userId) => {
         try {
             const { data } = await supabase
@@ -84,6 +94,7 @@ export default function FinancesPage() {
         }
     }
 
+    // ===== LOAD PAYOUT HISTORY =====
     const loadPayoutHistory = async (userId) => {
         try {
             const { data } = await supabase
@@ -98,6 +109,7 @@ export default function FinancesPage() {
         }
     }
 
+    // ===== DATE FORMATTERS =====
     const formatDate = (dateStr) => {
         if (!dateStr) return '-'
         return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
@@ -108,6 +120,7 @@ export default function FinancesPage() {
         return new Date(dateStr).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     }
 
+    // ===== LOADING STATE =====
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -119,9 +132,11 @@ export default function FinancesPage() {
         )
     }
 
+    // ===== MAIN RENDER =====
     return (
         <div className="min-h-screen bg-slate-900">
-            {/* Header */}
+
+            {/* ===== HEADER ===== */}
             <div className="bg-slate-800 border-b border-slate-700">
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <h1 className="text-xl font-bold text-white">💰 My Finances</h1>
@@ -129,15 +144,16 @@ export default function FinancesPage() {
             </div>
 
             <div className="max-w-4xl mx-auto px-4 py-4">
-                {/* Summary Cards */}
+
+                {/* ===== SUMMARY CARDS ===== */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <p className="text-slate-400 text-xs">BB Balance</p>
-                        <p className="text-yellow-400 font-bold text-lg">{bbBalance?.balance || 0}</p>
+                        <p className="text-slate-400 text-xs">Token Balance</p>
+                        <p className="text-yellow-400 font-bold text-lg">🪙 {tokenBalance?.balance || 0}</p>
                     </div>
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <p className="text-slate-400 text-xs">Total BB Earned</p>
-                        <p className="text-green-400 font-bold text-lg">{bbBalance?.total_earned || 0}</p>
+                        <p className="text-slate-400 text-xs">Total Earned</p>
+                        <p className="text-green-400 font-bold text-lg">🪙 {tokenBalance?.total_earned || 0}</p>
                     </div>
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                         <p className="text-slate-400 text-xs">Pending Cash</p>
@@ -153,29 +169,29 @@ export default function FinancesPage() {
                     </div>
                 </div>
 
-                {/* Tabs */}
+                {/* ===== TABS ===== */}
                 <div className="flex gap-1 mb-4 bg-slate-800 p-1 rounded-lg">
                     <button
-                        onClick={() => setActiveTab('bb')}
-                        className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${activeTab === 'bb' ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:text-white'}`}
+                        onClick={() => setActiveTab('tokens')}
+                        className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${activeTab === 'tokens' ? 'bg-yellow-500 text-slate-900' : 'text-slate-400 hover:text-white'}`}
                     >
-                        Bonus Bucks
+                        🪙 Tokens
                     </button>
                     <button
                         onClick={() => setActiveTab('cash')}
                         className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${activeTab === 'cash' ? 'bg-green-500 text-white' : 'text-slate-400 hover:text-white'}`}
                     >
-                        Cash Payouts
+                        💵 Cash Payouts
                     </button>
                 </div>
 
-                {/* BB Transactions Tab */}
-                {activeTab === 'bb' && (
+                {/* ===== TOKEN TRANSACTIONS TAB ===== */}
+                {activeTab === 'tokens' && (
                     <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                         <div className="p-3 border-b border-slate-700">
-                            <h2 className="text-white font-medium text-sm">Bonus Bucks History</h2>
+                            <h2 className="text-white font-medium text-sm">Token History</h2>
                         </div>
-                        {bbTransactions.length === 0 ? (
+                        {tokenTransactions.length === 0 ? (
                             <div className="p-4 text-center text-slate-400 text-sm">No transactions yet</div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -189,7 +205,7 @@ export default function FinancesPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {bbTransactions.map(tx => (
+                                        {tokenTransactions.map(tx => (
                                             <tr key={tx.id} className="border-b border-slate-700/50">
                                                 <td className="p-2 text-slate-300 text-xs">{formatDateTime(tx.created_at)}</td>
                                                 <td className="p-2">
@@ -210,10 +226,11 @@ export default function FinancesPage() {
                     </div>
                 )}
 
-                {/* Cash Payouts Tab */}
+                {/* ===== CASH PAYOUTS TAB ===== */}
                 {activeTab === 'cash' && (
                     <div className="space-y-4">
-                        {/* Pending Payouts */}
+
+                        {/* ----- Pending Payouts ----- */}
                         <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                             <div className="p-3 border-b border-slate-700 flex items-center justify-between">
                                 <h2 className="text-white font-medium text-sm">Pending Payouts</h2>
@@ -251,7 +268,7 @@ export default function FinancesPage() {
                             )}
                         </div>
 
-                        {/* Payout History */}
+                        {/* ----- Payout History ----- */}
                         <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                             <div className="p-3 border-b border-slate-700">
                                 <h2 className="text-white font-medium text-sm">Payout History</h2>

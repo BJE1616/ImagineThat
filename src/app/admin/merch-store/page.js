@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
+// ===== MERCH STORE ADMIN PAGE =====
+// Manage merchandise items and process orders
+
 export default function MerchStoreAdminPage() {
+    // ===== STATE =====
     const [loading, setLoading] = useState(true)
     const [items, setItems] = useState([])
     const [orders, setOrders] = useState([])
@@ -15,7 +19,7 @@ export default function MerchStoreAdminPage() {
     const [settings, setSettings] = useState({
         merch_store_enabled: true,
         merch_global_markup: 3.0,
-        bb_dollar_value: 1.0
+        token_dollar_value: 1.0
     })
     const [newItem, setNewItem] = useState({
         name: '',
@@ -23,7 +27,7 @@ export default function MerchStoreAdminPage() {
         item_type: 'digital_gift_card',
         cost: '',
         markup_multiplier: '',
-        bb_price: '',
+        token_price: '',
         amazon_url: '',
         image_url: '',
         stock_quantity: '',
@@ -47,6 +51,7 @@ export default function MerchStoreAdminPage() {
         loadAllData()
     }, [])
 
+    // ===== LOAD ALL DATA =====
     const loadAllData = async () => {
         setLoading(true)
         await Promise.all([
@@ -58,6 +63,7 @@ export default function MerchStoreAdminPage() {
         setLoading(false)
     }
 
+    // ===== LOAD ITEMS =====
     const loadItems = async () => {
         const { data } = await supabase
             .from('merch_items')
@@ -67,6 +73,7 @@ export default function MerchStoreAdminPage() {
         setItems(data || [])
     }
 
+    // ===== LOAD ORDERS =====
     const loadOrders = async () => {
         const { data } = await supabase
             .from('merch_orders')
@@ -79,6 +86,7 @@ export default function MerchStoreAdminPage() {
         setOrders(data || [])
     }
 
+    // ===== LOAD SETTINGS =====
     const loadSettings = async () => {
         const { data } = await supabase
             .from('admin_settings')
@@ -98,6 +106,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== LOAD STATS =====
     const loadStats = async () => {
         const { data: itemsData } = await supabase.from('merch_items').select('is_enabled')
         const { data: ordersData } = await supabase.from('merch_orders').select('status')
@@ -110,11 +119,13 @@ export default function MerchStoreAdminPage() {
         })
     }
 
-    const calculateBBPrice = (cost, markup) => {
+    // ===== CALCULATE TOKEN PRICE =====
+    const calculateTokenPrice = (cost, markup) => {
         const actualMarkup = markup || settings.merch_global_markup
         return Math.ceil(cost * actualMarkup)
     }
 
+    // ===== SAVE ITEM =====
     const saveItem = async () => {
         if (!newItem.name || !newItem.cost) {
             setMessage({ type: 'error', text: 'Name and cost required' })
@@ -128,7 +139,7 @@ export default function MerchStoreAdminPage() {
                 item_type: newItem.item_type,
                 cost: parseFloat(newItem.cost),
                 markup_multiplier: newItem.markup_multiplier ? parseFloat(newItem.markup_multiplier) : settings.merch_global_markup,
-                bb_price: newItem.bb_price ? parseInt(newItem.bb_price) : calculateBBPrice(parseFloat(newItem.cost), parseFloat(newItem.markup_multiplier) || settings.merch_global_markup),
+                bb_price: newItem.token_price ? parseInt(newItem.token_price) : calculateTokenPrice(parseFloat(newItem.cost), parseFloat(newItem.markup_multiplier) || settings.merch_global_markup),
                 amazon_url: newItem.amazon_url || null,
                 image_url: newItem.image_url || null,
                 stock_quantity: newItem.item_type === 'in_stock' ? (parseInt(newItem.stock_quantity) || 0) : null,
@@ -161,6 +172,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== EDIT ITEM =====
     const editItem = (item) => {
         setEditingItem(item)
         setNewItem({
@@ -169,7 +181,7 @@ export default function MerchStoreAdminPage() {
             item_type: item.item_type,
             cost: item.cost.toString(),
             markup_multiplier: item.markup_multiplier?.toString() || '',
-            bb_price: item.bb_price?.toString() || '',
+            token_price: item.bb_price?.toString() || '',
             amazon_url: item.amazon_url || '',
             image_url: item.image_url || '',
             stock_quantity: item.stock_quantity?.toString() || '',
@@ -180,6 +192,7 @@ export default function MerchStoreAdminPage() {
         setShowItemForm(true)
     }
 
+    // ===== DELETE ITEM =====
     const deleteItem = async (id) => {
         if (!confirm('Delete this item?')) return
         try {
@@ -193,6 +206,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== TOGGLE ITEM ENABLED =====
     const toggleItemEnabled = async (item) => {
         try {
             const { error } = await supabase
@@ -206,6 +220,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== RESET ITEM FORM =====
     const resetItemForm = () => {
         setShowItemForm(false)
         setEditingItem(null)
@@ -215,7 +230,7 @@ export default function MerchStoreAdminPage() {
             item_type: 'digital_gift_card',
             cost: '',
             markup_multiplier: '',
-            bb_price: '',
+            token_price: '',
             amazon_url: '',
             image_url: '',
             stock_quantity: '',
@@ -225,6 +240,7 @@ export default function MerchStoreAdminPage() {
         })
     }
 
+    // ===== UPDATE ORDER STATUS =====
     const updateOrderStatus = async (order, newStatus) => {
         try {
             const updateData = {
@@ -258,6 +274,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== HELPER FUNCTIONS =====
     const formatDate = (dateString) => {
         if (!dateString) return '-'
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -285,6 +302,7 @@ export default function MerchStoreAdminPage() {
         }
     }
 
+    // ===== LOADING STATE =====
     if (loading) {
         return (
             <div className="p-4">
@@ -293,11 +311,14 @@ export default function MerchStoreAdminPage() {
         )
     }
 
+    // ===== MAIN RENDER =====
     return (
         <div className="p-4">
+
+            {/* ===== HEADER ===== */}
             <div className="flex items-center justify-between mb-3">
                 <div>
-                    <h1 className="text-xl font-bold text-white">Merch Store Admin</h1>
+                    <h1 className="text-xl font-bold text-white">🛍️ Merch Store Admin</h1>
                     <p className="text-slate-400 text-sm">Manage items and orders</p>
                 </div>
                 {message && (
@@ -307,7 +328,7 @@ export default function MerchStoreAdminPage() {
                 )}
             </div>
 
-            {/* Stats Row */}
+            {/* ===== STATS ROW ===== */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                     <p className="text-slate-400 text-xs">Total Items</p>
@@ -325,11 +346,11 @@ export default function MerchStoreAdminPage() {
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                     <p className="text-slate-400 text-xs">Global Markup</p>
                     <p className="text-xl font-bold text-yellow-400">{settings.merch_global_markup}x</p>
-                    <p className="text-slate-500 text-xs">$10 cost = {settings.merch_global_markup * 10} BB</p>
+                    <p className="text-slate-500 text-xs">$10 cost = {settings.merch_global_markup * 10} Tokens</p>
                 </div>
             </div>
 
-            {/* Tabs */}
+            {/* ===== TABS ===== */}
             <div className="flex gap-1 mb-3">
                 {['items', 'orders'].map(tab => (
                     <button
@@ -345,7 +366,7 @@ export default function MerchStoreAdminPage() {
                 ))}
             </div>
 
-            {/* Items Tab */}
+            {/* ===== ITEMS TAB ===== */}
             {activeTab === 'items' && (
                 <div className="space-y-3">
                     <div className="flex justify-between items-center">
@@ -357,6 +378,7 @@ export default function MerchStoreAdminPage() {
                         </button>
                     </div>
 
+                    {/* ----- Item Form ----- */}
                     {showItemForm && (
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
                             <h3 className="text-white font-semibold text-sm mb-3">
@@ -410,12 +432,12 @@ export default function MerchStoreAdminPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                 <div>
                                     <label className="text-slate-400 text-xs block mb-1">
-                                        BB Price (auto: {newItem.cost ? calculateBBPrice(parseFloat(newItem.cost), parseFloat(newItem.markup_multiplier) || settings.merch_global_markup) : '0'})
+                                        Token Price (auto: {newItem.cost ? calculateTokenPrice(parseFloat(newItem.cost), parseFloat(newItem.markup_multiplier) || settings.merch_global_markup) : '0'})
                                     </label>
                                     <input
                                         type="number"
-                                        value={newItem.bb_price}
-                                        onChange={(e) => setNewItem({ ...newItem, bb_price: e.target.value })}
+                                        value={newItem.token_price}
+                                        onChange={(e) => setNewItem({ ...newItem, token_price: e.target.value })}
                                         placeholder="Override"
                                         className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm"
                                     />
@@ -498,6 +520,7 @@ export default function MerchStoreAdminPage() {
                         </div>
                     )}
 
+                    {/* ----- Items Table ----- */}
                     <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                         {items.length === 0 ? (
                             <div className="p-8 text-center text-slate-400">
@@ -510,7 +533,7 @@ export default function MerchStoreAdminPage() {
                                         <th className="text-left py-2 px-3">Item</th>
                                         <th className="text-left py-2 px-3">Type</th>
                                         <th className="text-right py-2 px-3">Cost</th>
-                                        <th className="text-right py-2 px-3">BB Price</th>
+                                        <th className="text-right py-2 px-3">Token Price</th>
                                         <th className="text-center py-2 px-3">Stock</th>
                                         <th className="text-center py-2 px-3">Enabled</th>
                                         <th className="text-right py-2 px-3">Actions</th>
@@ -545,7 +568,7 @@ export default function MerchStoreAdminPage() {
                                                 </span>
                                             </td>
                                             <td className="py-2 px-3 text-right text-slate-300">${item.cost}</td>
-                                            <td className="py-2 px-3 text-right text-yellow-400 font-semibold">{item.bb_price || item.display_price} BB</td>
+                                            <td className="py-2 px-3 text-right text-yellow-400 font-semibold">🪙 {item.bb_price || item.display_price}</td>
                                             <td className="py-2 px-3 text-center text-slate-400">
                                                 {item.item_type === 'in_stock' ? (
                                                     <span className={item.stock_quantity <= item.low_stock_alert ? 'text-red-400' : ''}>
@@ -584,7 +607,7 @@ export default function MerchStoreAdminPage() {
                 </div>
             )}
 
-            {/* Orders Tab */}
+            {/* ===== ORDERS TAB ===== */}
             {activeTab === 'orders' && (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                     {orders.length === 0 ? (
@@ -598,7 +621,7 @@ export default function MerchStoreAdminPage() {
                                     <th className="text-left py-2 px-3">Date</th>
                                     <th className="text-left py-2 px-3">User</th>
                                     <th className="text-left py-2 px-3">Item</th>
-                                    <th className="text-right py-2 px-3">BB Cost</th>
+                                    <th className="text-right py-2 px-3">Token Cost</th>
                                     <th className="text-center py-2 px-3">Status</th>
                                     <th className="text-left py-2 px-3">Tracking/Code</th>
                                     <th className="text-right py-2 px-3">Actions</th>
@@ -618,7 +641,7 @@ export default function MerchStoreAdminPage() {
                                             <p className="text-white">{order.item_name}</p>
                                             <p className="text-slate-500 text-xs">{getItemTypeLabel(order.item_type)}</p>
                                         </td>
-                                        <td className="py-2 px-3 text-right text-yellow-400">{order.bb_cost} BB</td>
+                                        <td className="py-2 px-3 text-right text-yellow-400">🪙 {order.bb_cost}</td>
                                         <td className="py-2 px-3 text-center">
                                             <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(order.status)}`}>
                                                 {order.status}
@@ -704,6 +727,7 @@ export default function MerchStoreAdminPage() {
                 </div>
             )}
 
+            {/* ===== HELP TIP ===== */}
             <div className="mt-3 p-2 bg-slate-800/50 border border-slate-700 rounded-lg text-xs text-slate-400">
                 <p>💡 <strong>Item Types:</strong> Gift Cards (instant email), Amazon (you order & ship), In Stock (your inventory)</p>
             </div>

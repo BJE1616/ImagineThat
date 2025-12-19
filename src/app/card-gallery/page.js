@@ -11,10 +11,10 @@ export default function CardGalleryPage() {
     const [loading, setLoading] = useState(true)
     const [user, setUser] = useState(null)
     const [cards, setCards] = useState([])
-    const [bbBalance, setBbBalance] = useState(0)
+    const [tokenBalance, setTokenBalance] = useState(0)
     const [viewedToday, setViewedToday] = useState(0)
     const [dailyLimit, setDailyLimit] = useState(50)
-    const [bbPerView, setBbPerView] = useState(1)
+    const [tokensPerView, setTokensPerView] = useState(1)
     const [selectedCard, setSelectedCard] = useState(null)
     const [message, setMessage] = useState(null)
     const [gameSettings, setGameSettings] = useState(null)
@@ -45,7 +45,7 @@ export default function CardGalleryPage() {
                     .eq('user_id', authUser.id)
                     .single()
 
-                setBbBalance(balanceData?.balance || 0)
+                setTokenBalance(balanceData?.balance || 0)
 
                 const today = new Date().toISOString().split('T')[0]
                 const { data: activityData } = await supabase
@@ -84,7 +84,7 @@ export default function CardGalleryPage() {
             if (data) {
                 setGameSettings(data)
                 setDailyLimit(data.daily_bb_cap || 50)
-                setBbPerView(data.bb_min || 1)
+                setTokensPerView(data.bb_min || 1)
             }
         } catch (error) {
             console.log('Using default card gallery settings')
@@ -124,9 +124,9 @@ export default function CardGalleryPage() {
         if (!gameSettings?.is_enabled) return
         if (viewedCards.current.has(card.id)) return
 
-        const todayBBEarned = viewedToday * bbPerView
-        if (todayBBEarned >= dailyLimit) {
-            setMessage({ type: 'info', text: 'Daily Bonus Bucks limit reached (' + dailyLimit + ')' })
+        const todayTokensEarned = viewedToday * tokensPerView
+        if (todayTokensEarned >= dailyLimit) {
+            setMessage({ type: 'info', text: 'Daily Token limit reached (' + dailyLimit + ')' })
             setTimeout(() => setMessage(null), 3000)
             return
         }
@@ -186,7 +186,7 @@ export default function CardGalleryPage() {
                     bb_awarded: true
                 }])
 
-            const bbEarned = bbPerView
+            const tokensEarned = tokensPerView
 
             const { data: existingBalance } = await supabase
                 .from('bb_balances')
@@ -198,8 +198,8 @@ export default function CardGalleryPage() {
                 await supabase
                     .from('bb_balances')
                     .update({
-                        balance: existingBalance.balance + bbEarned,
-                        total_earned: (existingBalance.total_earned || 0) + bbEarned,
+                        balance: existingBalance.balance + tokensEarned,
+                        total_earned: (existingBalance.total_earned || 0) + tokensEarned,
                         updated_at: new Date().toISOString()
                     })
                     .eq('user_id', user.id)
@@ -208,8 +208,8 @@ export default function CardGalleryPage() {
                     .from('bb_balances')
                     .insert([{
                         user_id: user.id,
-                        balance: bbEarned,
-                        total_earned: bbEarned
+                        balance: tokensEarned,
+                        total_earned: tokensEarned
                     }])
             }
 
@@ -218,7 +218,7 @@ export default function CardGalleryPage() {
                 .insert([{
                     user_id: user.id,
                     type: 'earn',
-                    amount: bbEarned,
+                    amount: tokensEarned,
                     source: 'card_gallery',
                     description: 'Viewed card: ' + (card.title || 'Business Card')
                 }])
@@ -265,10 +265,10 @@ export default function CardGalleryPage() {
                     .eq('id', campaignData[0].id)
             }
 
-            setBbBalance(prev => prev + bbEarned)
+            setTokenBalance(prev => prev + tokensEarned)
             setViewedToday(prev => prev + 1)
 
-            setCelebration({ amount: bbEarned, id: Date.now() })
+            setCelebration({ amount: tokensEarned, id: Date.now() })
             setTimeout(() => setCelebration(null), 2000)
 
         } catch (error) {
@@ -297,7 +297,7 @@ export default function CardGalleryPage() {
                 <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                     <div className="animate-celebration text-center">
                         <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
-                            +{celebration.amount} Bonus Bucks!
+                            +{celebration.amount} Tokens!
                         </div>
                         <div className="text-6xl mt-2">🎉</div>
                     </div>
@@ -319,7 +319,7 @@ export default function CardGalleryPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-xl font-bold text-white">🖼️ Card Gallery</h1>
-                            <p className="text-slate-400 text-sm">Tap the eye to view cards and earn Bonus Bucks</p>
+                            <p className="text-slate-400 text-sm">Tap the eye to view cards and earn Tokens</p>
                         </div>
                         <div className="flex items-center gap-4">
                             {message && (
@@ -329,8 +329,8 @@ export default function CardGalleryPage() {
                             )}
                             {user ? (
                                 <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-right">
-                                    <p className="text-yellow-400 font-bold text-base sm:text-lg">{bbBalance} BB</p>
-                                    <p className="text-slate-400 text-xs">{viewedToday * bbPerView}/{dailyLimit} today</p>
+                                    <p className="text-yellow-400 font-bold text-base sm:text-lg">🪙 {tokenBalance}</p>
+                                    <p className="text-slate-400 text-xs">{viewedToday * tokensPerView}/{dailyLimit} today</p>
                                 </div>
                             ) : (
                                 <button onClick={() => router.push('/auth/login')} className="px-4 py-2 bg-yellow-500 text-slate-900 rounded-lg font-medium hover:bg-yellow-400">
@@ -346,7 +346,7 @@ export default function CardGalleryPage() {
                 <div className="max-w-7xl mx-auto px-4 pt-4">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm">
                         <p className="text-yellow-400">
-                            💰 Earn <strong>{bbPerView} Bonus Bucks</strong> for each new card you view today! Current Daily Limit is: <strong>{dailyLimit}</strong>
+                            🪙 Earn <strong>{tokensPerView} Tokens</strong> for each new card you view today! Daily limit: <strong>{dailyLimit}</strong>
                             {viewedCards.current.size > 0 && <span className="text-slate-400 ml-2">({viewedCards.current.size} viewed)</span>}
                         </p>
                     </div>
@@ -363,7 +363,7 @@ export default function CardGalleryPage() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                         {cards.map(card => {
                             const isViewed = viewedCards.current.has(card.id)
-                            const canEarn = user && gameSettings?.is_enabled && !isViewed && (viewedToday * bbPerView < dailyLimit)
+                            const canEarn = user && gameSettings?.is_enabled && !isViewed && (viewedToday * tokensPerView < dailyLimit)
 
                             return (
                                 <div
@@ -386,7 +386,7 @@ export default function CardGalleryPage() {
                                     <button
                                         onClick={(e) => viewCard(card, e)}
                                         className={`absolute bottom-1 right-1 w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-full transition-all shadow ${canEarn ? 'bg-yellow-500 hover:bg-yellow-400 hover:scale-110' : 'bg-white/80 hover:bg-white'}`}
-                                        title={canEarn ? `View to earn ${bbPerView} Bonus Bucks` : 'View card'}
+                                        title={canEarn ? `View to earn ${tokensPerView} Tokens` : 'View card'}
                                     >
                                         <span className="text-lg sm:text-base">👁</span>
                                     </button>
