@@ -245,7 +245,7 @@ export default function SlotMachinePage() {
                 .eq('claimed', false)
                 .order('result_date', { ascending: false })
                 .limit(1)
-                .single()
+                .maybeSingle()
 
             if (data) {
                 setUnclaimedReward(data)

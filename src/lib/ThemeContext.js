@@ -269,13 +269,13 @@ export function ThemeProvider({ children }) {
                 .from('admin_settings')
                 .select('setting_value')
                 .eq('setting_key', 'site_theme')
-                .single()
+                .maybeSingle()
 
             if (data?.setting_value && themes[data.setting_value]) {
                 setTheme(data.setting_value)
             }
         } catch (error) {
-            console.error('Error loading theme:', error)
+            console.log('Using default theme')
         } finally {
             setLoading(false)
         }
