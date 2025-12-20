@@ -15,7 +15,9 @@ export default function Navbar() {
     const [isAdmin, setIsAdmin] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
     const [dropdownOpen, setDropdownOpen] = useState(false)
+    const [gamesDropdownOpen, setGamesDropdownOpen] = useState(false)
     const dropdownRef = useRef(null)
+    const gamesDropdownRef = useRef(null)
 
     useEffect(() => {
         checkUser()
@@ -38,6 +40,9 @@ export default function Navbar() {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setDropdownOpen(false)
+            }
+            if (gamesDropdownRef.current && !gamesDropdownRef.current.contains(event.target)) {
+                setGamesDropdownOpen(false)
             }
         }
         document.addEventListener('mousedown', handleClickOutside)
@@ -86,6 +91,8 @@ export default function Navbar() {
         return userData.username?.charAt(0).toUpperCase() || ''
     }
 
+    const isGamesPage = pathname === '/game' || pathname === '/slots' || pathname === '/card-gallery'
+
     if (pathname?.startsWith('/admin')) {
         return null
     }
@@ -104,15 +111,61 @@ export default function Navbar() {
 
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-1">
-                        <Link
-                            href="/game"
-                            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${pathname === '/game'
-                                ? `bg-${currentTheme.accent}/10 text-${currentTheme.accentHover}`
-                                : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.card}`
-                                }`}
-                        >
-                            Play Games
-                        </Link>
+                        {/* Games Dropdown */}
+                        <div className="relative" ref={gamesDropdownRef}>
+                            <button
+                                onClick={() => setGamesDropdownOpen(!gamesDropdownOpen)}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1 ${isGamesPage
+                                    ? `bg-${currentTheme.accent}/10 text-${currentTheme.accentHover}`
+                                    : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.card}`
+                                    }`}
+                            >
+                                Games
+                                <svg
+                                    className={`w-3 h-3 transition-transform ${gamesDropdownOpen ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            {gamesDropdownOpen && (
+                                <div className={`absolute left-0 mt-1 w-44 bg-${currentTheme.card} border border-${currentTheme.border} rounded shadow-lg py-1 z-50`}>
+                                    <Link
+                                        href="/game"
+                                        onClick={() => setGamesDropdownOpen(false)}
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/game'
+                                            ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                            : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                            }`}
+                                    >
+                                        🎮 Match Game
+                                    </Link>
+                                    <Link
+                                        href="/card-gallery"
+                                        onClick={() => setGamesDropdownOpen(false)}
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/card-gallery'
+                                            ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                            : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                            }`}
+                                    >
+                                        🖼️ Card Gallery
+                                    </Link>
+                                    <Link
+                                        href="/slots"
+                                        onClick={() => setGamesDropdownOpen(false)}
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/slots'
+                                            ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                            : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                            }`}
+                                    >
+                                        🎰 Slots
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
 
                         {user && (
                             <>
@@ -221,16 +274,33 @@ export default function Navbar() {
                         )}
 
                         <div className="flex flex-col">
+                            {/* Games Section */}
+                            <div className={`px-2 py-1 text-xs font-semibold text-${currentTheme.textMuted} uppercase tracking-wide`}>Games</div>
                             <Link
                                 href="/game"
                                 onClick={() => setMenuOpen(false)}
-                                className={`px-2 py-2 text-sm font-medium ${pathname === '/game' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                                className={`px-4 py-2 text-sm font-medium ${pathname === '/game' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
                             >
-                                Play Games
+                                🎮 Match Game
+                            </Link>
+                            <Link
+                                href="/card-gallery"
+                                onClick={() => setMenuOpen(false)}
+                                className={`px-4 py-2 text-sm font-medium ${pathname === '/card-gallery' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                            >
+                                🖼️ Card Gallery
+                            </Link>
+                            <Link
+                                href="/slots"
+                                onClick={() => setMenuOpen(false)}
+                                className={`px-4 py-2 text-sm font-medium ${pathname === '/slots' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                            >
+                                🎰 Slots
                             </Link>
 
                             {user && (
                                 <>
+                                    <div className={`border-t border-${currentTheme.card} mt-2 pt-2`}></div>
                                     <Link
                                         href="/dashboard"
                                         onClick={() => setMenuOpen(false)}

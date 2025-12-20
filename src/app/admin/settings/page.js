@@ -224,13 +224,16 @@ export default function AdminSettingsPage() {
             for (const [key, value] of Object.entries(settings)) {
                 const { error } = await supabase
                     .from('admin_settings')
-                    .upsert({
-                        setting_key: key,
+                    .update({
                         setting_value: value,
                         updated_at: new Date().toISOString()
-                    }, { onConflict: 'setting_key' })
+                    })
+                    .eq('setting_key', key)
 
-                if (error) throw error
+                if (error) {
+                    console.error('Error updating setting:', key, error)
+                    throw error
+                }
             }
 
             setMessage('All settings saved successfully!')
