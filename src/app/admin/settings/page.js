@@ -4,6 +4,19 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
 
+// Default values and recommended ranges for slot settings
+const slotDefaults = {
+    slot_jackpot_chance: { default: '2', min: 1, max: 3, label: 'Jackpot Chance' },
+    slot_triple_chance: { default: '8', min: 5, max: 10, label: 'Triple Chance' },
+    slot_pair_chance: { default: '25', min: 20, max: 30, label: 'Pair Chance' },
+    slot_jackpot_tokens: { default: '100', min: 50, max: 150, label: 'Jackpot Tokens' },
+    slot_jackpot_tickets: { default: '25', min: 10, max: 50, label: 'Jackpot Tickets' },
+    slot_triple_tokens: { default: '25', min: 15, max: 40, label: 'Triple Tokens' },
+    slot_triple_tickets: { default: '5', min: 3, max: 10, label: 'Triple Tickets' },
+    slot_pair_tokens: { default: '5', min: 3, max: 10, label: 'Pair Tokens' },
+    slot_lose_tokens: { default: '1', min: 1, max: 3, label: 'Lose Tokens' }
+}
+
 export default function AdminSettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -15,10 +28,135 @@ export default function AdminSettingsPage() {
         card_back_logo_url: '',
         show_advertiser_cards: 'false',
         email_test_mode: 'true',
-        test_email_recipient: 'bje1616@gmail.com'
+        test_email_recipient: 'bje1616@gmail.com',
+        slot_jackpot_chance: '2',
+        slot_triple_chance: '8',
+        slot_pair_chance: '25',
+        slot_jackpot_tokens: '100',
+        slot_jackpot_tickets: '25',
+        slot_triple_tokens: '25',
+        slot_triple_tickets: '5',
+        slot_pair_tokens: '5',
+        slot_lose_tokens: '1'
     })
     const [uploading, setUploading] = useState(false)
+    const [showSlotGuide, setShowSlotGuide] = useState(false)
     const { theme, themes, updateTheme, currentTheme } = useTheme()
+
+    // Calculate lose chance and win rate automatically
+    const jackpotChance = parseInt(settings.slot_jackpot_chance || 0)
+    const tripleChance = parseInt(settings.slot_triple_chance || 0)
+    const pairChance = parseInt(settings.slot_pair_chance || 0)
+    const loseChance = Math.max(0, 100 - jackpotChance - tripleChance - pairChance)
+    const winRate = jackpotChance + tripleChance + pairChance
+
+    // Check if a value is within recommended range
+    const getValueStatus = (key, value) => {
+        const config = slotDefaults[key]
+        if (!config) return 'normal'
+        const numValue = parseInt(value || 0)
+        if (numValue < config.min || numValue > config.max) {
+            // Way outside range
+            if (numValue < config.min * 0.5 || numValue > config.max * 1.5) {
+                return 'danger'
+            }
+            return 'warning'
+        }
+        return 'normal'
+    }
+
+    // Get border color based on status
+    const getInputBorderClass = (key, value, baseColor) => {
+        const status = getValueStatus(key, value)
+        if (status === 'danger') return 'border-red-500 bg-red-500/10'
+        if (status === 'warning') return 'border-yellow-500 bg-yellow-500/10'
+        return `border-${baseColor}`
+    }
+
+    // Reset single value to default
+    const resetToDefault = (key) => {
+        if (slotDefaults[key]) {
+            setSettings(prev => ({ ...prev, [key]: slotDefaults[key].default }))
+        }
+    }
+
+    // State for reset confirmation modal
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
+
+    // Get list of values that would change on reset
+    const getResetChanges = () => {
+        const changes = []
+        Object.keys(slotDefaults).forEach(key => {
+            const current = settings[key]
+            const defaultVal = slotDefaults[key].default
+            if (current !== defaultVal) {
+                changes.push({
+                    label: slotDefaults[key].label,
+                    from: current,
+                    to: defaultVal
+                })
+            }
+        })
+        return changes
+    }
+
+    // Reset all slot settings to defaults
+    const resetAllSlotSettings = () => {
+        const resetValues = {}
+        Object.keys(slotDefaults).forEach(key => {
+            resetValues[key] = slotDefaults[key].default
+        })
+        setSettings(prev => ({ ...prev, ...resetValues }))
+        setShowResetConfirm(false)
+        setMessage('All slot settings reset to defaults. Click "Save All Settings" to apply.')
+        setTimeout(() => setMessage(''), 4000)
+    }
+
+    // Check if any slot settings differ from defaults
+    const hasSlotChanges = () => {
+        return Object.keys(slotDefaults).some(key =>
+            settings[key] !== slotDefaults[key].default
+        )
+    }
+
+    // Economy health based on win rate
+    const getEconomyHealth = () => {
+        if (winRate > 50) {
+            return {
+                status: 'critical',
+                icon: '🔴',
+                label: 'Too Generous',
+                color: 'red',
+                message: 'House is paying out more tokens than players are spending. Token inflation will make rewards feel worthless over time.'
+            }
+        } else if (winRate > 35) {
+            return {
+                status: 'warning',
+                icon: '🟡',
+                label: 'Slightly Generous',
+                color: 'yellow',
+                message: 'Players are winning often. Check the Economy Dashboard weekly to ensure token supply isn\'t growing faster than token spending.'
+            }
+        } else if (winRate >= 25) {
+            return {
+                status: 'good',
+                icon: '🟢',
+                label: 'Balanced',
+                color: 'green',
+                message: 'Players win enough to stay engaged, but tokens remain valuable. Ideal for long-term sustainability.'
+            }
+        } else {
+            return {
+                status: 'tight',
+                icon: '🟠',
+                label: 'Too Tight',
+                color: 'orange',
+                message: 'Players lose too often and may quit out of frustration. Consider increasing Pair or Triple odds.'
+            }
+        }
+    }
+
+    const economyHealth = getEconomyHealth()
 
     useEffect(() => {
         loadSettings()
@@ -86,11 +224,11 @@ export default function AdminSettingsPage() {
             for (const [key, value] of Object.entries(settings)) {
                 const { error } = await supabase
                     .from('admin_settings')
-                    .update({
+                    .upsert({
+                        setting_key: key,
                         setting_value: value,
                         updated_at: new Date().toISOString()
-                    })
-                    .eq('setting_key', key)
+                    }, { onConflict: 'setting_key' })
 
                 if (error) throw error
             }
@@ -103,6 +241,48 @@ export default function AdminSettingsPage() {
         } finally {
             setSaving(false)
         }
+    }
+
+    // Reusable input component with reset button
+    const SlotInput = ({ settingKey, label, color, showReset = true }) => {
+        const config = slotDefaults[settingKey]
+        const currentValue = settings[settingKey]
+        const isDefault = currentValue === config?.default
+        const status = getValueStatus(settingKey, currentValue)
+
+        return (
+            <div>
+                <div className="flex items-center justify-between">
+                    <label className={`text-${color} text-[10px]`}>{label}</label>
+                    {showReset && !isDefault && (
+                        <button
+                            onClick={() => resetToDefault(settingKey)}
+                            className={`text-[9px] text-${currentTheme.textMuted} hover:text-${currentTheme.text} transition-colors`}
+                            title={`Reset to ${config?.default}`}
+                        >
+                            ↩️
+                        </button>
+                    )}
+                </div>
+                <div className="relative">
+                    <input
+                        type="number"
+                        value={currentValue}
+                        onChange={(e) => handleChange(settingKey, e.target.value)}
+                        className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border} rounded text-${currentTheme.text} text-center ${getInputBorderClass(settingKey, currentValue, color + '-500/30')} border`}
+                    />
+                </div>
+                <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>
+                    Rec: {config?.min}-{config?.max} (default: {config?.default})
+                </div>
+                {status === 'warning' && (
+                    <div className="text-[8px] text-yellow-400 text-center">⚠️ Outside recommended</div>
+                )}
+                {status === 'danger' && (
+                    <div className="text-[8px] text-red-400 text-center">🚨 Far from recommended</div>
+                )}
+            </div>
+        )
     }
 
     if (loading) {
@@ -173,6 +353,146 @@ export default function AdminSettingsPage() {
                             </div>
                             <p className={`text-${currentTheme.text} text-[10px] font-medium`}>{themes[theme]?.name}</p>
                         </div>
+                    </div>
+                </div>
+
+                {/* Slot Machine Odds */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <h2 className={`text-xs font-bold text-${currentTheme.text}`}>🎰 Slot Machine Odds & Payouts</h2>
+                        {hasSlotChanges() && (
+                            <button
+                                onClick={() => setShowResetConfirm(true)}
+                                className={`text-[10px] px-2 py-0.5 bg-${currentTheme.border} hover:bg-${currentTheme.border}/80 text-${currentTheme.textMuted} hover:text-${currentTheme.text} rounded transition-colors`}
+                            >
+                                ↩️ Reset All to Defaults
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Quick Guide Box - Collapsible */}
+                    <div className={`bg-${currentTheme.border}/30 border border-${currentTheme.border} rounded mb-3`}>
+                        <button
+                            onClick={() => setShowSlotGuide(!showSlotGuide)}
+                            className={`w-full p-2 flex items-center justify-between text-left hover:bg-${currentTheme.border}/20 transition-colors rounded`}
+                        >
+                            <h3 className={`text-${currentTheme.text} font-bold text-[11px]`}>📖 How Slot Odds Work</h3>
+                            <span className={`text-${currentTheme.textMuted} text-xs`}>{showSlotGuide ? '▲ Hide' : '▼ Show'}</span>
+                        </button>
+                        {showSlotGuide && (
+                            <ul className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5 px-2 pb-2`}>
+                                <li>• Set the win % for each outcome (Jackpot, Triple, Pair)</li>
+                                <li>• Lose % auto-calculates from what's left</li>
+                                <li>• Higher win rates = more player engagement, but the <span className="text-red-400 font-medium">house pays out more tokens</span></li>
+                                <li>• Lower win rates = tokens stay scarce, but <span className="text-yellow-400 font-medium">players may lose interest</span></li>
+                                <li>• <span className={`text-${currentTheme.text} font-medium`}>Recommended:</span> Keep total win rate between 25-35% for a balanced economy</li>
+                                <li>• <span className="text-blue-400 font-medium">Tickets</span> = entries into weekly prize drawing. More tickets = better odds to win weekly prize.</li>
+                            </ul>
+                        )}
+                    </div>
+
+                    {/* Economy Health Indicator */}
+                    <div className={`mb-3 p-2 rounded border ${economyHealth.status === 'critical' ? 'bg-red-500/10 border-red-500/30' :
+                        economyHealth.status === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                            economyHealth.status === 'good' ? 'bg-green-500/10 border-green-500/30' :
+                                'bg-orange-500/10 border-orange-500/30'
+                        }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">{economyHealth.icon}</span>
+                            <span className={`font-bold text-xs ${economyHealth.status === 'critical' ? 'text-red-400' :
+                                economyHealth.status === 'warning' ? 'text-yellow-400' :
+                                    economyHealth.status === 'good' ? 'text-green-400' :
+                                        'text-orange-400'
+                                }`}>
+                                Economy Health: {economyHealth.label}
+                            </span>
+                            <span className={`ml-auto text-${currentTheme.text} font-bold text-xs`}>
+                                {winRate}% Win Rate
+                            </span>
+                        </div>
+                        <p className={`text-[10px] ${economyHealth.status === 'critical' ? 'text-red-300' :
+                            economyHealth.status === 'warning' ? 'text-yellow-300' :
+                                economyHealth.status === 'good' ? 'text-green-300' :
+                                    'text-orange-300'
+                            }`}>
+                            {economyHealth.message}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {/* Jackpot */}
+                        <div className={`bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded p-2`}>
+                            <div className="text-center mb-2">
+                                <div className="text-lg">🎰🎰🎰</div>
+                                <div className={`text-${currentTheme.text} font-bold text-xs`}>JACKPOT</div>
+                                <div className="text-yellow-400/70 text-[9px] italic">Rare - Big reward</div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <SlotInput settingKey="slot_jackpot_chance" label="How often? (%)" color="yellow-400" />
+                                <SlotInput settingKey="slot_jackpot_tokens" label="Win tokens 🪙" color="yellow-400" />
+                                <SlotInput settingKey="slot_jackpot_tickets" label="Win tickets 🎟️" color="yellow-400" />
+                            </div>
+                        </div>
+
+                        {/* Triple */}
+                        <div className={`bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded p-2`}>
+                            <div className="text-center mb-2">
+                                <div className="text-lg">🍒🍒🍒</div>
+                                <div className={`text-${currentTheme.text} font-bold text-xs`}>TRIPLE</div>
+                                <div className="text-purple-400/70 text-[9px] italic">Uncommon - Nice reward</div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <SlotInput settingKey="slot_triple_chance" label="How often? (%)" color="purple-400" />
+                                <SlotInput settingKey="slot_triple_tokens" label="Win tokens 🪙" color="purple-400" />
+                                <SlotInput settingKey="slot_triple_tickets" label="Win tickets 🎟️" color="purple-400" />
+                            </div>
+                        </div>
+
+                        {/* Pair */}
+                        <div className={`bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded p-2`}>
+                            <div className="text-center mb-2">
+                                <div className="text-lg">🍋🍋➖</div>
+                                <div className={`text-${currentTheme.text} font-bold text-xs`}>PAIR</div>
+                                <div className="text-blue-400/70 text-[9px] italic">Common - Small reward</div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <SlotInput settingKey="slot_pair_chance" label="How often? (%)" color="blue-400" />
+                                <SlotInput settingKey="slot_pair_tokens" label="Win tokens 🪙" color="blue-400" />
+                                <div>
+                                    <label className="text-blue-400 text-[10px]">Win tickets 🎟️</label>
+                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-blue-500/30 rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
+                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Pairs don't earn tickets</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Lose */}
+                        <div className={`bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded p-2`}>
+                            <div className="text-center mb-2">
+                                <div className="text-lg">🍒🍋🍇</div>
+                                <div className={`text-${currentTheme.text} font-bold text-xs`}>LOSE</div>
+                                <div className={`text-${currentTheme.textMuted} text-[9px] italic`}>No match - Lose tokens</div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <div>
+                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>How often? (%)</label>
+                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>{loseChance}% (auto)</div>
+                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Calculated from other %</div>
+                                </div>
+                                <SlotInput settingKey="slot_lose_tokens" label="Lose tokens 🪙" color="red-400" />
+                                <div>
+                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>Win tickets 🎟️</label>
+                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
+                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Losses don't earn tickets</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`mt-2 p-1.5 bg-${currentTheme.border}/30 rounded`}>
+                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>
+                            <span className="font-medium">Entry Mode Bonus:</span> Pair +1, Triple +3, Jackpot +5 drawing entries (not configurable here)
+                        </p>
                     </div>
                 </div>
 
@@ -377,6 +697,50 @@ export default function AdminSettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Reset Confirmation Modal */}
+            {showResetConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4 max-w-md w-full mx-4 shadow-xl`}>
+                        <h3 className={`text-${currentTheme.text} font-bold text-sm mb-2`}>⚠️ Reset All Slot Settings?</h3>
+                        <p className={`text-${currentTheme.textMuted} text-xs mb-3`}>
+                            The following values will be changed back to defaults:
+                        </p>
+
+                        <div className={`bg-${currentTheme.border}/30 rounded p-2 mb-3 max-h-48 overflow-y-auto`}>
+                            {getResetChanges().map((change, idx) => (
+                                <div key={idx} className={`flex justify-between items-center py-1 ${idx > 0 ? `border-t border-${currentTheme.border}` : ''}`}>
+                                    <span className={`text-${currentTheme.text} text-xs`}>{change.label}</span>
+                                    <span className="text-xs">
+                                        <span className="text-red-400">{change.from}</span>
+                                        <span className={`text-${currentTheme.textMuted} mx-1`}>→</span>
+                                        <span className="text-green-400">{change.to}</span>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <p className={`text-${currentTheme.textMuted} text-[10px] mb-3`}>
+                            This only updates the form. You'll still need to click "Save All Settings" to apply changes to the database.
+                        </p>
+
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => setShowResetConfirm(false)}
+                                className={`px-3 py-1.5 text-xs bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.border}/80 transition-colors`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={resetAllSlotSettings}
+                                className="px-3 py-1.5 text-xs bg-red-500 text-white font-medium rounded hover:bg-red-600 transition-colors"
+                            >
+                                Reset to Defaults
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
