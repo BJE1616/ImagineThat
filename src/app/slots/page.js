@@ -36,6 +36,12 @@ export default function SlotMachinePage() {
     const [unclaimedReward, setUnclaimedReward] = useState(null)
     const [claimingReward, setClaimingReward] = useState(false)
 
+    // ===== WEEKLY PRIZE STATE =====
+    const [weeklyPrize, setWeeklyPrize] = useState(null)
+
+    // ===== UI STATE =====
+    const [showRecentWinners, setShowRecentWinners] = useState(false)
+
     // ===== ODDS SETTINGS =====
     const [odds, setOdds] = useState({
         loseChance: 55,
@@ -67,7 +73,28 @@ export default function SlotMachinePage() {
         await loadCards()
         await loadRecentWinners()
         await loadLeaderboard()
+        await loadWeeklyPrize()
         setLoading(false)
+    }
+
+    // ===== LOAD WEEKLY PRIZE =====
+    const loadWeeklyPrize = async () => {
+        try {
+            const { data } = await supabase
+                .from('weekly_prizes')
+                .select('*')
+                .eq('game_type', 'slots')
+                .eq('is_active', true)
+                .order('week_start', { ascending: false })
+                .limit(1)
+                .single()
+
+            if (data) {
+                setWeeklyPrize(data)
+            }
+        } catch (error) {
+            console.log('No active weekly prize')
+        }
     }
 
     // ===== LOAD SETTINGS =====
@@ -132,7 +159,6 @@ export default function SlotMachinePage() {
                 setDailySpinsUsed(0)
             }
 
-            // Load weekly entries (sum of drawing_entries from this week)
             const weekStart = getWeekStart()
             const { data: weeklyData } = await supabase
                 .from('user_daily_spins')
@@ -143,7 +169,6 @@ export default function SlotMachinePage() {
             const totalEntries = weeklyData?.reduce((sum, day) => sum + (day.drawing_entries || 0), 0) || 0
             setWeeklyEntries(totalEntries)
 
-            // Check for unclaimed rewards
             await checkUnclaimedRewards(authUser.id)
 
         } catch (error) {
@@ -177,7 +202,6 @@ export default function SlotMachinePage() {
         setClaimingReward(true)
 
         try {
-            // Update balance
             const { data: balanceData } = await supabase
                 .from('bb_balances')
                 .select('*')
@@ -197,7 +221,6 @@ export default function SlotMachinePage() {
                 setTokenBalance(prev => prev + unclaimedReward.bonus_tokens_awarded)
             }
 
-            // Add transaction record
             await supabase
                 .from('bb_transactions')
                 .insert([{
@@ -208,7 +231,6 @@ export default function SlotMachinePage() {
                     description: `Daily leaderboard #${unclaimedReward.place} reward`
                 }])
 
-            // Add drawing entries to today's record
             const today = new Date().toISOString().split('T')[0]
             const { data: todayData } = await supabase
                 .from('user_daily_spins')
@@ -240,7 +262,6 @@ export default function SlotMachinePage() {
 
             setWeeklyEntries(prev => prev + unclaimedReward.bonus_entries_awarded)
 
-            // Mark as claimed
             await supabase
                 .from('daily_leaderboard_results')
                 .update({
@@ -271,7 +292,6 @@ export default function SlotMachinePage() {
         try {
             const today = new Date().toISOString().split('T')[0]
 
-            // Get all users' spins for today
             const { data: spinsData } = await supabase
                 .from('user_daily_spins')
                 .select('user_id, free_spins_used, paid_spins')
@@ -283,13 +303,11 @@ export default function SlotMachinePage() {
                 return
             }
 
-            // Calculate total spins and sort
             const leaderboardData = spinsData.map(s => ({
                 user_id: s.user_id,
                 total_spins: (s.free_spins_used || 0) + (s.paid_spins || 0)
             })).sort((a, b) => b.total_spins - a.total_spins)
 
-            // Get usernames
             const userIds = leaderboardData.map(l => l.user_id)
             const { data: users } = await supabase
                 .from('users')
@@ -302,14 +320,12 @@ export default function SlotMachinePage() {
                 rank: index + 1
             }))
 
-            // Determine how many to show: 3, 5, or 10
             let showCount = 3
             if (leaderboardWithNames.length >= 10) showCount = 10
             else if (leaderboardWithNames.length >= 5) showCount = 5
 
             setLeaderboard(leaderboardWithNames.slice(0, showCount))
 
-            // Find current user's rank
             const { data: { user: authUser } } = await supabase.auth.getUser()
             if (authUser) {
                 const userEntry = leaderboardWithNames.find(l => l.user_id === authUser.id)
@@ -407,8 +423,6 @@ export default function SlotMachinePage() {
     const hitWinCap = dailyWinnings >= dailyWinCap
     const hasFreeSpin = freeSpinsLeft > 0
     const canAffordPaidSpin = tokenBalance >= selectedBet
-
-    // Entry mode: still costs tokens (not free anymore)
     const canSpin = hasFreeSpin || canAffordPaidSpin
 
     // ===== SPIN =====
@@ -419,7 +433,6 @@ export default function SlotMachinePage() {
             return
         }
 
-        // Free spin only if has free spins (entry mode now costs tokens)
         const usingFreeSpin = freeSpinsLeft > 0
         const cost = usingFreeSpin ? 0 : selectedBet
 
@@ -495,22 +508,18 @@ export default function SlotMachinePage() {
 
         setReels(finalReels)
 
-        // Calculate winnings
         const betAmount = usingFreeSpin ? 1 : cost
         let winAmount = 0
         let entriesEarned = 0
 
         if (hitWinCap) {
-            // ENTRY MODE: Win tokens based on multiplier, but also earn bonus entries
             winAmount = Math.floor(betAmount * winMultiplier)
             entriesEarned = entryRewards[resultType]
         } else {
-            // NORMAL MODE: Just win tokens
             winAmount = Math.floor(betAmount * winMultiplier)
-            entriesEarned = 1 // Every spin = 1 entry in normal mode
+            entriesEarned = 1
         }
 
-        // Cap winnings to remaining daily cap (only in normal mode)
         if (!hitWinCap) {
             const remainingCap = dailyWinCap - dailyWinnings
             if (winAmount > remainingCap) {
@@ -540,7 +549,6 @@ export default function SlotMachinePage() {
             }
             setTimeout(() => setCelebration(null), 2500)
         } else if (hitWinCap && entriesEarned > 0) {
-            // Entry mode win but no tokens (pair = break even means 0 net)
             setCelebration({ type: 'entries', entries: entriesEarned })
             setTimeout(() => setCelebration(null), 2500)
         }
@@ -555,8 +563,6 @@ export default function SlotMachinePage() {
         await saveSpinResult(usingFreeSpin, cost, winAmount, resultType, finalReels, entriesEarned)
 
         setSpinning(false)
-
-        // Refresh leaderboard after spin
         loadLeaderboard()
 
         if (winAmount >= 5) {
@@ -610,7 +616,6 @@ export default function SlotMachinePage() {
                     }])
             }
 
-            // Update balance
             const netChange = winAmount - (usingFreeSpin ? 0 : cost)
             if (netChange !== 0) {
                 const { data: balanceData } = await supabase
@@ -631,7 +636,6 @@ export default function SlotMachinePage() {
                 }
             }
 
-            // Record transactions
             if (winAmount > 0) {
                 await supabase
                     .from('bb_transactions')
@@ -655,7 +659,6 @@ export default function SlotMachinePage() {
                     }])
             }
 
-            // Track ad views
             for (const card of finalReels) {
                 if (card?.user_id) {
                     const isFirstView = !viewedAdvertisersToday.has(card.user_id)
@@ -722,6 +725,13 @@ export default function SlotMachinePage() {
 
     const winCapPercent = Math.min(100, (dailyWinnings / dailyWinCap) * 100)
 
+    const getPrizeDisplay = () => {
+        if (!weeklyPrize) return null
+        if (weeklyPrize.is_surprise) return '🎁 Surprise!'
+        if (weeklyPrize.prize_type === 'cash') return `$${weeklyPrize.total_prize_pool}`
+        return weeklyPrize.prize_descriptions?.[0] || 'Special Prize!'
+    }
+
     // ===== LOADING =====
     if (loading) {
         return (
@@ -733,41 +743,24 @@ export default function SlotMachinePage() {
 
     // ===== RENDER =====
     return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-slate-900 to-slate-900 py-3 px-2">
+        <div className="min-h-screen bg-gradient-to-b from-purple-900 via-slate-900 to-slate-900 py-2 px-2">
             {/* ===== CELEBRATION ===== */}
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                     <div className="text-center animate-bounce">
                         {celebration.type === 'reward' ? (
                             <>
-                                <div className="text-3xl font-bold text-yellow-400 drop-shadow-lg">
-                                    🎉 #{celebration.place} Reward Claimed!
-                                </div>
-                                <div className="text-xl text-white mt-2">
-                                    +{celebration.tokens} 🪙 &nbsp; +{celebration.entries} 🎟️
-                                </div>
+                                <div className="text-2xl font-bold text-yellow-400 drop-shadow-lg">🎉 #{celebration.place} Reward!</div>
+                                <div className="text-lg text-white">+{celebration.tokens} 🪙 +{celebration.entries} 🎟️</div>
                             </>
                         ) : celebration.type === 'entries' ? (
-                            <>
-                                <div className="text-2xl font-bold text-purple-400 drop-shadow-lg">
-                                    🎟️ +{celebration.entries} Entries!
-                                </div>
-                            </>
+                            <div className="text-xl font-bold text-purple-400 drop-shadow-lg">🎟️ +{celebration.entries} Entries!</div>
                         ) : (
                             <>
-                                <div className={`text-3xl font-bold drop-shadow-lg ${celebration.type === 'jackpot' ? 'text-yellow-400 text-4xl' :
-                                    celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'
-                                    }`}>
-                                    +{celebration.amount} Tokens!
+                                <div className={`text-2xl font-bold drop-shadow-lg ${celebration.type === 'jackpot' ? 'text-yellow-400' : celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'}`}>
+                                    +{celebration.amount} 🪙
                                 </div>
-                                {celebration.entries > 1 && (
-                                    <div className="text-lg text-purple-400 mt-1">
-                                        +{celebration.entries} 🎟️ Entries!
-                                    </div>
-                                )}
-                                <div className="text-4xl mt-1">
-                                    {celebration.type === 'jackpot' ? '🎉🎊🎉' : celebration.type === 'triple' ? '🎉' : '✨'}
-                                </div>
+                                {celebration.entries > 1 && <div className="text-sm text-purple-400">+{celebration.entries} 🎟️</div>}
                             </>
                         )}
                     </div>
@@ -777,59 +770,43 @@ export default function SlotMachinePage() {
             <div className="max-w-xs sm:max-w-sm md:max-w-md mx-auto">
                 {/* ===== UNCLAIMED REWARD BANNER ===== */}
                 {unclaimedReward && (
-                    <div className="mb-3 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500 rounded-lg p-3 text-center">
-                        <p className="text-yellow-400 font-bold text-sm mb-1">
-                            🎉 You placed #{unclaimedReward.place} yesterday!
-                        </p>
-                        <p className="text-yellow-200 text-xs mb-2">
-                            Reward: +{unclaimedReward.bonus_tokens_awarded} 🪙 &nbsp; +{unclaimedReward.bonus_entries_awarded} 🎟️
-                        </p>
-                        <button
-                            onClick={claimReward}
-                            disabled={claimingReward}
-                            className="bg-gradient-to-r from-yellow-500 to-orange-500 text-slate-900 font-bold px-4 py-1.5 rounded-lg text-sm hover:from-yellow-400 hover:to-orange-400 active:scale-95 transition-all"
-                        >
-                            {claimingReward ? 'Claiming...' : '🎁 Claim Reward!'}
+                    <div className="mb-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500 rounded-lg p-2 text-center">
+                        <p className="text-yellow-400 font-bold text-xs">🎉 You placed #{unclaimedReward.place} yesterday!</p>
+                        <button onClick={claimReward} disabled={claimingReward} className="mt-1 bg-yellow-500 text-slate-900 font-bold px-3 py-1 rounded text-xs">
+                            {claimingReward ? '...' : `Claim +${unclaimedReward.bonus_tokens_awarded}🪙 +${unclaimedReward.bonus_entries_awarded}🎟️`}
                         </button>
                     </div>
                 )}
 
-                {/* ===== HEADER ===== */}
-                <div className="text-center mb-2">
-                    <h1 className="text-lg font-bold text-white">🎰 Lucky Cards</h1>
-                    <div className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 border border-yellow-500 rounded-full px-3 py-1 mt-1">
-                        <span className="text-yellow-200 text-xs">Your Token Balance:</span>
-                        <span className="text-yellow-400 font-bold text-lg">🪙 {tokenBalance}</span>
-                    </div>
-                </div>
-
                 {/* ===== MESSAGE ===== */}
                 {message && (
-                    <div className={`mb-2 p-2 rounded text-center text-xs ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
-                        }`}>
+                    <div className={`mb-2 p-1.5 rounded text-center text-xs ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                         {message.text}
-                    </div>
-                )}
-
-                {/* ===== WIN CAP MESSAGE ===== */}
-                {hitWinCap && (
-                    <div className="mb-2 p-2 bg-purple-500/20 border border-purple-500/50 rounded-lg text-center">
-                        <p className="text-purple-400 text-xs font-bold">🎟️ Entry Mode Active!</p>
-                        <p className="text-purple-300 text-[10px]">You've hit today's free token cap. Now your wins earn drawing entries instead!</p>
                     </div>
                 )}
 
                 {/* ===== SLOT MACHINE ===== */}
                 <div className="bg-gradient-to-b from-red-700 to-red-900 rounded-xl p-2 shadow-xl border-2 border-yellow-500">
-                    {/* Title */}
-                    <div className="text-center mb-2">
-                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-red-900 font-bold text-xs px-3 py-0.5 rounded-full">
-                            ⭐ LUCKY CARDS ⭐
-                        </span>
+                    {/* Title + Balance + Prize Row */}
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-yellow-400 font-bold text-xs">🎰 Lucky Cards</span>
+                        <div className="flex items-center gap-2">
+                            {weeklyPrize && (
+                                <span className="text-[10px] text-white bg-red-600 px-1.5 py-0.5 rounded">🏆 {getPrizeDisplay()}</span>
+                            )}
+                            <span className="text-yellow-400 font-bold text-sm">🪙 {tokenBalance}</span>
+                        </div>
                     </div>
 
+                    {/* Entry Mode Banner */}
+                    {hitWinCap && (
+                        <div className="mb-1 p-1 bg-purple-500/30 rounded text-center">
+                            <span className="text-purple-300 text-[10px] font-bold">🎟️ Entry Mode: Wins earn drawing entries!</span>
+                        </div>
+                    )}
+
                     {/* Reels */}
-                    <div className="bg-black/40 rounded-lg p-2 mb-2">
+                    <div className="bg-black/40 rounded-lg p-1.5 mb-1">
                         <div className="grid grid-cols-3 gap-1">
                             {reels.map((card, index) => (
                                 <div
@@ -837,32 +814,20 @@ export default function SlotMachinePage() {
                                     className={`rounded overflow-hidden border-2 ${spinning ? 'border-yellow-400' :
                                         result?.type === 'jackpot' ? 'border-yellow-400 shadow-lg shadow-yellow-500/50' :
                                             result?.type === 'triple' ? 'border-green-400' :
-                                                result?.type === 'pair' && index < 2 ? 'border-blue-400' :
-                                                    'border-slate-600'
+                                                result?.type === 'pair' && index < 2 ? 'border-blue-400' : 'border-slate-600'
                                         } bg-white`}
                                     style={{ aspectRatio: '3.5 / 2' }}
                                 >
                                     {card ? (
                                         card.card_type === 'uploaded' && card.image_url ? (
-                                            <img
-                                                src={card.image_url}
-                                                alt="Card"
-                                                className={`w-full h-full object-contain bg-slate-100 ${spinning ? 'blur-sm' : ''}`}
-                                            />
+                                            <img src={card.image_url} alt="Card" className={`w-full h-full object-contain bg-slate-100 ${spinning ? 'blur-sm' : ''}`} />
                                         ) : (
-                                            <div
-                                                className={`w-full h-full flex items-center justify-center p-1 ${spinning ? 'blur-sm' : ''}`}
-                                                style={{ backgroundColor: card.card_color || '#4F46E5' }}
-                                            >
-                                                <p className="text-[9px] font-bold text-center leading-tight break-words" style={{ color: card.text_color || '#FFF' }}>
-                                                    {card.title}
-                                                </p>
+                                            <div className={`w-full h-full flex items-center justify-center p-1 ${spinning ? 'blur-sm' : ''}`} style={{ backgroundColor: card.card_color || '#4F46E5' }}>
+                                                <p className="text-[8px] font-bold text-center leading-tight break-words" style={{ color: card.text_color || '#FFF' }}>{card.title}</p>
                                             </div>
                                         )
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-slate-200">
-                                            <span className="text-lg">🎴</span>
-                                        </div>
+                                        <div className="w-full h-full flex items-center justify-center bg-slate-200"><span className="text-lg">🎴</span></div>
                                     )}
                                 </div>
                             ))}
@@ -870,197 +835,123 @@ export default function SlotMachinePage() {
 
                         {/* Result */}
                         {result && !spinning && (
-                            <div className={`mt-2 text-center py-1 rounded text-xs ${result.entryMode ? 'bg-purple-500/30 text-purple-400' :
+                            <div className={`mt-1 text-center py-0.5 rounded text-[10px] ${result.entryMode ? 'bg-purple-500/30 text-purple-400' :
                                 result.type === 'jackpot' ? 'bg-yellow-500/30 text-yellow-400' :
                                     result.type === 'triple' ? 'bg-green-500/20 text-green-400' :
-                                        result.type === 'pair' ? 'bg-blue-500/20 text-blue-400' :
-                                            'bg-slate-700/50 text-slate-400'
+                                        result.type === 'pair' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700/50 text-slate-400'
                                 }`}>
                                 {result.entryMode ? (
-                                    result.type === 'lose' ? '❌ No entries earned' :
-                                        `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} +${result.entries} 🎟️${result.amount > 0 ? ` +${result.amount} 🪙` : ''}`
+                                    result.type === 'lose' ? '❌ No entries' : `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} +${result.entries}🎟️${result.amount > 0 ? ` +${result.amount}🪙` : ''}`
                                 ) : (
-                                    result.type === 'lose' ? 'No match - Try again!' :
-                                        `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} Won ${result.amount} tokens!`
+                                    result.type === 'lose' ? 'No match - Try again!' : `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} +${result.amount}🪙`
                                 )}
                             </div>
                         )}
                     </div>
 
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 gap-1 mb-2 text-[9px]">
-                        <div className="bg-black/30 rounded p-1.5">
-                            <div className="flex justify-between text-slate-300 mb-0.5">
-                                <span>Bonus Tokens Won Today:</span>
-                                <span className="text-yellow-400">{dailyWinnings}/{dailyWinCap}</span>
-                            </div>
-                            <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-                                <div className="h-full bg-yellow-500 transition-all" style={{ width: `${winCapPercent}%` }}></div>
-                            </div>
-                            <p className="text-slate-500 text-[7px] mt-0.5">Max tokens you can win today</p>
-                        </div>
-                        <div className="bg-black/30 rounded p-1.5">
-                            <div className="flex justify-between text-slate-300 mb-0.5">
-                                <span>Total Spins Today:</span>
-                                <span className="text-blue-400 font-bold">{dailySpinsUsed}</span>
-                            </div>
-                            <p className="text-slate-500 text-[7px] mt-0.5">Your total for the leaderboard</p>
-                        </div>
+                    {/* Compact Stats Row */}
+                    <div className="flex items-center justify-between text-[9px] mb-1 px-1">
+                        <span className="text-slate-300">Won: <span className="text-yellow-400">{dailyWinnings}/{dailyWinCap}</span></span>
+                        <span className="text-slate-300">Spins: <span className="text-blue-400">{dailySpinsUsed}</span></span>
+                        <span className="text-slate-300">Free: <span className="text-green-400">{freeSpinsLeft}/{maxFreeSpins}</span></span>
+                        <span className="text-slate-300">Entries: <span className="text-purple-400">{weeklyEntries}</span></span>
                     </div>
 
-                    {/* Free Spins + Weekly Entries */}
-                    <div className="flex justify-between text-[10px] mb-2">
-                        <div className="bg-green-500/20 text-green-400 px-2 py-0.5 rounded">
-                            🎁 Free: {freeSpinsLeft}/{maxFreeSpins}
-                        </div>
-                        <div className="bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">
-                            🎟️ Entries: {weeklyEntries}
-                        </div>
-                    </div>
-
-                    {/* Bet Selector - show when no free spins */}
+                    {/* Bet Selector */}
                     {freeSpinsLeft === 0 && (
-                        <div className="flex items-center justify-center gap-1 mb-2">
-                            <span className="text-white text-[10px]">Bet:</span>
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                            <span className="text-white text-[9px]">Bet:</span>
                             {[1, 5, 10].map(bet => (
                                 <button
                                     key={bet}
                                     onClick={() => setSelectedBet(bet)}
                                     disabled={spinning}
-                                    className={`px-2 py-1 rounded text-xs font-bold transition-all ${selectedBet === bet
-                                        ? hitWinCap ? 'bg-purple-500 text-white scale-105' : 'bg-yellow-500 text-slate-900 scale-105'
-                                        : 'bg-slate-700 text-white hover:bg-slate-600'
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${selectedBet === bet
+                                        ? hitWinCap ? 'bg-purple-500 text-white' : 'bg-yellow-500 text-slate-900'
+                                        : 'bg-slate-700 text-white'
                                         }`}
                                 >
-                                    🪙{bet}
+                                    {bet}
                                 </button>
                             ))}
                         </div>
                     )}
 
-                    {/* Spin Cost Info */}
-                    <div className="text-center text-[10px] text-slate-300 mb-2">
-                        {freeSpinsLeft > 0 ? (
-                            <span className="text-green-400">✨ This spin is FREE!</span>
-                        ) : hitWinCap ? (
-                            <span className="text-purple-300 font-bold">🎟️ Betting {selectedBet} token{selectedBet > 1 ? 's' : ''} to win the daily contest</span>
-                        ) : (
-                            <span>This spin costs <span className="text-yellow-400 font-bold">{selectedBet} token{selectedBet > 1 ? 's' : ''}</span></span>
-                        )}
-                    </div>
-
                     {/* Spin Button */}
                     <button
                         onClick={spin}
                         disabled={spinning || cards.length === 0 || !canSpin}
-                        className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${spinning
-                            ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                            : !canSpin
-                                ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                                : hitWinCap
-                                    ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-400 hover:to-purple-500 active:scale-95'
-                                    : 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-400 hover:to-green-500 active:scale-95'
+                        className={`w-full py-2 rounded-lg font-bold text-sm transition-all ${spinning ? 'bg-slate-600 text-slate-400' :
+                            !canSpin ? 'bg-slate-600 text-slate-400' :
+                                hitWinCap ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white active:scale-95' :
+                                    'bg-gradient-to-r from-green-500 to-green-600 text-white active:scale-95'
                             }`}
                     >
                         {spinning ? '🎰 Spinning...' :
                             !canAffordPaidSpin && !hasFreeSpin ? '🪙 Need Tokens' :
                                 freeSpinsLeft > 0 ? '🎁 FREE SPIN!' :
-                                    hitWinCap ? `🎟️ SPIN FOR ENTRIES (${selectedBet} tokens)` :
-                                        `🎰 SPIN (${selectedBet} tokens)`}
+                                    hitWinCap ? `🎟️ SPIN (${selectedBet}🪙)` : `🎰 SPIN (${selectedBet}🪙)`}
                     </button>
 
-                    {/* Pay Table */}
-                    <div className="mt-2 bg-black/30 rounded p-1.5">
-                        <p className="text-yellow-400 font-bold text-[9px] text-center mb-1">💰 Pay Table</p>
-                        <div className="grid grid-cols-3 gap-1 text-center text-slate-300 text-[8px]">
-                            <div>🎴🎴❌<br />Pair = {odds.pairMultiplier}x</div>
-                            <div>🎴🎴🎴<br />Triple = {odds.tripleMultiplier}x</div>
-                            <div>⭐⭐⭐<br />Jackpot = {odds.jackpotMultiplier}x</div>
-                        </div>
-                        {hitWinCap && (
-                            <div className="mt-1 pt-1 border-t border-slate-600">
-                                <p className="text-purple-400 font-bold text-[9px] text-center mb-1">🎟️ Entry Mode Rewards</p>
-                                <div className="grid grid-cols-3 gap-1 text-center text-purple-300 text-[8px]">
-                                    <div>Pair<br />+1 entry</div>
-                                    <div>Triple<br />+3 entries</div>
-                                    <div>Jackpot<br />+5 entries</div>
-                                </div>
-                            </div>
-                        )}
+                    {/* Compact Pay Table */}
+                    <div className="mt-1 flex justify-center gap-3 text-[8px] text-slate-400">
+                        <span>Pair={odds.pairMultiplier}x</span>
+                        <span>Triple={odds.tripleMultiplier}x</span>
+                        <span>Jackpot={odds.jackpotMultiplier}x</span>
                     </div>
+                    {hitWinCap && (
+                        <div className="flex justify-center gap-3 text-[8px] text-purple-400">
+                            <span>Pair=+1🎟️</span>
+                            <span>Triple=+3🎟️</span>
+                            <span>Jackpot=+5🎟️</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* ===== DAILY LEADERBOARD ===== */}
                 {leaderboard.length > 0 && (
-                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
-                        <h2 className="text-white font-bold text-xs mb-1">🏆 Today's Top Spinners</h2>
+                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-1.5">
+                        <h2 className="text-white font-bold text-[10px] mb-1">🏆 Today's Top Spinners</h2>
                         <div className="space-y-0.5">
-                            {leaderboard.map((entry, i) => (
-                                <div
-                                    key={i}
-                                    className={`flex items-center justify-between text-[10px] rounded px-2 py-0.5 ${entry.user_id === user?.id
-                                        ? 'bg-yellow-500/20 border border-yellow-500/50'
-                                        : 'bg-slate-700/30'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm">{getRankEmoji(entry.rank)}</span>
-                                        <span className={entry.user_id === user?.id ? 'text-yellow-400 font-bold' : 'text-slate-300'}>
-                                            {entry.user_id === user?.id ? 'You' : maskUsername(entry.username)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-blue-400 font-bold">{entry.total_spins} spins</span>
-                                        {entry.rank <= 3 && (
-                                            <span className="text-[9px] text-slate-500">
-                                                (+{getRewardForPlace(entry.rank).tokens}🪙 +{getRewardForPlace(entry.rank).entries}🎟️)
-                                            </span>
-                                        )}
-                                    </div>
+                            {leaderboard.slice(0, 3).map((entry, i) => (
+                                <div key={i} className={`flex items-center justify-between text-[9px] rounded px-1.5 py-0.5 ${entry.user_id === user?.id ? 'bg-yellow-500/20' : 'bg-slate-700/30'}`}>
+                                    <span>{getRankEmoji(entry.rank)} {entry.user_id === user?.id ? 'You' : maskUsername(entry.username)}</span>
+                                    <span className="text-blue-400">{entry.total_spins} spins</span>
                                 </div>
                             ))}
                         </div>
-                        {userRank && userRank > leaderboard.length && (
-                            <div className="mt-1 text-center text-[10px] text-slate-400">
-                                Your rank: #{userRank}
-                            </div>
-                        )}
-                        <div className="mt-1 text-center text-xs text-slate-300">
-                            Top 3 win bonus tokens + entries at midnight!
-                        </div>
+                        {userRank && userRank > 3 && <p className="text-[9px] text-slate-400 text-center mt-1">Your rank: #{userRank}</p>}
                     </div>
                 )}
 
                 {/* ===== NEED TOKENS? ===== */}
                 {!canAffordPaidSpin && freeSpinsLeft === 0 && (
-                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
-                        <p className="text-white font-bold text-xs mb-1">💡 Need more tokens?</p>
-                        <div className="space-y-1">
-                            <Link href="/card-gallery" className="flex items-center gap-2 text-[10px] text-blue-400 hover:text-blue-300">
-                                🖼️ Card Gallery - View ads to earn tokens
-                            </Link>
-                            <Link href="/game" className="flex items-center gap-2 text-[10px] text-green-400 hover:text-green-300">
-                                🎮 Match Game - Play to win prizes
-                            </Link>
+                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-1.5">
+                        <p className="text-white font-bold text-[10px] mb-1">💡 Need tokens?</p>
+                        <div className="flex gap-2 text-[9px]">
+                            <Link href="/card-gallery" className="text-blue-400">🖼️ Card Gallery</Link>
+                            <Link href="/game" className="text-green-400">🎮 Match Game</Link>
                         </div>
                     </div>
                 )}
 
-                {/* ===== RECENT WINNERS ===== */}
+                {/* ===== RECENT WINNERS (Expandable) ===== */}
                 {recentWinners.length > 0 && (
-                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-2">
-                        <h2 className="text-white font-bold text-xs mb-1">🏆 Recent Winners</h2>
-                        <div className="space-y-0.5">
-                            {recentWinners.slice(0, 5).map((winner, i) => (
-                                <div key={i} className="flex items-center justify-between text-[10px] bg-slate-700/30 rounded px-2 py-0.5">
-                                    <span className="text-slate-300">{maskUsername(winner.username)}</span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-yellow-400 font-bold">🪙{winner.win_amount}</span>
-                                        <span className="text-slate-500 text-[9px]">{timeAgo(winner.created_at)}</span>
+                    <div className="mt-2 bg-slate-800/50 border border-slate-700 rounded-lg p-1.5">
+                        <button onClick={() => setShowRecentWinners(!showRecentWinners)} className="w-full flex items-center justify-between text-[10px]">
+                            <span className="text-white font-bold">🏆 Recent Winners</span>
+                            <span className="text-slate-400">{showRecentWinners ? '▲' : '▼'}</span>
+                        </button>
+                        {showRecentWinners && (
+                            <div className="mt-1 space-y-0.5">
+                                {recentWinners.slice(0, 5).map((winner, i) => (
+                                    <div key={i} className="flex items-center justify-between text-[9px] bg-slate-700/30 rounded px-1.5 py-0.5">
+                                        <span className="text-slate-300">{maskUsername(winner.username)}</span>
+                                        <span className="text-yellow-400">🪙{winner.win_amount}</span>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
