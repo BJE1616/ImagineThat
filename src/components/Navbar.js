@@ -13,6 +13,7 @@ export default function Navbar() {
     const [user, setUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [isAdmin, setIsAdmin] = useState(false)
+    const [hasUnclaimedRewards, setHasUnclaimedRewards] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [gamesDropdownOpen, setGamesDropdownOpen] = useState(false)
@@ -30,11 +31,29 @@ export default function Navbar() {
                 setUser(null)
                 setUserData(null)
                 setIsAdmin(false)
+                setHasUnclaimedRewards(false)
             }
         })
 
         return () => subscription.unsubscribe()
     }, [])
+
+    // Re-check for unclaimed rewards when route changes
+    useEffect(() => {
+        if (user) {
+            const checkRewards = async () => {
+                const { data: unclaimedRewards } = await supabase
+                    .from('daily_leaderboard_results')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('claimed', false)
+                    .limit(1)
+
+                setHasUnclaimedRewards(unclaimedRewards && unclaimedRewards.length > 0)
+            }
+            checkRewards()
+        }
+    }, [pathname, user])
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -63,6 +82,16 @@ export default function Navbar() {
 
                 setUserData(userDataResult)
                 setIsAdmin(userDataResult?.is_admin || false)
+
+                // Check for unclaimed leaderboard rewards
+                const { data: unclaimedRewards } = await supabase
+                    .from('daily_leaderboard_results')
+                    .select('id')
+                    .eq('user_id', authUser.id)
+                    .eq('claimed', false)
+                    .limit(1)
+
+                setHasUnclaimedRewards(unclaimedRewards && unclaimedRewards.length > 0)
             }
         } catch (error) {
             console.error('Error checking user:', error)
@@ -74,6 +103,7 @@ export default function Navbar() {
         setUser(null)
         setUserData(null)
         setIsAdmin(false)
+        setHasUnclaimedRewards(false)
         setDropdownOpen(false)
         router.push('/game')
     }
@@ -97,6 +127,12 @@ export default function Navbar() {
         return null
     }
 
+    // Badge component for unclaimed rewards
+    const RewardBadge = () => (
+        <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-red-500 rounded-full border-2 animate-pulse shadow-lg shadow-red-500/50"
+            style={{ borderColor: currentTheme.mode === 'dark' ? '#1e293b' : '#ffffff', boxShadow: '0 0 8px 2px rgba(239, 68, 68, 0.6)' }} />
+    )
+
     return (
         <nav className={`bg-${currentTheme.bg} border-b border-${currentTheme.card} sticky top-0 z-50`}>
             <div className="max-w-6xl mx-auto px-4">
@@ -115,12 +151,13 @@ export default function Navbar() {
                         <div className="relative" ref={gamesDropdownRef}>
                             <button
                                 onClick={() => setGamesDropdownOpen(!gamesDropdownOpen)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1 ${isGamesPage
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-1 relative ${isGamesPage
                                     ? `bg-${currentTheme.accent}/10 text-${currentTheme.accentHover}`
                                     : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 Games
+                                {hasUnclaimedRewards && <RewardBadge />}
                                 <svg
                                     className={`w-3 h-3 transition-transform ${gamesDropdownOpen ? 'rotate-180' : ''}`}
                                     fill="none"
@@ -156,12 +193,17 @@ export default function Navbar() {
                                     <Link
                                         href="/slots"
                                         onClick={() => setGamesDropdownOpen(false)}
-                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/slots'
+                                        className={`block px-3 py-2 text-sm transition-all relative ${pathname === '/slots'
                                             ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
                                             : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
                                             }`}
                                     >
                                         🎰 Slots
+                                        {hasUnclaimedRewards && (
+                                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500 text-white">
+                                                Reward!
+                                            </span>
+                                        )}
                                     </Link>
                                 </div>
                             )}
@@ -266,9 +308,10 @@ export default function Navbar() {
                     {/* Mobile Menu Button */}
                     <button
                         onClick={() => setMenuOpen(!menuOpen)}
-                        className={`md:hidden p-1.5 text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
+                        className={`md:hidden p-1.5 text-${currentTheme.textMuted} hover:text-${currentTheme.text} relative`}
                     >
                         {menuOpen ? '✕' : '☰'}
+                        {hasUnclaimedRewards && !menuOpen && <RewardBadge />}
                     </button>
                 </div>
 
@@ -304,9 +347,14 @@ export default function Navbar() {
                             <Link
                                 href="/slots"
                                 onClick={() => setMenuOpen(false)}
-                                className={`px-4 py-2 text-sm font-medium ${pathname === '/slots' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                                className={`px-4 py-2 text-sm font-medium flex items-center ${pathname === '/slots' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
                             >
                                 🎰 Slots
+                                {hasUnclaimedRewards && (
+                                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500 text-white">
+                                        Reward!
+                                    </span>
+                                )}
                             </Link>
 
                             <div className={`border-t border-${currentTheme.card} mt-2 pt-2`}></div>

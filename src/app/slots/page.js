@@ -48,9 +48,12 @@ export default function SlotMachinePage() {
 
     // ===== LEADERBOARD STATE =====
     const [leaderboard, setLeaderboard] = useState([])
+    const [yesterdayWinners, setYesterdayWinners] = useState([])
     const [userRank, setUserRank] = useState(null)
     const [unclaimedReward, setUnclaimedReward] = useState(null)
     const [claimingReward, setClaimingReward] = useState(false)
+    const [showRewardModal, setShowRewardModal] = useState(false)
+    const [showClaimCelebration, setShowClaimCelebration] = useState(false)
 
     // ===== WEEKLY PRIZE STATE =====
     const [weeklyPrize, setWeeklyPrize] = useState(null)
@@ -83,6 +86,7 @@ export default function SlotMachinePage() {
         await loadCards()
         await loadRecentWinners()
         await loadLeaderboard()
+        await loadYesterdayWinners()
         await loadWeeklyPrize()
         setLoading(false)
     }
@@ -249,6 +253,7 @@ export default function SlotMachinePage() {
 
             if (data) {
                 setUnclaimedReward(data)
+                setShowRewardModal(true)
             }
         } catch (error) {
             // No unclaimed rewards
@@ -329,15 +334,14 @@ export default function SlotMachinePage() {
                 })
                 .eq('id', unclaimedReward.id)
 
-            setCelebration({
-                type: 'reward',
-                tokens: unclaimedReward.bonus_tokens_awarded,
-                entries: unclaimedReward.bonus_entries_awarded,
-                place: unclaimedReward.place
-            })
-            setTimeout(() => setCelebration(null), 3000)
+            // Show celebration instead of old celebration
+            setShowRewardModal(false)
+            setShowClaimCelebration(true)
+            setTimeout(() => {
+                setShowClaimCelebration(false)
+                setUnclaimedReward(null)
+            }, 5000)
 
-            setUnclaimedReward(null)
         } catch (error) {
             console.error('Error claiming reward:', error)
             setMessage({ type: 'error', text: 'Failed to claim reward. Please try again.' })
@@ -393,6 +397,39 @@ export default function SlotMachinePage() {
 
         } catch (error) {
             console.error('Error loading leaderboard:', error)
+        }
+    }
+
+    // ===== LOAD YESTERDAY'S WINNERS =====
+    const loadYesterdayWinners = async () => {
+        try {
+            const yesterday = new Date()
+            yesterday.setDate(yesterday.getDate() - 1)
+            const yesterdayStr = yesterday.toISOString().split('T')[0]
+
+            const { data } = await supabase
+                .from('daily_leaderboard_results')
+                .select('user_id, place, total_spins, bonus_tokens_awarded, bonus_entries_awarded')
+                .eq('result_date', yesterdayStr)
+                .order('place', { ascending: true })
+                .limit(3)
+
+            if (data && data.length > 0) {
+                const userIds = data.map(d => d.user_id)
+                const { data: users } = await supabase
+                    .from('users')
+                    .select('id, username')
+                    .in('id', userIds)
+
+                const winnersWithNames = data.map(w => ({
+                    ...w,
+                    username: users?.find(u => u.id === w.user_id)?.username || 'Player'
+                }))
+
+                setYesterdayWinners(winnersWithNames)
+            }
+        } catch (error) {
+            console.error('Error loading yesterday winners:', error)
         }
     }
 
@@ -800,6 +837,77 @@ export default function SlotMachinePage() {
     // ===== RENDER =====
     return (
         <div className={`min-h-screen bg-${currentTheme.bg} py-2 px-2`}>
+            {/* ===== REWARD CLAIM MODAL ===== */}
+            {showRewardModal && unclaimedReward && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+                    <div className="bg-gradient-to-b from-yellow-900 via-yellow-800 to-yellow-900 border-4 border-yellow-500 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl relative overflow-hidden">
+                        {/* Decorative corners */}
+                        <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-yellow-400"></div>
+                        <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-yellow-400"></div>
+                        <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-yellow-400"></div>
+                        <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-yellow-400"></div>
+
+                        <div className="text-4xl mb-2">🏆</div>
+                        <h2 className="text-2xl font-bold text-yellow-300 mb-1">CONGRATULATIONS!</h2>
+
+                        <p className="text-yellow-100 mb-4">
+                            You placed <span className="font-bold text-white">#{unclaimedReward.place}</span> in yesterday's Daily Spin Leaderboard!
+                        </p>
+
+                        <div className="bg-black/30 rounded-lg p-3 mb-4">
+                            <p className="text-yellow-300 font-bold text-sm mb-2">Your Rewards:</p>
+                            <p className="text-white">• {unclaimedReward.bonus_tokens_awarded} tokens will be added to your balance!</p>
+                            <p className="text-white">• {unclaimedReward.bonus_entries_awarded} additional entries into this week's drawing!</p>
+                        </div>
+
+                        <div className="bg-purple-900/50 rounded-lg p-2 mb-4 border border-purple-500/50">
+                            <p className="text-purple-200 text-sm">This week's drawing is for:</p>
+                            <p className="text-white font-bold">{getPrizeDisplay() || 'TBA'}</p>
+                        </div>
+
+                        <button
+                            onClick={claimReward}
+                            disabled={claimingReward}
+                            className="w-full py-3 bg-gradient-to-b from-green-400 via-green-500 to-green-700 text-white font-bold text-lg rounded-xl shadow-lg shadow-green-500/50 hover:from-green-300 hover:to-green-600 active:scale-95 transition-all"
+                        >
+                            {claimingReward ? '...' : '🎁 Click to Claim Your Rewards'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== CLAIM CELEBRATION ===== */}
+            {showClaimCelebration && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-none">
+                    {/* Confetti */}
+                    <div className="absolute inset-0 overflow-hidden">
+                        {[...Array(50)].map((_, i) => (
+                            <div
+                                key={i}
+                                className="absolute animate-bounce"
+                                style={{
+                                    left: `${Math.random() * 100}%`,
+                                    top: `${Math.random() * 100}%`,
+                                    animationDelay: `${Math.random() * 0.5}s`,
+                                    animationDuration: `${0.5 + Math.random() * 1}s`,
+                                    fontSize: `${12 + Math.random() * 16}px`
+                                }}
+                            >
+                                {['🎉', '🎊', '✨', '⭐', '🌟', '💫', '🪙', '🎟️'][Math.floor(Math.random() * 8)]}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="text-center animate-pulse">
+                        <div className="text-6xl mb-4">🎉</div>
+                        <h2 className="text-4xl font-bold text-yellow-300 drop-shadow-lg" style={{ textShadow: '0 0 20px rgba(253, 224, 71, 0.8)' }}>
+                            CLAIMED!
+                        </h2>
+                        <p className="text-2xl text-white mt-2">Rewards added to your account!</p>
+                    </div>
+                </div>
+            )}
+
             {/* ===== ADMIN FALLBACK WARNING ===== */}
             {isAdmin && usingFallbackOdds && (
                 <div className="fixed top-14 left-2 right-2 z-50 bg-red-500/90 text-white text-xs p-2 rounded-lg text-center">
@@ -809,7 +917,7 @@ export default function SlotMachinePage() {
 
             {/* ===== CELEBRATION ===== */}
             {celebration && (
-                <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+                <div className="fixed inset-0 pointer-events-none z-40 flex items-center justify-center">
                     <div className="text-center animate-bounce">
                         {celebration.type === 'reward' ? (
                             <>
@@ -832,16 +940,6 @@ export default function SlotMachinePage() {
             )}
 
             <div className="max-w-sm mx-auto">
-                {/* ===== UNCLAIMED REWARD BANNER ===== */}
-                {unclaimedReward && (
-                    <div className="mb-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border border-yellow-500 rounded-lg p-2 text-center">
-                        <p className="text-yellow-400 font-bold text-xs">🎉 You placed #{unclaimedReward.place} yesterday!</p>
-                        <button onClick={claimReward} disabled={claimingReward} className="mt-1 bg-yellow-500 text-slate-900 font-bold px-3 py-1 rounded text-xs">
-                            {claimingReward ? '...' : `Claim +${unclaimedReward.bonus_tokens_awarded}🪙 +${unclaimedReward.bonus_entries_awarded}🎟️`}
-                        </button>
-                    </div>
-                )}
-
                 {/* ===== MESSAGE ===== */}
                 {message && (
                     <div className={`mb-2 p-1.5 rounded text-center text-xs ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
@@ -1017,6 +1115,25 @@ export default function SlotMachinePage() {
                             ))}
                         </div>
                         {userRank && userRank > 3 && <p className={`text-[10px] text-${currentTheme.textMuted} text-center mt-1`}>Your rank: #{userRank}</p>}
+                    </div>
+                )}
+
+                {/* ===== YESTERDAY'S WINNERS ===== */}
+                {yesterdayWinners.length > 0 && (
+                    <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
+                        <h2 className={`text-${currentTheme.text} font-bold text-xs mb-1`}>🌟 Yesterday's Winners</h2>
+                        <div className="space-y-1">
+                            {yesterdayWinners.map((winner, i) => (
+                                <div key={i} className={`flex items-center justify-between text-[10px] rounded px-2 py-1 bg-${currentTheme.border}/30`}>
+                                    <span className={`text-${currentTheme.text}`}>
+                                        {getRankEmoji(winner.place)} {maskUsername(winner.username)}
+                                    </span>
+                                    <span className="text-yellow-400 font-medium">
+                                        {winner.total_spins} spins (+{winner.bonus_tokens_awarded}🪙 +{winner.bonus_entries_awarded}🎟️)
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 
