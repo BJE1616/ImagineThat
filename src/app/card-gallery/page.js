@@ -20,6 +20,8 @@ export default function CardGalleryPage() {
     const [gameSettings, setGameSettings] = useState(null)
     const [celebration, setCelebration] = useState(null)
     const viewedCards = useRef(new Set())
+    const [weeklyEntries, setWeeklyEntries] = useState(0)
+    const [totalUniqueViews, setTotalUniqueViews] = useState(0)
 
     useEffect(() => {
         loadData()
@@ -67,10 +69,33 @@ export default function CardGalleryPage() {
                 if (viewedData) {
                     viewedData.forEach(v => viewedCards.current.add(v.card_id))
                 }
+
+                // Load weekly entries and unique views
+                const weekStart = getWeekStart()
+                const { data: weeklyViewsData } = await supabase
+                    .from('card_gallery_views')
+                    .select('card_id')
+                    .eq('user_id', authUser.id)
+                    .gte('viewed_at', weekStart.toISOString())
+
+                if (weeklyViewsData) {
+                    const uniqueCardIds = new Set(weeklyViewsData.map(v => v.card_id))
+                    setTotalUniqueViews(uniqueCardIds.size)
+                    setWeeklyEntries(Math.floor(uniqueCardIds.size / 10))
+                }
             }
         } catch (error) {
             console.error('Error checking user:', error)
         }
+    }
+
+    const getWeekStart = () => {
+        const now = new Date()
+        const day = now.getDay()
+        const diff = now.getDate() - day
+        const weekStart = new Date(now.setDate(diff))
+        weekStart.setHours(0, 0, 0, 0)
+        return weekStart
     }
 
     const loadGameSettings = async () => {
@@ -268,7 +293,46 @@ export default function CardGalleryPage() {
             setTokenBalance(prev => prev + tokensEarned)
             setViewedToday(prev => prev + 1)
 
-            setCelebration({ amount: tokensEarned, id: Date.now() })
+            // Track unique views and award entries
+            const newTotalViews = totalUniqueViews + 1
+            setTotalUniqueViews(newTotalViews)
+            const newEntries = Math.floor(newTotalViews / 10)
+            const earnedNewEntry = newEntries > weeklyEntries
+
+            if (earnedNewEntry) {
+                setWeeklyEntries(newEntries)
+                // Save entry to user_daily_spins
+                const today = new Date().toISOString().split('T')[0]
+                const { data: spinData } = await supabase
+                    .from('user_daily_spins')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('spin_date', today)
+                    .single()
+
+                if (spinData) {
+                    await supabase
+                        .from('user_daily_spins')
+                        .update({ drawing_entries: (spinData.drawing_entries || 0) + 1 })
+                        .eq('id', spinData.id)
+                } else {
+                    await supabase
+                        .from('user_daily_spins')
+                        .insert([{
+                            user_id: user.id,
+                            spin_date: today,
+                            free_spins_used: 0,
+                            paid_spins: 0,
+                            tokens_won: 0,
+                            tokens_wagered: 0,
+                            drawing_entries: 1
+                        }])
+                }
+
+                setCelebration({ amount: tokensEarned, entry: true, id: Date.now() })
+            } else {
+                setCelebration({ amount: tokensEarned, id: Date.now() })
+            }
             setTimeout(() => setCelebration(null), 2000)
 
         } catch (error) {
@@ -299,6 +363,11 @@ export default function CardGalleryPage() {
                         <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
                             +{celebration.amount} Tokens!
                         </div>
+                        {celebration.entry && (
+                            <div className="text-2xl font-bold text-purple-400 mt-2">
+                                +1 🎟️ Entry!
+                            </div>
+                        )}
                         <div className="text-6xl mt-2">🎉</div>
                     </div>
                 </div>
@@ -328,9 +397,15 @@ export default function CardGalleryPage() {
                                 </div>
                             )}
                             {user ? (
-                                <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-right">
-                                    <p className="text-yellow-400 font-bold text-base sm:text-lg">🪙 {tokenBalance}</p>
-                                    <p className="text-slate-400 text-xs">{viewedToday * tokensPerView}/{dailyLimit} today</p>
+                                <div className="flex items-center gap-2">
+                                    <div className="bg-purple-500/20 border border-purple-500/50 rounded-lg px-2 py-2 text-center">
+                                        <p className="text-purple-400 font-bold text-sm">🎟️ {weeklyEntries}</p>
+                                        <p className="text-slate-400 text-[10px]">{totalUniqueViews % 10}/10</p>
+                                    </div>
+                                    <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-right">
+                                        <p className="text-yellow-400 font-bold text-base sm:text-lg">🪙 {tokenBalance}</p>
+                                        <p className="text-slate-400 text-xs">{viewedToday * tokensPerView}/{dailyLimit} today</p>
+                                    </div>
                                 </div>
                             ) : (
                                 <button onClick={() => router.push('/auth/login')} className="px-4 py-2 bg-yellow-500 text-slate-900 rounded-lg font-medium hover:bg-yellow-400">
@@ -346,8 +421,8 @@ export default function CardGalleryPage() {
                 <div className="max-w-7xl mx-auto px-4 pt-4">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm">
                         <p className="text-yellow-400">
-                            🪙 Earn <strong>{tokensPerView} Tokens</strong> for each new card you view today! Daily limit: <strong>{dailyLimit}</strong>
-                            {viewedCards.current.size > 0 && <span className="text-slate-400 ml-2">({viewedCards.current.size} viewed)</span>}
+                            🪙 Earn <strong>{tokensPerView} Tokens</strong> for each new card you view! 🎟️ Every <strong>10 unique views = 1 drawing entry</strong>!
+                            <span className="text-slate-400 ml-2">({totalUniqueViews} viewed this week)</span>
                         </p>
                     </div>
                 </div>
