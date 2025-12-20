@@ -10,6 +10,7 @@ export default function AdminPrizesPage() {
     const [saving, setSaving] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [currentPrize, setCurrentPrize] = useState(null)
+    const [selectedGame, setSelectedGame] = useState('slots')
     const [prizeType, setPrizeType] = useState('cash')
     const [numberOfWinners, setNumberOfWinners] = useState(1)
     const [prizeAmounts, setPrizeAmounts] = useState([''])
@@ -21,7 +22,7 @@ export default function AdminPrizesPage() {
 
     useEffect(() => {
         loadCurrentPrize()
-    }, [])
+    }, [selectedGame])
 
     const getWeekStart = () => {
         const today = new Date()
@@ -50,6 +51,7 @@ export default function AdminPrizesPage() {
     }
 
     const loadCurrentPrize = async () => {
+        setLoading(true)
         try {
             const weekStart = getWeekStart()
 
@@ -57,6 +59,7 @@ export default function AdminPrizesPage() {
                 .from('weekly_prizes')
                 .select('*')
                 .eq('week_start', weekStart)
+                .eq('game_type', selectedGame)
                 .single()
 
             if (data) {
@@ -68,9 +71,27 @@ export default function AdminPrizesPage() {
                 setIsSurprise(data.is_surprise || false)
                 setAnnouncementText(data.announcement_text || '')
                 setCardBackImageUrl(data.card_back_image_url || '')
+            } else {
+                // Reset form for new prize
+                setCurrentPrize(null)
+                setPrizeType('cash')
+                setNumberOfWinners(1)
+                setPrizeAmounts([''])
+                setPrizeDescriptions([''])
+                setIsSurprise(false)
+                setAnnouncementText('')
+                setCardBackImageUrl('')
             }
         } catch (error) {
-            console.log('No prize set for this week yet')
+            // No prize set for this week/game yet - reset form
+            setCurrentPrize(null)
+            setPrizeType('cash')
+            setNumberOfWinners(1)
+            setPrizeAmounts([''])
+            setPrizeDescriptions([''])
+            setIsSurprise(false)
+            setAnnouncementText('')
+            setCardBackImageUrl('')
         } finally {
             setLoading(false)
         }
@@ -155,6 +176,7 @@ export default function AdminPrizesPage() {
 
             const prizeData = {
                 week_start: weekStart,
+                game_type: selectedGame,
                 prize_type: prizeType,
                 number_of_winners: numberOfWinners,
                 prize_amounts: prizeAmounts.map(a => parseFloat(a) || 0),
@@ -199,6 +221,15 @@ export default function AdminPrizesPage() {
         return n + (s[(v - 20) % 10] || s[v] || s[0])
     }
 
+    const getGameLabel = (key) => {
+        const games = {
+            slots: '🎰 Slots',
+            match: '🎮 Match Game',
+            gallery: '🖼️ Card Gallery'
+        }
+        return games[key] || key
+    }
+
     if (loading) {
         return (
             <div className="p-4">
@@ -214,12 +245,35 @@ export default function AdminPrizesPage() {
         <div className="p-4">
             <div className="mb-4">
                 <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Prize Settings</h1>
-                <p className={`text-${currentTheme.textMuted} text-xs`}>Configure prizes for the current week</p>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Configure prizes for each game</p>
+            </div>
+
+            {/* Game Selector */}
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Select Game</label>
+                <div className="flex gap-2 flex-wrap">
+                    {[
+                        { key: 'slots', label: '🎰 Slots', color: 'purple' },
+                        { key: 'match', label: '🎮 Match Game', color: 'green' },
+                        { key: 'gallery', label: '🖼️ Card Gallery', color: 'blue' }
+                    ].map(game => (
+                        <button
+                            key={game.key}
+                            onClick={() => setSelectedGame(game.key)}
+                            className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${selectedGame === game.key
+                                ? `bg-${game.color}-500 text-white`
+                                : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
+                                }`}
+                        >
+                            {game.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
                 <div className="flex items-center justify-between mb-2">
-                    <h2 className={`text-sm font-bold text-${currentTheme.text}`}>Current Week</h2>
+                    <h2 className={`text-sm font-bold text-${currentTheme.text}`}>Current Week - {getGameLabel(selectedGame)}</h2>
                     <span className={`px-2 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} rounded-full text-xs font-medium`}>
                         {formatWeekRange()}
                     </span>
@@ -227,6 +281,11 @@ export default function AdminPrizesPage() {
                 <p className={`text-${currentTheme.textMuted} text-xs`}>
                     Week ends Sunday at midnight CST. Winners will be finalized after that time.
                 </p>
+                {!currentPrize && (
+                    <p className="text-yellow-400 text-xs mt-2 font-medium">
+                        ⚠️ No prize set for {getGameLabel(selectedGame)} this week
+                    </p>
+                )}
             </div>
 
             <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
@@ -442,7 +501,7 @@ export default function AdminPrizesPage() {
                 <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>Preview (What Players See)</h2>
                 <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded p-3">
                     <div className="text-center">
-                        <p className="text-white text-xs font-bold mb-1">🏆 This Week's Prize 🏆</p>
+                        <p className="text-white text-xs font-bold mb-1">🏆 This Week's Prize - {getGameLabel(selectedGame)} 🏆</p>
 
                         {isSurprise ? (
                             <>
