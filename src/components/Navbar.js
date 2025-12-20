@@ -167,6 +167,17 @@ export default function Navbar() {
                             )}
                         </div>
 
+                        {/* Store Link */}
+                        <Link
+                            href="/merch"
+                            className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${pathname === '/merch'
+                                ? `bg-${currentTheme.accent}/10 text-${currentTheme.accentHover}`
+                                : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.card}`
+                                }`}
+                        >
+                            🛍️ Store
+                        </Link>
+
                         {user && (
                             <>
                                 <Link
@@ -298,9 +309,19 @@ export default function Navbar() {
                                 🎰 Slots
                             </Link>
 
+                            <div className={`border-t border-${currentTheme.card} mt-2 pt-2`}></div>
+
+                            {/* Store Link */}
+                            <Link
+                                href="/merch"
+                                onClick={() => setMenuOpen(false)}
+                                className={`px-2 py-2 text-sm font-medium ${pathname === '/merch' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                            >
+                                🛍️ Store
+                            </Link>
+
                             {user && (
                                 <>
-                                    <div className={`border-t border-${currentTheme.card} mt-2 pt-2`}></div>
                                     <Link
                                         href="/dashboard"
                                         onClick={() => setMenuOpen(false)}
