@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import { useAdminRole } from '../layout'
 
 export default function AdminUsersPage() {
     const { currentTheme } = useTheme()
+    const { role: userRole } = useAdminRole()
+
     const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
@@ -37,6 +40,25 @@ export default function AdminUsersPage() {
     const [editData, setEditData] = useState({})
     const [editLoading, setEditLoading] = useState(false)
     const [editMessage, setEditMessage] = useState({ type: '', text: '' })
+
+    // Permission checks
+    const canResetPassword = ['super_admin', 'admin'].includes(userRole)
+    const canEditEmail = ['super_admin', 'admin'].includes(userRole)
+    const canEditDetails = ['super_admin', 'admin', 'manager'].includes(userRole)
+    const canDisableUsers = ['super_admin', 'admin'].includes(userRole)
+    const canManageAdmins = ['super_admin', 'admin'].includes(userRole)
+    const canAddUsers = ['super_admin', 'admin', 'manager'].includes(userRole)
+    const canToggleAdminOnUser = (targetUser) => {
+        // Only super_admin can toggle admin status on other admins
+        if (targetUser.is_admin && userRole !== 'super_admin') return false
+        // Only super_admin and admin can manage admin status
+        return ['super_admin', 'admin'].includes(userRole)
+    }
+    const canDisableUser = (targetUser) => {
+        // Can't disable admins unless you're super_admin
+        if (targetUser.is_admin && userRole !== 'super_admin') return false
+        return ['super_admin', 'admin'].includes(userRole)
+    }
 
     const formatPhone = (value) => {
         const numbers = value.replace(/\D/g, '').slice(0, 10)
@@ -115,6 +137,11 @@ export default function AdminUsersPage() {
     }
 
     const toggleUserStatus = async (user) => {
+        if (!canDisableUser(user)) {
+            setEditMessage({ type: 'error', text: 'You do not have permission to disable this user' })
+            return
+        }
+
         const newStatus = !user.is_disabled
         try {
             const { error } = await supabase
@@ -126,23 +153,51 @@ export default function AdminUsersPage() {
             if (selectedUser?.id === user.id) {
                 setSelectedUser({ ...selectedUser, is_disabled: newStatus })
             }
+
+            // Log audit action
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: newStatus ? 'user_disabled' : 'user_enabled',
+                table_name: 'users',
+                record_id: user.id,
+                new_value: { is_disabled: newStatus },
+                description: `${newStatus ? 'Disabled' : 'Enabled'} user ${user.email}`
+            }])
         } catch (error) {
             console.error('Error updating user:', error)
         }
     }
 
     const toggleAdminStatus = async (user) => {
+        if (!canToggleAdminOnUser(user)) {
+            setEditMessage({ type: 'error', text: 'You do not have permission to change admin status for this user' })
+            return
+        }
+
         const newStatus = !user.is_admin
         try {
             const { error } = await supabase
                 .from('users')
-                .update({ is_admin: newStatus })
+                .update({
+                    is_admin: newStatus,
+                    role: newStatus ? 'admin' : 'user'
+                })
                 .eq('id', user.id)
             if (error) throw error
-            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_admin: newStatus } : u))
+            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_admin: newStatus, role: newStatus ? 'admin' : 'user' } : u))
             if (selectedUser?.id === user.id) {
-                setSelectedUser({ ...selectedUser, is_admin: newStatus })
+                setSelectedUser({ ...selectedUser, is_admin: newStatus, role: newStatus ? 'admin' : 'user' })
             }
+
+            // Log audit action
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: newStatus ? 'admin_granted' : 'admin_revoked',
+                table_name: 'users',
+                record_id: user.id,
+                new_value: { is_admin: newStatus },
+                description: `${newStatus ? 'Granted' : 'Revoked'} admin for ${user.email}`
+            }])
         } catch (error) {
             console.error('Error updating admin status:', error)
         }
@@ -178,6 +233,17 @@ export default function AdminUsersPage() {
                 emailVerified: true
             })
             loadUsers()
+
+            // Log audit action
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: 'user_created',
+                table_name: 'users',
+                record_id: result.user.id,
+                new_value: { username: result.user.username, email: result.user.email },
+                description: `Created user ${result.user.email}`
+            }])
+
             setTimeout(() => {
                 setShowAddModal(false)
                 setAddSuccess('')
@@ -191,6 +257,11 @@ export default function AdminUsersPage() {
     }
 
     const startEdit = (mode) => {
+        // Check permissions
+        if (mode === 'password' && !canResetPassword) return
+        if (mode === 'email' && !canEditEmail) return
+        if (mode === 'details' && !canEditDetails) return
+
         setEditMode(mode)
         setEditMessage({ type: '', text: '' })
         if (mode === 'password') {
@@ -234,6 +305,16 @@ export default function AdminUsersPage() {
             }
 
             setEditMessage({ type: 'success', text: result.message })
+
+            // Log audit action
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: editMode === 'password' ? 'password_reset' : editMode === 'email' ? 'email_changed' : 'details_updated',
+                table_name: 'users',
+                record_id: selectedUser.id,
+                new_value: editMode === 'password' ? { password: '***' } : editData,
+                description: `${editMode} updated for ${selectedUser.email}`
+            }])
 
             if (editMode === 'email') {
                 setSelectedUser({ ...selectedUser, email: editData.email })
@@ -289,7 +370,7 @@ export default function AdminUsersPage() {
 
     return (
         <div className="p-4">
-            {showAddModal && (
+            {showAddModal && canAddUsers && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4 w-full max-w-md mx-4`}>
                         <div className="flex items-center justify-between mb-3">
@@ -377,29 +458,32 @@ export default function AdminUsersPage() {
                                 />
                             </div>
 
-                            <div className="flex gap-4 pt-2">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <button
-                                        type="button"
-                                        onClick={() => setNewUser({ ...newUser, isAdmin: !newUser.isAdmin })}
-                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.isAdmin ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
-                                    >
-                                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.isAdmin ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
-                                    </button>
-                                    <span className={`text-xs text-${currentTheme.textMuted}`}>Make Admin</span>
-                                </label>
+                            {/* Only show admin toggle for super_admin and admin */}
+                            {canManageAdmins && (
+                                <div className="flex gap-4 pt-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewUser({ ...newUser, isAdmin: !newUser.isAdmin })}
+                                            className={`w-8 h-4 rounded-full transition-colors ${newUser.isAdmin ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
+                                        >
+                                            <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.isAdmin ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                        <span className={`text-xs text-${currentTheme.textMuted}`}>Make Admin</span>
+                                    </label>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <button
-                                        type="button"
-                                        onClick={() => setNewUser({ ...newUser, emailVerified: !newUser.emailVerified })}
-                                        className={`w-8 h-4 rounded-full transition-colors ${newUser.emailVerified ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
-                                    >
-                                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.emailVerified ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
-                                    </button>
-                                    <span className={`text-xs text-${currentTheme.textMuted}`}>Email Verified</span>
-                                </label>
-                            </div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewUser({ ...newUser, emailVerified: !newUser.emailVerified })}
+                                            className={`w-8 h-4 rounded-full transition-colors ${newUser.emailVerified ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                        >
+                                            <div className={`w-3 h-3 bg-white rounded-full transition-transform ${newUser.emailVerified ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                        <span className={`text-xs text-${currentTheme.textMuted}`}>Email Verified</span>
+                                    </label>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex gap-2 mt-4">
@@ -424,14 +508,19 @@ export default function AdminUsersPage() {
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h1 className={`text-lg font-bold text-${currentTheme.text}`}>User Management</h1>
-                    <p className={`text-${currentTheme.textMuted} text-xs`}>View and manage user accounts</p>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>
+                        View {canEditDetails ? 'and manage ' : ''}user accounts
+                        {userRole === 'support' && <span className="ml-2 text-yellow-400">(View Only)</span>}
+                    </p>
                 </div>
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className={`px-3 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded hover:bg-${currentTheme.accentHover}`}
-                >
-                    + Add User
-                </button>
+                {canAddUsers && (
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className={`px-3 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-xs font-bold rounded hover:bg-${currentTheme.accentHover}`}
+                    >
+                        + Add User
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
@@ -486,7 +575,9 @@ export default function AdminUsersPage() {
                                     <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
                                     <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Joined</th>
                                     <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
-                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Actions</th>
+                                    {canDisableUsers && (
+                                        <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Actions</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
@@ -517,17 +608,21 @@ export default function AdminUsersPage() {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td className="py-2 px-3">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); toggleUserStatus(user) }}
-                                                className={`px-2 py-1 rounded text-xs font-medium ${user.is_disabled ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-red-600/80 text-white hover:bg-red-500'}`}
-                                            >
-                                                {user.is_disabled ? 'Enable' : 'Disable'}
-                                            </button>
-                                        </td>
+                                        {canDisableUsers && (
+                                            <td className="py-2 px-3">
+                                                {canDisableUser(user) && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); toggleUserStatus(user) }}
+                                                        className={`px-2 py-1 rounded text-xs font-medium ${user.is_disabled ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-red-600/80 text-white hover:bg-red-500'}`}
+                                                    >
+                                                        {user.is_disabled ? 'Enable' : 'Disable'}
+                                                    </button>
+                                                )}
+                                            </td>
+                                        )}
                                     </tr>
                                 )) : (
-                                    <tr><td colSpan="5" className={`py-8 text-center text-${currentTheme.textMuted} text-sm`}>No users found</td></tr>
+                                    <tr><td colSpan={canDisableUsers ? 5 : 4} className={`py-8 text-center text-${currentTheme.textMuted} text-sm`}>No users found</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -557,7 +652,7 @@ export default function AdminUsersPage() {
                             </div>
                         )}
 
-                        {editMode === 'password' && (
+                        {editMode === 'password' && canResetPassword && (
                             <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded`}>
                                 <label className={`block text-[10px] text-${currentTheme.textMuted} mb-1`}>New Password</label>
                                 <input
@@ -576,7 +671,7 @@ export default function AdminUsersPage() {
                             </div>
                         )}
 
-                        {editMode === 'email' && (
+                        {editMode === 'email' && canEditEmail && (
                             <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded`}>
                                 <label className={`block text-[10px] text-${currentTheme.textMuted} mb-1`}>Email Address</label>
                                 <input
@@ -594,7 +689,7 @@ export default function AdminUsersPage() {
                             </div>
                         )}
 
-                        {editMode === 'details' && (
+                        {editMode === 'details' && canEditDetails && (
                             <div className={`mb-3 p-2 bg-${currentTheme.border}/50 rounded space-y-2`}>
                                 <div>
                                     <label className={`block text-[10px] text-${currentTheme.textMuted} mb-0.5`}>First Name</label>
@@ -677,40 +772,62 @@ export default function AdminUsersPage() {
                                     </div>
                                 )}
 
-                                <div className="space-y-1.5">
-                                    <div className="grid grid-cols-3 gap-1">
-                                        <button
-                                            onClick={() => startEdit('password')}
-                                            className="py-1.5 bg-blue-600 text-white text-[10px] font-medium rounded hover:bg-blue-500"
-                                        >
-                                            Reset PW
-                                        </button>
-                                        <button
-                                            onClick={() => startEdit('email')}
-                                            className="py-1.5 bg-purple-600 text-white text-[10px] font-medium rounded hover:bg-purple-500"
-                                        >
-                                            Edit Email
-                                        </button>
-                                        <button
-                                            onClick={() => startEdit('details')}
-                                            className={`py-1.5 bg-${currentTheme.border} text-${currentTheme.text} text-[10px] font-medium rounded hover:bg-${currentTheme.card}`}
-                                        >
-                                            Edit Info
-                                        </button>
+                                {/* Action buttons - only show based on permissions */}
+                                {(canResetPassword || canEditEmail || canEditDetails) && (
+                                    <div className="space-y-1.5">
+                                        <div className="grid grid-cols-3 gap-1">
+                                            {canResetPassword && (
+                                                <button
+                                                    onClick={() => startEdit('password')}
+                                                    className="py-1.5 bg-blue-600 text-white text-[10px] font-medium rounded hover:bg-blue-500"
+                                                >
+                                                    Reset PW
+                                                </button>
+                                            )}
+                                            {canEditEmail && (
+                                                <button
+                                                    onClick={() => startEdit('email')}
+                                                    className="py-1.5 bg-purple-600 text-white text-[10px] font-medium rounded hover:bg-purple-500"
+                                                >
+                                                    Edit Email
+                                                </button>
+                                            )}
+                                            {canEditDetails && (
+                                                <button
+                                                    onClick={() => startEdit('details')}
+                                                    className={`py-1.5 bg-${currentTheme.border} text-${currentTheme.text} text-[10px] font-medium rounded hover:bg-${currentTheme.card}`}
+                                                >
+                                                    Edit Info
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {canDisableUser(selectedUser) && (
+                                            <button
+                                                onClick={() => toggleUserStatus(selectedUser)}
+                                                className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_disabled ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-red-600 text-white hover:bg-red-500'}`}
+                                            >
+                                                {selectedUser.is_disabled ? 'Enable Account' : 'Disable Account'}
+                                            </button>
+                                        )}
+
+                                        {canToggleAdminOnUser(selectedUser) && (
+                                            <button
+                                                onClick={() => toggleAdminStatus(selectedUser)}
+                                                className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_admin ? `bg-${currentTheme.border} text-${currentTheme.text} hover:bg-${currentTheme.card}` : `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} hover:bg-${currentTheme.accentHover}`}`}
+                                            >
+                                                {selectedUser.is_admin ? 'Remove Admin' : 'Make Admin'}
+                                            </button>
+                                        )}
                                     </div>
-                                    <button
-                                        onClick={() => toggleUserStatus(selectedUser)}
-                                        className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_disabled ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-red-600 text-white hover:bg-red-500'}`}
-                                    >
-                                        {selectedUser.is_disabled ? 'Enable Account' : 'Disable Account'}
-                                    </button>
-                                    <button
-                                        onClick={() => toggleAdminStatus(selectedUser)}
-                                        className={`w-full py-1.5 rounded text-xs font-medium ${selectedUser.is_admin ? `bg-${currentTheme.border} text-${currentTheme.text} hover:bg-${currentTheme.card}` : `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} hover:bg-${currentTheme.accentHover}`}`}
-                                    >
-                                        {selectedUser.is_admin ? 'Remove Admin' : 'Make Admin'}
-                                    </button>
-                                </div>
+                                )}
+
+                                {/* View only message for support */}
+                                {userRole === 'support' && (
+                                    <div className={`mt-3 p-2 bg-${currentTheme.border}/50 rounded text-center`}>
+                                        <p className={`text-${currentTheme.textMuted} text-xs`}>👁️ View Only Mode</p>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
