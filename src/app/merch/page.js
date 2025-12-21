@@ -273,10 +273,48 @@ export default function MerchStorePage() {
         setProcessing(false)
     }
 
-    // ===== PURCHASE WITH CARD (STRIPE - PLACEHOLDER) =====
+    // ===== PURCHASE WITH CARD (STRIPE) =====
     const purchaseWithCard = async () => {
-        // TODO: Integrate Stripe
-        setMessage({ type: 'error', text: 'Card payments coming soon! Use tokens for now.' })
+        if (!selectedItem || !user) return
+
+        // Check if physical item needs address
+        if (selectedItem.item_type !== 'digital_gift_card') {
+            if (!shippingAddress.line1 || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip) {
+                setMessage({ type: 'error', text: 'Please fill in your shipping address' })
+                return
+            }
+        }
+
+        setProcessing(true)
+        setMessage(null)
+
+        try {
+            const response = await fetch('/api/stripe/checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    itemId: selectedItem.id,
+                    userId: user.id,
+                    shippingAddress: selectedItem.item_type !== 'digital_gift_card' ? shippingAddress : null
+                })
+            })
+
+            const data = await response.json()
+
+            if (data.error) {
+                setMessage({ type: 'error', text: data.error })
+                setProcessing(false)
+                return
+            }
+
+            // Redirect to Stripe checkout
+            window.location.href = data.url
+
+        } catch (error) {
+            console.error('Checkout error:', error)
+            setMessage({ type: 'error', text: 'Failed to start checkout. Please try again.' })
+            setProcessing(false)
+        }
     }
 
     // ===== ITEM TYPE BADGE =====
