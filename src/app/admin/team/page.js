@@ -3,6 +3,28 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import Tooltip from '@/components/Tooltip'
+
+// ===== TOOLTIP CONTENT =====
+const TIPS = {
+    // Team Members
+    addMember: "Promote any registered user to an admin role. They'll gain access to admin pages based on their role.",
+    userRole: "Change this user's access level. See 'Role Guide' tab for what each role can do.",
+    removeFromTeam: "Demotes this user back to a regular user. They lose all admin access immediately.",
+
+    // Financial Permissions
+    financialPermissions: "Control which financial data each role can see. Super Admin always has full access.",
+    permissionCheckbox: "Checked = this role can see this metric. Unchecked = hidden from them.",
+
+    // Log Retention
+    totalLogs: "Number of audit log entries stored. Each admin action creates one entry.",
+    estimatedSize: "Approximate database storage used by audit logs. Larger logs may slow queries.",
+    logAge: "How long since the first audit log entry. Older logs may no longer be needed.",
+    retentionPeriod: "Logs older than this will be deleted (manually or automatically).",
+    autoCleanup: "When enabled, old logs are automatically deleted every Sunday at midnight.",
+    exportLogs: "Download old logs as CSV before deleting. Useful for accounting records.",
+    deleteLogs: "Permanently remove logs older than the retention period. Cannot be undone."
+}
 
 const ROLES = [
     { key: 'super_admin', label: 'Super Admin', color: 'yellow', description: 'Full access to everything including audit logs and financial permissions' },
@@ -539,7 +561,9 @@ export default function AdminTeamPage() {
 
                     {showAddMember && (
                         <div className={`mb-4 p-3 bg-${currentTheme.border}/50 rounded-lg`}>
-                            <p className={`text-${currentTheme.text} text-sm font-medium mb-2`}>Add New Team Member</p>
+                            <p className={`text-${currentTheme.text} text-sm font-medium mb-2`}>
+                                <Tooltip text={TIPS.addMember}>Add New Team Member</Tooltip>
+                            </p>
                             <div className="flex gap-2 flex-wrap">
                                 <select
                                     value={selectedUserId}
@@ -583,7 +607,9 @@ export default function AdminTeamPage() {
                             <tr className={`text-${currentTheme.textMuted} border-b border-${currentTheme.border}`}>
                                 <th className="text-left py-2">User</th>
                                 <th className="text-left py-2">Email</th>
-                                <th className="text-left py-2">Role</th>
+                                <th className="text-left py-2">
+                                    <Tooltip text={TIPS.userRole}>Role</Tooltip>
+                                </th>
                                 <th className="text-right py-2">Actions</th>
                             </tr>
                         </thead>
@@ -615,6 +641,7 @@ export default function AdminTeamPage() {
                                                 onClick={() => removeFromTeam(member.id)}
                                                 disabled={saving}
                                                 className="text-red-400 hover:text-red-300 text-xs"
+                                                title="Remove from team"
                                             >
                                                 Remove
                                             </button>
@@ -631,7 +658,9 @@ export default function AdminTeamPage() {
             {activeTab === 'permissions' && (
                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
                     <div className="mb-3">
-                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>Financial Visibility Settings</h2>
+                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>
+                            <Tooltip text={TIPS.financialPermissions}>Financial Visibility Settings</Tooltip>
+                        </h2>
                         <p className={`text-${currentTheme.textMuted} text-xs`}>Control which roles can see each financial metric. Super Admin always has access.</p>
                     </div>
 
@@ -705,15 +734,21 @@ export default function AdminTeamPage() {
                     {/* Log Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
-                            <p className={`text-${currentTheme.textMuted} text-xs`}>Total Log Entries</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>
+                                <Tooltip text={TIPS.totalLogs}>Total Log Entries</Tooltip>
+                            </p>
                             <p className={`text-${currentTheme.text} text-xl font-bold`}>{logStats.total.toLocaleString()}</p>
                         </div>
                         <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
-                            <p className={`text-${currentTheme.textMuted} text-xs`}>Estimated Size</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>
+                                <Tooltip text={TIPS.estimatedSize}>Estimated Size</Tooltip>
+                            </p>
                             <p className={`text-${currentTheme.text} text-xl font-bold`}>{formatBytes(logStats.sizeEstimate)}</p>
                         </div>
                         <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
-                            <p className={`text-${currentTheme.textMuted} text-xs`}>Log Age</p>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>
+                                <Tooltip text={TIPS.logAge}>Log Age</Tooltip>
+                            </p>
                             <p className={`text-${currentTheme.text} text-xl font-bold`}>{getDaysSinceOldest()} days</p>
                         </div>
                         <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
@@ -727,7 +762,9 @@ export default function AdminTeamPage() {
                         <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>📅 Retention Settings</h2>
 
                         <div className="mb-4">
-                            <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>Keep logs for:</label>
+                            <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>
+                                <Tooltip text={TIPS.retentionPeriod}>Keep logs for:</Tooltip>
+                            </label>
                             <div className="flex flex-wrap gap-2">
                                 {RETENTION_OPTIONS.map(opt => (
                                     <button
@@ -752,7 +789,9 @@ export default function AdminTeamPage() {
                                     onChange={(e) => setAutoCleanup(e.target.checked)}
                                     className="w-4 h-4 rounded"
                                 />
-                                <span className={`text-${currentTheme.text} text-sm`}>Enable automatic cleanup (runs weekly)</span>
+                                <span className={`text-${currentTheme.text} text-sm`}>
+                                    <Tooltip text={TIPS.autoCleanup}>Enable automatic cleanup (runs weekly)</Tooltip>
+                                </span>
                             </label>
                             <p className={`text-${currentTheme.textMuted} text-xs mt-1 ml-6`}>
                                 Automatically deletes logs older than the retention period every Sunday at midnight.
@@ -796,6 +835,7 @@ export default function AdminTeamPage() {
                                 onClick={exportBeforeDelete}
                                 disabled={logsToDelete === 0 || retentionDays === 0}
                                 className="px-4 py-2 bg-green-500 text-white text-sm font-medium rounded hover:bg-green-400 disabled:opacity-50"
+                                title={TIPS.exportLogs}
                             >
                                 📥 Export Old Logs First
                             </button>
@@ -803,6 +843,7 @@ export default function AdminTeamPage() {
                                 onClick={() => { checkLogsToDelete(retentionDays); setShowDeleteConfirm(true); }}
                                 disabled={logsToDelete === 0 || retentionDays === 0}
                                 className="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded hover:bg-red-400 disabled:opacity-50"
+                                title={TIPS.deleteLogs}
                             >
                                 🗑️ Delete Old Logs
                             </button>
