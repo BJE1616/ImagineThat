@@ -18,6 +18,7 @@ const PAGE_ACCESS = {
     '/admin/accounting': ['super_admin'],
 
     // Super Admin + Admin
+    '/admin/reports': ['super_admin', 'admin'],
     '/admin/economy': ['super_admin', 'admin'],
     '/admin/payment-processors': ['super_admin', 'admin'],
     '/admin/partner-withdrawals': ['super_admin', 'admin'],
@@ -215,6 +216,7 @@ export default function AdminLayout({ children }) {
             items: [
                 { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
                 { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
+                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
                 { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
                 { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
             ]
