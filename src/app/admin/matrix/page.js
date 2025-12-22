@@ -3,6 +3,25 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import Tooltip from '@/components/Tooltip'
+
+// ===== TOOLTIP CONTENT =====
+const TIPS = {
+    // Stats
+    totalMatrices: "Total number of referral matrices ever created on the platform.",
+    activeMatrices: "Matrices still collecting referrals (not yet filled all 7 spots).",
+    completedMatrices: "Matrices that have filled all 7 spots. Owner is owed $200.",
+    pendingPayouts: "Completed matrices where the $200 hasn't been paid yet.",
+
+    // Table columns
+    progress: "Shows how many of the 7 referral spots are filled. Matrix completes at 7/7.",
+    status: "Active = collecting referrals. Completed = all 7 spots filled. Inactive = cancelled or forfeited.",
+    payout: "The $200 reward status. Pending = owed but not sent. Paid = payment completed.",
+
+    // Detail panel
+    matrixStructure: "Visual of the 7 referral spots. Green = filled, gray = empty. Owner is at top.",
+    markAsPaid: "Click after you've sent the $200 payment via Zelle, Venmo, etc."
+}
 
 export default function AdminMatrixPage() {
     const { currentTheme } = useTheme()
@@ -162,22 +181,39 @@ export default function AdminMatrixPage() {
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded p-2">
-                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Matrices</p>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>
+                        <Tooltip text={TIPS.totalMatrices}>Total Matrices</Tooltip>
+                    </p>
                     <p className="text-sm font-bold text-blue-400">{stats.totalMatrices}</p>
                 </div>
                 <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
-                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Active</p>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>
+                        <Tooltip text={TIPS.activeMatrices}>Active</Tooltip>
+                    </p>
                     <p className="text-sm font-bold text-green-400">{stats.activeMatrices}</p>
                 </div>
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded p-2">
-                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Completed</p>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>
+                        <Tooltip text={TIPS.completedMatrices}>Completed</Tooltip>
+                    </p>
                     <p className="text-sm font-bold text-purple-400">{stats.completedMatrices}</p>
                 </div>
                 <div className={`bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded p-2`}>
-                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Pending Payouts</p>
+                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>
+                        <Tooltip text={TIPS.pendingPayouts}>Pending Payouts</Tooltip>
+                    </p>
                     <p className={`text-sm font-bold text-${currentTheme.accent}`}>{stats.pendingPayouts}</p>
                 </div>
             </div>
+
+            {/* Pending Payouts Warning */}
+            {stats.pendingPayouts > 0 && (
+                <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <p className="text-yellow-400 text-xs font-medium">
+                        ⚠️ {stats.pendingPayouts} completed matrix{stats.pendingPayouts > 1 ? 'es' : ''} awaiting payout (${stats.pendingPayouts * 200} total owed)
+                    </p>
+                </div>
+            )}
 
             {/* Filter Tabs */}
             <div className="flex gap-1 mb-3">
@@ -233,7 +269,7 @@ export default function AdminMatrixPage() {
             <div className="flex gap-3">
                 {/* Matrices List */}
                 <div className={`${selectedMatrix ? 'w-2/3' : 'w-full'} bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto overflow-y-visible">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className={`border-b border-${currentTheme.border}`}>
@@ -333,7 +369,9 @@ export default function AdminMatrixPage() {
 
                         {/* Matrix Visualization */}
                         <div className="mb-3">
-                            <p className={`text-${currentTheme.textMuted} text-[10px] mb-2`}>Matrix Structure</p>
+                            <p className={`text-${currentTheme.textMuted} text-[10px] mb-2`}>
+                                <Tooltip text={TIPS.matrixStructure}>Matrix Structure</Tooltip>
+                            </p>
                             <div className={`bg-${currentTheme.border}/50 rounded p-3`}>
                                 {/* Spot 1 - Owner */}
                                 <div className="flex justify-center mb-2">
@@ -415,12 +453,17 @@ export default function AdminMatrixPage() {
                                 </div>
 
                                 {selectedMatrix.payout_status === 'pending' && (
-                                    <button
-                                        onClick={() => markAsPaid(selectedMatrix.id)}
-                                        className="w-full py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all"
-                                    >
-                                        Mark as Paid
-                                    </button>
+                                    <div>
+                                        <button
+                                            onClick={() => markAsPaid(selectedMatrix.id)}
+                                            className="w-full py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-500 transition-all"
+                                        >
+                                            Mark as Paid
+                                        </button>
+                                        <p className={`text-${currentTheme.textMuted} text-[10px] mt-1 text-center`}>
+                                            Click after sending payment via Zelle, Venmo, etc.
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         )}

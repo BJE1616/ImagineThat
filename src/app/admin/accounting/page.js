@@ -2,6 +2,37 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Tooltip from '@/components/Tooltip'
+
+// ===== TOOLTIP CONTENT =====
+const TIPS = {
+    // Overview stats
+    grossRevenue: "Total money received from ad campaigns before any deductions.",
+    processingFees: "Stripe charges ~2.9% + $0.30 per transaction. This is automatically calculated.",
+    netRevenue: "Gross revenue minus processing fees. This is your actual income.",
+    matrixPayouts: "Total $200 payouts sent to users who completed their referral matrix.",
+    pendingPayouts: "Matrix payouts that are owed but not yet sent. This is held in reserve.",
+    availableForPartners: "Money available to split between partners after all obligations.",
+
+    // Allocations
+    allocations: "Set aside percentages for specific purposes before partner split. Partners get the remainder.",
+    allocationPercentage: "What percentage of net revenue goes to this fund. Total cannot exceed 100%.",
+    partnersSplit: "The leftover percentage after allocations. This is split among active partners.",
+
+    // Partners
+    partnerPercentage: "This partner's share of the 'Available for Partners' amount. All active partners should total 100%.",
+    partnerSplit: "The actual dollar amount this partner receives based on their percentage.",
+
+    // Expenses
+    recurringExpenses: "Bills that repeat (monthly/yearly). These are tracked separately from one-time expenses.",
+    oneTimeExpenses: "Individual purchases or costs. Add each expense as it occurs.",
+
+    // Transactions
+    transactions: "All money in and out. Ad campaigns are added automatically. Use 'Add Income' for other revenue.",
+
+    // Fund Balances
+    fundBalances: "Money set aside in each allocation category. Builds up over time based on allocation percentages."
+}
 
 export default function AccountingDashboardPage() {
     const [loading, setLoading] = useState(true)
@@ -463,8 +494,8 @@ export default function AccountingDashboardPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-all ${activeTab === tab
-                                ? 'bg-yellow-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            ? 'bg-yellow-500 text-slate-900'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                     >
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -476,19 +507,27 @@ export default function AccountingDashboardPage() {
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <p className="text-slate-400 text-xs">Gross Revenue</p>
+                            <p className="text-slate-400 text-xs">
+                                <Tooltip text={TIPS.grossRevenue}>Gross Revenue</Tooltip>
+                            </p>
                             <p className="text-xl font-bold text-green-400">${summary.grossRevenue.toFixed(2)}</p>
                         </div>
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <p className="text-slate-400 text-xs">Processing Fees</p>
+                            <p className="text-slate-400 text-xs">
+                                <Tooltip text={TIPS.processingFees}>Processing Fees</Tooltip>
+                            </p>
                             <p className="text-xl font-bold text-red-400">-${summary.processingFees.toFixed(2)}</p>
                         </div>
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <p className="text-slate-400 text-xs">Matrix Payouts</p>
+                            <p className="text-slate-400 text-xs">
+                                <Tooltip text={TIPS.matrixPayouts}>Matrix Payouts</Tooltip>
+                            </p>
                             <p className="text-xl font-bold text-red-400">-${summary.matrixPayouts.toFixed(2)}</p>
                         </div>
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <p className="text-slate-400 text-xs">Available for Partners</p>
+                            <p className="text-slate-400 text-xs">
+                                <Tooltip text={TIPS.availableForPartners}>Available for Partners</Tooltip>
+                            </p>
                             <p className="text-xl font-bold text-yellow-400">${summary.ownerAvailable.toFixed(2)}</p>
                         </div>
                     </div>
@@ -505,7 +544,7 @@ export default function AccountingDashboardPage() {
                                 <span className="text-red-400">-${summary.processingFees.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-slate-300 border-t border-slate-700 pt-1">
-                                <span>Net Revenue</span>
+                                <span><Tooltip text={TIPS.netRevenue}>Net Revenue</Tooltip></span>
                                 <span className="text-white">${summary.netRevenue.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-slate-300">
@@ -521,7 +560,7 @@ export default function AccountingDashboardPage() {
                                 <span className="text-white">${(summary.netRevenue - summary.totalExpenses - summary.matrixPayouts).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-slate-300">
-                                <span>Pending Payouts (Hold)</span>
+                                <span><Tooltip text={TIPS.pendingPayouts}>Pending Payouts (Hold)</Tooltip></span>
                                 <span className="text-orange-400">-${summary.pendingPayouts.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between font-bold border-t border-slate-700 pt-1">
@@ -533,7 +572,9 @@ export default function AccountingDashboardPage() {
 
                     {activePartners.length > 0 && (
                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <h3 className="text-white font-semibold mb-2 text-sm">Partner Profit Split</h3>
+                            <h3 className="text-white font-semibold mb-2 text-sm">
+                                <Tooltip text={TIPS.partnerSplit}>Partner Profit Split</Tooltip>
+                            </h3>
                             <div className="space-y-1 text-sm">
                                 {activePartners.map(partner => (
                                     <div key={partner.id} className="flex justify-between text-slate-300">
@@ -557,7 +598,9 @@ export default function AccountingDashboardPage() {
                     )}
 
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <h3 className="text-white font-semibold mb-2 text-sm">Fund Balances</h3>
+                        <h3 className="text-white font-semibold mb-2 text-sm">
+                            <Tooltip text={TIPS.fundBalances}>Fund Balances</Tooltip>
+                        </h3>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                             {funds.map(fund => (
                                 <div key={fund.id} className="bg-slate-700/50 rounded p-2">
@@ -572,7 +615,9 @@ export default function AccountingDashboardPage() {
 
             {activeTab === 'allocations' && (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                    <h3 className="text-white font-semibold mb-2 text-sm">Allocation Percentages</h3>
+                    <h3 className="text-white font-semibold mb-2 text-sm">
+                        <Tooltip text={TIPS.allocations}>Allocation Percentages</Tooltip>
+                    </h3>
                     <p className="text-slate-400 text-xs mb-3">Set how net revenue is distributed. Owner/Partners get the remainder.</p>
 
                     <div className="space-y-2">
@@ -593,7 +638,9 @@ export default function AccountingDashboardPage() {
                             </div>
                         ))}
                         <div className="flex items-center gap-3 border-t border-slate-700 pt-2">
-                            <span className="text-yellow-400 text-sm w-40 font-semibold">Partners Split</span>
+                            <span className="text-yellow-400 text-sm w-40 font-semibold">
+                                <Tooltip text={TIPS.partnersSplit}>Partners Split</Tooltip>
+                            </span>
                             <span className="text-yellow-400 font-bold">{ownerPercentage.toFixed(1)}%</span>
                             <span className="text-slate-500 text-xs">(auto-calculated)</span>
                         </div>
@@ -611,7 +658,9 @@ export default function AccountingDashboardPage() {
                 <div className="space-y-3">
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-white font-semibold text-sm">Recurring Expenses</h3>
+                            <h3 className="text-white font-semibold text-sm">
+                                <Tooltip text={TIPS.recurringExpenses}>Recurring Expenses</Tooltip>
+                            </h3>
                             <button
                                 onClick={() => setShowRecurringForm(!showRecurringForm)}
                                 className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
@@ -684,7 +733,9 @@ export default function AccountingDashboardPage() {
 
                     <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-white font-semibold text-sm">One-Time Expenses</h3>
+                            <h3 className="text-white font-semibold text-sm">
+                                <Tooltip text={TIPS.oneTimeExpenses}>One-Time Expenses</Tooltip>
+                            </h3>
                             <button
                                 onClick={() => setShowExpenseForm(!showExpenseForm)}
                                 className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
@@ -753,7 +804,9 @@ export default function AccountingDashboardPage() {
             {activeTab === 'transactions' && (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-white font-semibold text-sm">Transactions</h3>
+                        <h3 className="text-white font-semibold text-sm">
+                            <Tooltip text={TIPS.transactions}>Transactions</Tooltip>
+                        </h3>
                         <button
                             onClick={() => setShowIncomeForm(!showIncomeForm)}
                             className="px-2 py-1 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-400"
@@ -809,9 +862,9 @@ export default function AccountingDashboardPage() {
                                         <td className="py-1 text-slate-400">{tx.transaction_date}</td>
                                         <td className="py-1">
                                             <span className={`px-2 py-0.5 rounded text-xs ${tx.type === 'revenue' ? 'bg-green-500/20 text-green-400' :
-                                                    tx.type === 'expense' ? 'bg-red-500/20 text-red-400' :
-                                                        tx.type === 'payout' ? 'bg-orange-500/20 text-orange-400' :
-                                                            'bg-slate-500/20 text-slate-400'
+                                                tx.type === 'expense' ? 'bg-red-500/20 text-red-400' :
+                                                    tx.type === 'payout' ? 'bg-orange-500/20 text-orange-400' :
+                                                        'bg-slate-500/20 text-slate-400'
                                                 }`}>{tx.type}</span>
                                         </td>
                                         <td className="py-1 text-white">{tx.description}</td>
@@ -886,7 +939,9 @@ export default function AccountingDashboardPage() {
                                     <th className="text-left py-1">Name</th>
                                     <th className="text-left py-1">Email</th>
                                     <th className="text-left py-1">Payment</th>
-                                    <th className="text-right py-1">%</th>
+                                    <th className="text-right py-1">
+                                        <Tooltip text={TIPS.partnerPercentage}>%</Tooltip>
+                                    </th>
                                     <th className="text-right py-1">Split (${summary.ownerAvailable.toFixed(0)})</th>
                                     <th className="text-center py-1">Active</th>
                                     <th className="text-right py-1">Actions</th>
