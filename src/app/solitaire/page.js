@@ -71,10 +71,21 @@ export default function SolitairePage() {
     const [moves, setMoves] = useState(0)
     const [startTime, setStartTime] = useState(null)
     const [elapsedTime, setElapsedTime] = useState(0)
+    const [drawCount, setDrawCount] = useState(1) // 1 or 3
 
     // Selection state
     const [selectedCards, setSelectedCards] = useState(null)
     const [selectedFrom, setSelectedFrom] = useState(null)
+
+    // Hint state
+    const [hintCard, setHintCard] = useState(null)
+    const [hintTarget, setHintTarget] = useState(null)
+
+    // Undo state (max 3 moves)
+    const [moveHistory, setMoveHistory] = useState([])
+
+    // Auto-complete state
+    const [autoCompleting, setAutoCompleting] = useState(false)
 
     // Advertiser state
     const [cardBackAdvertiser, setCardBackAdvertiser] = useState(null)
@@ -119,7 +130,7 @@ export default function SolitairePage() {
 
     // Check for win
     useEffect(() => {
-        if (gameStarted && !gameComplete) {
+        if (gameStarted && !gameComplete && !autoCompleting) {
             const totalInFoundations = foundations.reduce((sum, f) => sum + f.length, 0)
             if (totalInFoundations === 52) {
                 setGameComplete(true)
@@ -131,7 +142,92 @@ export default function SolitairePage() {
                 }
             }
         }
-    }, [foundations, gameStarted, gameComplete])
+    }, [foundations, gameStarted, gameComplete, autoCompleting])
+
+    // Auto-complete logic
+    useEffect(() => {
+        if (!autoCompleting) return
+
+        const timer = setTimeout(() => {
+            // Find a card to move to foundation
+            let moved = false
+
+            // Check waste
+            if (waste.length > 0) {
+                const card = waste[waste.length - 1]
+                for (let i = 0; i < 4; i++) {
+                    if (canStackOnFoundation(card, foundations[i])) {
+                        const newWaste = waste.slice(0, -1)
+                        const newFoundations = foundations.map((f, idx) =>
+                            idx === i ? [...f, card] : [...f]
+                        )
+                        setWaste(newWaste)
+                        setFoundations(newFoundations)
+                        setMoves(m => m + 1)
+                        moved = true
+                        break
+                    }
+                }
+            }
+
+            // Check tableau piles
+            if (!moved) {
+                for (let pileIdx = 0; pileIdx < 7; pileIdx++) {
+                    const pile = tableau[pileIdx]
+                    if (pile.length > 0) {
+                        const card = pile[pile.length - 1]
+                        if (card.faceUp) {
+                            for (let i = 0; i < 4; i++) {
+                                if (canStackOnFoundation(card, foundations[i])) {
+                                    const newTableau = tableau.map((p, idx) =>
+                                        idx === pileIdx ? p.slice(0, -1) : [...p]
+                                    )
+                                    const newFoundations = foundations.map((f, idx) =>
+                                        idx === i ? [...f, card] : [...f]
+                                    )
+                                    setTableau(newTableau)
+                                    setFoundations(newFoundations)
+                                    setMoves(m => m + 1)
+                                    moved = true
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    if (moved) break
+                }
+            }
+
+            // Check if complete
+            const totalInFoundations = foundations.reduce((sum, f) => sum + f.length, 0)
+            if (totalInFoundations === 52 || !moved) {
+                setAutoCompleting(false)
+                if (totalInFoundations === 52) {
+                    setGameComplete(true)
+                    if (user) {
+                        const finalTime = elapsedTime
+                        const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
+                        saveScore(moves, finalTime, score)
+                        completeGameSession(moves, score)
+                    }
+                }
+            }
+        }, 150)
+
+        return () => clearTimeout(timer)
+    }, [autoCompleting, foundations, tableau, waste])
+
+    // Check if auto-complete is available
+    const canAutoComplete = () => {
+        if (stock.length > 0) return false
+        // All tableau cards must be face up
+        for (const pile of tableau) {
+            for (const card of pile) {
+                if (!card.faceUp) return false
+            }
+        }
+        return true
+    }
 
     const checkUser = async () => {
         try {
@@ -276,6 +372,14 @@ export default function SolitairePage() {
         } catch (error) {
             console.log('Error loading display ads')
         }
+    }
+
+    const refreshAds = async () => {
+        trackedCardBackView.current = false
+        trackedDisplayAdViews.current = new Set()
+        await loadCardBackAdvertiser()
+        await loadWinSponsor()
+        await loadDisplayAds()
     }
 
     const trackDisplayAdView = async (cardUserId) => {
@@ -493,7 +597,114 @@ export default function SolitairePage() {
         }
     }
 
-    const startGame = async () => {
+    // Save state for undo
+    const saveStateForUndo = () => {
+        const state = {
+            stock: JSON.parse(JSON.stringify(stock)),
+            waste: JSON.parse(JSON.stringify(waste)),
+            foundations: JSON.parse(JSON.stringify(foundations)),
+            tableau: JSON.parse(JSON.stringify(tableau)),
+            moves: moves
+        }
+        setMoveHistory(prev => [...prev.slice(-2), state]) // Keep last 3
+    }
+
+    // Undo last move
+    const undoMove = () => {
+        if (moveHistory.length === 0) return
+        const prevState = moveHistory[moveHistory.length - 1]
+        setStock(prevState.stock)
+        setWaste(prevState.waste)
+        setFoundations(prevState.foundations)
+        setTableau(prevState.tableau)
+        setMoves(prevState.moves)
+        setMoveHistory(prev => prev.slice(0, -1))
+        setSelectedCards(null)
+        setSelectedFrom(null)
+        setHintCard(null)
+        setHintTarget(null)
+    }
+
+    // Find a hint
+    const findHint = () => {
+        setHintCard(null)
+        setHintTarget(null)
+
+        // Check waste to foundation
+        if (waste.length > 0) {
+            const card = waste[waste.length - 1]
+            for (let i = 0; i < 4; i++) {
+                if (canStackOnFoundation(card, foundations[i])) {
+                    setHintCard({ source: 'waste', id: card.id })
+                    setHintTarget({ type: 'foundation', index: i })
+                    return
+                }
+            }
+        }
+
+        // Check tableau to foundation
+        for (let pileIdx = 0; pileIdx < 7; pileIdx++) {
+            const pile = tableau[pileIdx]
+            if (pile.length > 0) {
+                const card = pile[pile.length - 1]
+                if (card.faceUp) {
+                    for (let i = 0; i < 4; i++) {
+                        if (canStackOnFoundation(card, foundations[i])) {
+                            setHintCard({ source: 'tableau', pileIndex: pileIdx, id: card.id })
+                            setHintTarget({ type: 'foundation', index: i })
+                            return
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check waste to tableau
+        if (waste.length > 0) {
+            const card = waste[waste.length - 1]
+            for (let pileIdx = 0; pileIdx < 7; pileIdx++) {
+                const pile = tableau[pileIdx]
+                const topCard = pile.length > 0 ? pile[pile.length - 1] : null
+                if (canStackOnTableau(card, topCard)) {
+                    setHintCard({ source: 'waste', id: card.id })
+                    setHintTarget({ type: 'tableau', index: pileIdx })
+                    return
+                }
+            }
+        }
+
+        // Check tableau to tableau
+        for (let fromPileIdx = 0; fromPileIdx < 7; fromPileIdx++) {
+            const fromPile = tableau[fromPileIdx]
+            for (let cardIdx = 0; cardIdx < fromPile.length; cardIdx++) {
+                const card = fromPile[cardIdx]
+                if (!card.faceUp) continue
+
+                for (let toPileIdx = 0; toPileIdx < 7; toPileIdx++) {
+                    if (fromPileIdx === toPileIdx) continue
+                    const toPile = tableau[toPileIdx]
+                    const topCard = toPile.length > 0 ? toPile[toPile.length - 1] : null
+                    if (canStackOnTableau(card, topCard)) {
+                        // Don't suggest moving a King to an empty pile if it's already at the bottom
+                        if (card.value === 'K' && cardIdx === 0 && toPile.length === 0) continue
+                        setHintCard({ source: 'tableau', pileIndex: fromPileIdx, cardIndex: cardIdx, id: card.id })
+                        setHintTarget({ type: 'tableau', index: toPileIdx })
+                        return
+                    }
+                }
+            }
+        }
+
+        // No hint found - suggest drawing
+        if (stock.length > 0) {
+            setHintCard({ source: 'stock' })
+            setHintTarget({ type: 'draw' })
+        }
+    }
+
+    const startGame = async (draw = 1) => {
+        setDrawCount(draw)
+
         // Track card back views (52 cards face down initially, minus 7 face up = 45)
         if (cardBackAdvertiser) {
             trackCardBackView(cardBackAdvertiser.user_id, 45)
@@ -520,18 +731,45 @@ export default function SolitairePage() {
         setWaste([])
         setFoundations([[], [], [], []])
         setMoves(0)
+        setMoveHistory([])
         setStartTime(Date.now())
         setElapsedTime(0)
         setGameStarted(true)
         setGameComplete(false)
         setSelectedCards(null)
         setSelectedFrom(null)
+        setHintCard(null)
+        setHintTarget(null)
+        setAutoCompleting(false)
         trackedCardBackView.current = false
 
         await createGameSession()
     }
 
+    const startNewGame = async () => {
+        await refreshAds()
+        setGameStarted(false)
+        setGameComplete(false)
+        setMoves(0)
+        setMoveHistory([])
+        setStock([])
+        setWaste([])
+        setFoundations([[], [], [], []])
+        setTableau([[], [], [], [], [], [], []])
+        setStartTime(null)
+        setElapsedTime(0)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+        setHintCard(null)
+        setHintTarget(null)
+        setAutoCompleting(false)
+    }
+
     const drawFromStock = () => {
+        saveStateForUndo()
+        setHintCard(null)
+        setHintTarget(null)
+
         if (stock.length === 0) {
             // Reset stock from waste
             if (waste.length > 0) {
@@ -542,20 +780,26 @@ export default function SolitairePage() {
             return
         }
 
-        const card = { ...stock[stock.length - 1], faceUp: true }
-        setStock(stock.slice(0, -1))
-        setWaste([...waste, card])
+        // Draw 1 or 3 cards
+        const numToDraw = Math.min(drawCount, stock.length)
+        const drawnCards = stock.slice(-numToDraw).map(card => ({ ...card, faceUp: true }))
+        setStock(stock.slice(0, -numToDraw))
+        setWaste([...waste, ...drawnCards])
         setMoves(m => m + 1)
         setSelectedCards(null)
         setSelectedFrom(null)
     }
 
     const handleCardClick = (card, source, pileIndex, cardIndex) => {
+        setHintCard(null)
+        setHintTarget(null)
+
         if (!card.faceUp) {
             // Flip face-down card if it's the top of a tableau pile
             if (source === 'tableau') {
                 const pile = tableau[pileIndex]
                 if (cardIndex === pile.length - 1) {
+                    saveStateForUndo()
                     const newTableau = [...tableau]
                     newTableau[pileIndex] = [...pile]
                     newTableau[pileIndex][cardIndex] = { ...card, faceUp: true }
@@ -601,6 +845,44 @@ export default function SolitairePage() {
         }
     }
 
+    // Double-click to auto-move to foundation
+    const handleCardDoubleClick = (card, source, pileIndex, cardIndex) => {
+        if (!card.faceUp) return
+
+        // Only works for single cards (top of pile or waste)
+        if (source === 'tableau') {
+            const pile = tableau[pileIndex]
+            if (cardIndex !== pile.length - 1) return
+        }
+
+        // Find a foundation to move to
+        for (let i = 0; i < 4; i++) {
+            if (canStackOnFoundation(card, foundations[i])) {
+                saveStateForUndo()
+                const newFoundations = foundations.map((f, idx) =>
+                    idx === i ? [...f, card] : [...f]
+                )
+
+                if (source === 'waste') {
+                    setWaste(waste.slice(0, -1))
+                } else if (source === 'tableau') {
+                    const newTableau = tableau.map((p, idx) =>
+                        idx === pileIndex ? p.slice(0, -1) : [...p]
+                    )
+                    setTableau(newTableau)
+                }
+
+                setFoundations(newFoundations)
+                setMoves(m => m + 1)
+                setSelectedCards(null)
+                setSelectedFrom(null)
+                setHintCard(null)
+                setHintTarget(null)
+                return
+            }
+        }
+    }
+
     const selectCards = (card, source, pileIndex, cardIndex) => {
         if (source === 'waste') {
             setSelectedCards([card])
@@ -634,6 +916,8 @@ export default function SolitairePage() {
     const moveCards = (targetPileIndex) => {
         if (!selectedCards || !selectedFrom) return
 
+        saveStateForUndo()
+
         const newTableau = [...tableau.map(p => [...p])]
         const newWaste = [...waste]
         const newFoundations = [...foundations.map(f => [...f])]
@@ -660,6 +944,8 @@ export default function SolitairePage() {
 
     const moveToFoundation = (foundationIndex) => {
         if (!selectedCards || selectedCards.length !== 1 || !selectedFrom) return
+
+        saveStateForUndo()
 
         const card = selectedCards[0]
         const newFoundations = [...foundations.map(f => [...f])]
@@ -702,10 +988,23 @@ export default function SolitairePage() {
         return cardIndex === selectedFrom.cardIndex
     }
 
+    const isHinted = (card, source, pileIndex) => {
+        if (!hintCard) return false
+        if (hintCard.source !== source) return false
+        if (source === 'tableau' && hintCard.pileIndex !== pileIndex) return false
+        return hintCard.id === card.id
+    }
+
+    const isHintTarget = (type, index) => {
+        if (!hintTarget) return false
+        return hintTarget.type === type && hintTarget.index === index
+    }
+
     const playAgain = () => {
         setGameStarted(false)
         setGameComplete(false)
         setMoves(0)
+        setMoveHistory([])
         setStock([])
         setWaste([])
         setFoundations([[], [], [], []])
@@ -714,6 +1013,9 @@ export default function SolitairePage() {
         setElapsedTime(0)
         setSelectedCards(null)
         setSelectedFrom(null)
+        setHintCard(null)
+        setHintTarget(null)
+        setAutoCompleting(false)
     }
 
     const getOrdinal = (n) => {
@@ -730,16 +1032,17 @@ export default function SolitairePage() {
 
     // Card back component
     const CardBack = ({ small = false }) => {
+        const isStockHinted = hintCard?.source === 'stock'
         if (cardBackAdvertiser?.card_type === 'uploaded' && cardBackAdvertiser?.image_url) {
             return (
-                <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg overflow-hidden border-2 border-blue-400 bg-gray-800`}>
+                <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg overflow-hidden border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} bg-gray-800`}>
                     <img src={cardBackAdvertiser.image_url} alt="Sponsor" className="w-full h-full object-contain" />
                 </div>
             )
         } else if (cardBackAdvertiser) {
             return (
                 <div
-                    className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg border-2 border-blue-400 flex items-center justify-center p-1`}
+                    className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center p-1`}
                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                 >
                     <span className="text-center font-bold text-[8px] sm:text-[10px]" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>
@@ -749,28 +1052,33 @@ export default function SolitairePage() {
             )
         }
         return (
-            <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} bg-blue-600 rounded-md shadow-lg border-2 border-blue-400 flex items-center justify-center`}>
+            <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} bg-blue-600 rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center`}>
                 <div className="w-8 h-12 sm:w-10 sm:h-14 border-2 border-blue-300 rounded opacity-50"></div>
             </div>
         )
     }
 
     // Card face component
-    const CardFace = ({ card, selected = false, small = false, onClick }) => {
+    const CardFace = ({ card, selected = false, hinted = false, small = false, onClick, onDoubleClick }) => {
         const sizeClass = small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'
+        let borderClass = 'border-gray-300'
+        if (selected) borderClass = 'border-yellow-400 ring-2 ring-yellow-400'
+        else if (hinted) borderClass = 'border-green-400 ring-2 ring-green-400'
+
         return (
             <div
                 onClick={onClick}
-                className={`${sizeClass} bg-white rounded-md shadow-lg border-2 ${selected ? 'border-yellow-400 ring-2 ring-yellow-400' : 'border-gray-300'} flex flex-col items-center justify-between p-1 cursor-pointer hover:border-blue-400 transition-all`}
+                onDoubleClick={onDoubleClick}
+                className={`${sizeClass} bg-white rounded-md shadow-lg border-2 ${borderClass} flex flex-col items-center justify-between p-0.5 cursor-pointer hover:border-blue-400 transition-all overflow-hidden flex-shrink-0`}
             >
-                <div className={`self-start ${SUIT_COLORS[card.suit]} ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} font-bold leading-none`}>
+                <div className={`self-start ${SUIT_COLORS[card.suit]} ${small ? 'text-[8px]' : 'text-[10px] sm:text-xs'} font-bold leading-tight flex-shrink-0`}>
                     {card.value}
                     <span className="block">{SUIT_SYMBOLS[card.suit]}</span>
                 </div>
-                <div className={`${SUIT_COLORS[card.suit]} ${small ? 'text-lg' : 'text-2xl sm:text-3xl'}`}>
+                <div className={`${SUIT_COLORS[card.suit]} ${small ? 'text-base' : 'text-xl sm:text-2xl'} flex-shrink-0`}>
                     {SUIT_SYMBOLS[card.suit]}
                 </div>
-                <div className={`self-end ${SUIT_COLORS[card.suit]} ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} font-bold leading-none rotate-180`}>
+                <div className={`self-end ${SUIT_COLORS[card.suit]} ${small ? 'text-[8px]' : 'text-[10px] sm:text-xs'} font-bold leading-tight rotate-180 flex-shrink-0`}>
                     {card.value}
                     <span className="block">{SUIT_SYMBOLS[card.suit]}</span>
                 </div>
@@ -779,10 +1087,10 @@ export default function SolitairePage() {
     }
 
     // Empty pile placeholder
-    const EmptyPile = ({ onClick, label }) => (
+    const EmptyPile = ({ onClick, label, hinted = false }) => (
         <div
             onClick={onClick}
-            className="w-14 h-20 sm:w-16 sm:h-24 border-2 border-dashed border-green-500 rounded-md flex items-center justify-center cursor-pointer hover:border-green-400 transition-all"
+            className={`w-14 h-20 sm:w-16 sm:h-24 border-2 border-dashed ${hinted ? 'border-green-400 ring-2 ring-green-400' : 'border-green-500'} rounded-md flex items-center justify-center cursor-pointer hover:border-green-400 transition-all`}
         >
             <span className="text-green-500 text-xs">{label}</span>
         </div>
@@ -952,12 +1260,21 @@ export default function SolitairePage() {
                             </div>
                         )}
 
-                        <div className="flex gap-3 justify-center">
+                        <div className="flex gap-3 justify-center flex-wrap">
                             <button
-                                onClick={startGame}
+                                onClick={async () => {
+                                    await refreshAds()
+                                    startGame(drawCount)
+                                }}
                                 className="px-6 py-3 bg-yellow-400 text-green-900 font-bold rounded-lg hover:bg-yellow-300 transition-all"
                             >
                                 Play Again
+                            </button>
+                            <button
+                                onClick={startNewGame}
+                                className="px-6 py-3 bg-white/20 text-white font-bold rounded-lg hover:bg-white/30 transition-all"
+                            >
+                                New Game
                             </button>
                             <button
                                 onClick={() => {
@@ -1050,15 +1367,26 @@ export default function SolitairePage() {
                         <div className="text-center py-8">
                             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">🃏 Solitaire</h1>
                             <p className="text-green-200 mb-6">Classic Klondike - Stack cards, clear the board!</p>
-                            <button
-                                onClick={startGame}
-                                className="px-8 py-4 bg-yellow-500 text-green-900 text-lg font-bold rounded-xl hover:bg-yellow-400 transition-all shadow-lg"
-                            >
-                                Deal Cards
-                            </button>
+
+                            <div className="flex gap-4 justify-center flex-wrap">
+                                <button
+                                    onClick={() => startGame(1)}
+                                    className="px-8 py-4 bg-yellow-500 text-green-900 text-lg font-bold rounded-xl hover:bg-yellow-400 transition-all shadow-lg"
+                                >
+                                    Draw 1
+                                    <span className="block text-sm font-normal">(Easier)</span>
+                                </button>
+                                <button
+                                    onClick={() => startGame(3)}
+                                    className="px-8 py-4 bg-orange-500 text-white text-lg font-bold rounded-xl hover:bg-orange-400 transition-all shadow-lg"
+                                >
+                                    Draw 3
+                                    <span className="block text-sm font-normal">(Classic)</span>
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Display Ads - Pre-game: 8 on desktop, 4 on mobile */}
+                        {/* Display Ads - Pre-game: up to 8 on desktop, 4 on mobile, centered */}
                         {displayAds.length > 0 && (
                             <div className="mt-8 mb-4">
                                 <p className="text-green-300 text-xs text-center mb-3">Our Sponsors</p>
@@ -1088,18 +1416,56 @@ export default function SolitairePage() {
                     <>
                         {/* Stats Bar */}
                         <div className="bg-green-900/80 border border-green-700 rounded-lg p-2 mb-3">
-                            <div className="flex justify-between items-center text-xs sm:text-sm">
-                                <span className="text-white"><span className="text-green-300">Moves:</span> {moves}</span>
-                                <span className="text-white"><span className="text-green-300">Time:</span> {formatTime(elapsedTime)}</span>
-                                <span className="text-white"><span className="text-green-300">Score:</span> {Math.max(0, 10000 - (moves * 10) - (elapsedTime * 2))}</span>
-                                <button
-                                    onClick={playAgain}
-                                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-all text-xs"
-                                >
-                                    Quit
-                                </button>
+                            <div className="flex justify-between items-center text-xs sm:text-sm flex-wrap gap-2">
+                                <div className="flex gap-3">
+                                    <span className="text-white"><span className="text-green-300">Moves:</span> {moves}</span>
+                                    <span className="text-white"><span className="text-green-300">Time:</span> {formatTime(elapsedTime)}</span>
+                                    <span className="text-white"><span className="text-green-300">Score:</span> {Math.max(0, 10000 - (moves * 10) - (elapsedTime * 2))}</span>
+                                </div>
+                                <div className="flex gap-1 sm:gap-2">
+                                    <button
+                                        onClick={undoMove}
+                                        disabled={moveHistory.length === 0}
+                                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${moveHistory.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                                    >
+                                        ↩ Undo
+                                    </button>
+                                    <button
+                                        onClick={findHint}
+                                        className="px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 transition-all text-xs font-medium"
+                                    >
+                                        💡 Hint
+                                    </button>
+                                    {canAutoComplete() && (
+                                        <button
+                                            onClick={() => setAutoCompleting(true)}
+                                            className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-500 transition-all text-xs font-medium animate-pulse"
+                                        >
+                                            ✨ Auto
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={startNewGame}
+                                        className="px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-500 transition-all text-xs font-medium"
+                                    >
+                                        New
+                                    </button>
+                                    <button
+                                        onClick={playAgain}
+                                        className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-all text-xs font-medium"
+                                    >
+                                        Quit
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Hint message */}
+                        {hintTarget?.type === 'draw' && (
+                            <div className="bg-purple-600/80 text-white text-center py-2 rounded-lg mb-3 text-sm">
+                                💡 No moves available - try drawing from the stock pile
+                            </div>
+                        )}
 
                         {/* Top Row: Stock, Waste, Foundations */}
                         <div className="flex justify-between items-start mb-4 gap-2">
@@ -1122,7 +1488,9 @@ export default function SolitairePage() {
                                         <CardFace
                                             card={waste[waste.length - 1]}
                                             selected={isSelected(waste[waste.length - 1], 'waste', 0, waste.length - 1)}
+                                            hinted={isHinted(waste[waste.length - 1], 'waste', 0)}
                                             onClick={() => handleCardClick(waste[waste.length - 1], 'waste', 0, waste.length - 1)}
+                                            onDoubleClick={() => handleCardDoubleClick(waste[waste.length - 1], 'waste', 0, waste.length - 1)}
                                         />
                                     ) : (
                                         <EmptyPile onClick={() => { }} label="" />
@@ -1138,10 +1506,16 @@ export default function SolitairePage() {
                                             <CardFace
                                                 card={foundation[foundation.length - 1]}
                                                 selected={isSelected(foundation[foundation.length - 1], 'foundation', i, foundation.length - 1)}
+                                                hinted={false}
                                                 onClick={() => handleCardClick(foundation[foundation.length - 1], 'foundation', i, foundation.length - 1)}
+                                                onDoubleClick={() => { }}
                                             />
                                         ) : (
-                                            <EmptyPile onClick={() => handleEmptyFoundationClick(i)} label={SUIT_SYMBOLS[SUITS[i]]} />
+                                            <EmptyPile
+                                                onClick={() => handleEmptyFoundationClick(i)}
+                                                label={SUIT_SYMBOLS[SUITS[i]]}
+                                                hinted={isHintTarget('foundation', i)}
+                                            />
                                         )}
                                     </div>
                                 ))}
@@ -1153,7 +1527,11 @@ export default function SolitairePage() {
                             {tableau.map((pile, pileIndex) => (
                                 <div key={pileIndex} className="flex flex-col items-center min-h-[200px]">
                                     {pile.length === 0 ? (
-                                        <EmptyPile onClick={() => handleEmptyTableauClick(pileIndex)} label="K" />
+                                        <EmptyPile
+                                            onClick={() => handleEmptyTableauClick(pileIndex)}
+                                            label="K"
+                                            hinted={isHintTarget('tableau', pileIndex)}
+                                        />
                                     ) : (
                                         pile.map((card, cardIndex) => (
                                             <div
@@ -1165,7 +1543,9 @@ export default function SolitairePage() {
                                                     <CardFace
                                                         card={card}
                                                         selected={isSelected(card, 'tableau', pileIndex, cardIndex)}
+                                                        hinted={isHinted(card, 'tableau', pileIndex)}
                                                         onClick={() => handleCardClick(card, 'tableau', pileIndex, cardIndex)}
+                                                        onDoubleClick={() => handleCardDoubleClick(card, 'tableau', pileIndex, cardIndex)}
                                                     />
                                                 ) : (
                                                     <div onClick={() => handleCardClick(card, 'tableau', pileIndex, cardIndex)}>
@@ -1181,7 +1561,7 @@ export default function SolitairePage() {
 
                         {/* Instructions */}
                         <div className="mt-4 text-center text-green-300 text-xs">
-                            <p>Click to select cards, then click destination to move. Click stock to draw.</p>
+                            <p>Click to select, click destination to move. Double-click to send to foundation.</p>
                         </div>
 
                         {/* Display Ads - Desktop only during gameplay: up to 8 ads, centered */}

@@ -9,7 +9,8 @@ import Tooltip from '@/components/Tooltip'
 const GAMES = [
     { key: 'slots', label: '🎰 Slots', color: 'purple' },
     { key: 'match_easy', label: '🎮 Match Easy Card Game', color: 'green' },
-    { key: 'match_challenge', label: '🎮 Match Challenge Card Game', color: 'blue' }
+    { key: 'match_challenge', label: '🎮 Match Challenge Card Game', color: 'blue' },
+    { key: 'solitaire', label: '🃏 Solitaire', color: 'emerald' }
 ]
 
 // ===== DEFAULT DAILY REWARDS =====
