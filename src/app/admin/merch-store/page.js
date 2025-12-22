@@ -494,6 +494,32 @@ export default function MerchStoreAdminPage() {
                                     </label>
                                 </div>
                             </div>
+                            {/* Digital Item Markup Warning */}
+                            {newItem.item_type === 'digital_gift_card' && (
+                                parseFloat(newItem.markup_multiplier || settings.merch_global_markup) > 1
+                            ) && (
+                                    <div className="mb-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-yellow-400 text-lg">⚠️</span>
+                                            <div>
+                                                <p className="text-yellow-400 font-medium text-sm">Digital Item Markup Warning</p>
+                                                <p className="text-yellow-200/80 text-xs mt-1">
+                                                    This is a digital gift card with a <strong>{parseFloat(newItem.markup_multiplier || settings.merch_global_markup)}x markup</strong>.
+                                                    {newItem.cost && (
+                                                        <> A ${parseFloat(newItem.cost).toFixed(2)} card will cost customers <strong>🪙 {calculateTokenPrice(parseFloat(newItem.cost), parseFloat(newItem.markup_multiplier) || settings.merch_global_markup)}</strong> tokens.</>
+                                                    )}
+                                                </p>
+                                                <p className="text-yellow-200/80 text-xs mt-1">
+                                                    <strong>Problem:</strong> Customers can see the face value on the card. A $25 card priced at 75 tokens may feel unfair.
+                                                </p>
+                                                <p className="text-yellow-200/80 text-xs mt-1">
+                                                    <strong>Suggestion:</strong> Use 1x markup for digital items, or set a custom token price equal to the face value.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                             <div className="mb-3">
                                 <label className="text-slate-400 text-xs block mb-1">Description</label>
                                 <textarea
