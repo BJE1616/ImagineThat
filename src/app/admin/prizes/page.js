@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import Tooltip from '@/components/Tooltip'
 
 // ===== GAME DEFINITIONS =====
 const GAMES = [
@@ -21,6 +22,49 @@ const DEFAULT_DAILY_REWARDS = {
     third_entries: 5,
     min_plays: 3,
     is_enabled: true
+}
+
+// ===== TOOLTIP CONTENT =====
+const TIPS = {
+    // Weekly prizes
+    prize_type: "Cash = real money prize. Tokens = in-game currency. Merch = physical item. Custom = describe your own prize.",
+    number_of_winners: "How many players win each week. Each winner gets their own prize amount.",
+    prize_amount: "The prize value for each winner position. 1st place is typically highest.",
+    announcement_text: "Optional message shown to players about this week's prize. Use for hype or special announcements.",
+
+    // Daily rewards
+    tokens: "Bonus tokens awarded to daily leaderboard winners. Added to their balance automatically at midnight.",
+    entries: "Drawing entries awarded to daily leaderboard winners. More entries = better chance in weekly drawing.",
+    min_plays: "Players must complete this many plays to qualify for daily rewards. Prevents gaming the system.",
+
+    // Queue
+    queue_week: "Click any week to set or edit its prize. Red = no prize set. Green = prize configured. Blue = recurring prize."
+}
+
+// ===== WARNING THRESHOLDS FOR DAILY REWARDS =====
+const getDailyWarnings = (reward) => {
+    const warnings = []
+
+    if (reward.first_tokens < reward.second_tokens) {
+        warnings.push({ message: '1st place tokens should be higher than 2nd place' })
+    }
+    if (reward.second_tokens < reward.third_tokens) {
+        warnings.push({ message: '2nd place tokens should be higher than 3rd place' })
+    }
+    if (reward.first_entries < reward.second_entries) {
+        warnings.push({ message: '1st place entries should be higher than 2nd place' })
+    }
+    if (reward.second_entries < reward.third_entries) {
+        warnings.push({ message: '2nd place entries should be higher than 3rd place' })
+    }
+    if (reward.min_plays === 0) {
+        warnings.push({ message: 'Min plays is 0 — players can win without playing' })
+    }
+    if (reward.first_tokens > 500) {
+        warnings.push({ message: 'High 1st place tokens could cause inflation' })
+    }
+
+    return warnings
 }
 
 export default function AdminPrizesPage() {
@@ -153,7 +197,6 @@ export default function AdminPrizesPage() {
                 .select('*')
 
             if (error && error.code === '42P01') {
-                // Table doesn't exist yet - we'll create it
                 console.log('daily_leaderboard_config table not found - using defaults')
                 const defaults = {}
                 GAMES.forEach(game => {
@@ -245,7 +288,6 @@ export default function AdminPrizesPage() {
     const loadQueueData = async () => {
         setQueueLoading(true)
         try {
-            // Get next 8 weeks of prizes for all games
             const weeks = []
             for (let i = 0; i < 8; i++) {
                 weeks.push(getWeekStart(i))
@@ -259,7 +301,6 @@ export default function AdminPrizesPage() {
 
             if (error) throw error
 
-            // Organize by game and week
             const organized = {}
             GAMES.forEach(game => {
                 organized[game.key] = {}
@@ -271,7 +312,6 @@ export default function AdminPrizesPage() {
 
             setQueueData(organized)
 
-            // Calculate warnings
             const warnings = []
             GAMES.forEach(game => {
                 weeks.slice(0, 4).forEach((week, index) => {
@@ -396,7 +436,6 @@ export default function AdminPrizesPage() {
                     .update(prizeData)
                     .eq('id', currentPrize.id)
             } else {
-                // Check if exists first
                 const { data: existing } = await supabase
                     .from('weekly_prizes')
                     .select('id')
@@ -416,7 +455,6 @@ export default function AdminPrizesPage() {
                 }
             }
 
-            // If recurring, copy to future weeks
             if (isRecurring) {
                 for (let i = 1; i <= 4; i++) {
                     const futureWeek = getWeekStart(i)
@@ -429,7 +467,6 @@ export default function AdminPrizesPage() {
                         .eq('game_type', targetGame)
                         .maybeSingle()
 
-                    // Only overwrite if empty or also recurring
                     if (!futureExisting || futureExisting.is_recurring) {
                         const futureData = {
                             ...prizeData,
@@ -576,7 +613,9 @@ export default function AdminPrizesPage() {
 
                         {/* Prize Type */}
                         <div className="mb-3">
-                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Prize Type</label>
+                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
+                                <Tooltip text={TIPS.prize_type}>Prize Type</Tooltip>
+                            </label>
                             <div className="flex gap-1 flex-wrap">
                                 {[
                                     { key: 'cash', label: '💵 Cash' },
@@ -622,7 +661,9 @@ export default function AdminPrizesPage() {
 
                         {/* Number of Winners */}
                         <div className="mb-3">
-                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Number of Winners</label>
+                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
+                                <Tooltip text={TIPS.number_of_winners}>Number of Winners</Tooltip>
+                            </label>
                             <div className="flex gap-1 flex-wrap">
                                 {[1, 2, 3, 5, 10].map(num => (
                                     <button
@@ -642,7 +683,9 @@ export default function AdminPrizesPage() {
                         {/* Prize Amounts */}
                         <div className="mb-3">
                             <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
-                                {prizeType === 'cash' ? 'Prize Amounts' : prizeType === 'tokens' ? 'Token Amounts' : 'Prize Details'}
+                                <Tooltip text={TIPS.prize_amount}>
+                                    {prizeType === 'cash' ? 'Prize Amounts' : prizeType === 'tokens' ? 'Token Amounts' : 'Prize Details'}
+                                </Tooltip>
                             </label>
                             <div className="space-y-1.5">
                                 {prizeAmounts.map((amount, index) => (
@@ -686,7 +729,9 @@ export default function AdminPrizesPage() {
 
                         {/* Announcement Text */}
                         <div className="mb-3">
-                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Announcement Text (optional)</label>
+                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>
+                                <Tooltip text={TIPS.announcement_text}>Announcement Text (optional)</Tooltip>
+                            </label>
                             <textarea
                                 value={announcementText}
                                 onChange={(e) => setAnnouncementText(e.target.value)}
@@ -763,8 +808,10 @@ export default function AdminPrizesPage() {
 
                             {GAMES.map(game => {
                                 const reward = dailyRewards[game.key] || DEFAULT_DAILY_REWARDS
+                                const warnings = getDailyWarnings(reward)
+
                                 return (
-                                    <div key={game.key} className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                                    <div key={game.key} className={`bg-${currentTheme.card} border rounded p-3 mb-3 ${warnings.length > 0 ? 'border-yellow-500/50' : `border-${currentTheme.border}`}`}>
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-2">
                                                 <span className={`px-2 py-1 bg-${game.color}-500/20 text-${game.color}-400 rounded text-xs font-medium`}>
@@ -782,13 +829,27 @@ export default function AdminPrizesPage() {
                                             </label>
                                         </div>
 
+                                        {/* Warnings Banner */}
+                                        {warnings.length > 0 && (
+                                            <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                                <p className="text-yellow-400 text-xs font-medium mb-1">⚠️ Suggestions:</p>
+                                                <ul className="text-yellow-300/80 text-xs space-y-0.5">
+                                                    {warnings.map((w, i) => (
+                                                        <li key={i}>• {w.message}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                             {/* 1st Place */}
                                             <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
                                                 <p className="text-yellow-400 text-xs font-bold mb-2">🥇 1st Place</p>
                                                 <div className="space-y-1">
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Tokens</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.tokens}>Tokens</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.first_tokens}
@@ -797,7 +858,9 @@ export default function AdminPrizesPage() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Entries</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.entries}>Entries</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.first_entries}
@@ -813,7 +876,9 @@ export default function AdminPrizesPage() {
                                                 <p className="text-gray-400 text-xs font-bold mb-2">🥈 2nd Place</p>
                                                 <div className="space-y-1">
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Tokens</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.tokens}>Tokens</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.second_tokens}
@@ -822,7 +887,9 @@ export default function AdminPrizesPage() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Entries</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.entries}>Entries</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.second_entries}
@@ -838,7 +905,9 @@ export default function AdminPrizesPage() {
                                                 <p className="text-amber-600 text-xs font-bold mb-2">🥉 3rd Place</p>
                                                 <div className="space-y-1">
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Tokens</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.tokens}>Tokens</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.third_tokens}
@@ -847,7 +916,9 @@ export default function AdminPrizesPage() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>Entries</label>
+                                                        <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                            <Tooltip text={TIPS.entries}>Entries</Tooltip>
+                                                        </label>
                                                         <input
                                                             type="number"
                                                             value={reward.third_entries}
@@ -862,7 +933,9 @@ export default function AdminPrizesPage() {
                                             <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
                                                 <p className={`text-${currentTheme.text} text-xs font-bold mb-2`}>⚙️ Settings</p>
                                                 <div>
-                                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>Min Plays to Qualify</label>
+                                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                                        <Tooltip text={TIPS.min_plays}>Min Plays to Qualify</Tooltip>
+                                                    </label>
                                                     <input
                                                         type="number"
                                                         value={reward.min_plays}
@@ -927,7 +1000,10 @@ export default function AdminPrizesPage() {
 
                             {/* Schedule Grid */}
                             <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
-                                <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>📅 Prize Schedule</h2>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📅 Prize Schedule</h2>
+                                    <Tooltip text={TIPS.queue_week} iconOnly />
+                                </div>
 
                                 {GAMES.map(game => (
                                     <div key={game.key} className="mb-4">
@@ -964,12 +1040,12 @@ export default function AdminPrizesPage() {
                                                             }
                                                         }}
                                                         className={`p-2 rounded border-2 text-center transition-all ${isSelected
-                                                                ? `border-${currentTheme.accent} bg-${currentTheme.accent}/20`
-                                                                : isEmpty
-                                                                    ? `border-red-500/50 bg-red-500/10 hover:border-red-500`
-                                                                    : isRecurring
-                                                                        ? `border-blue-500/50 bg-blue-500/10 hover:border-blue-500`
-                                                                        : `border-green-500/50 bg-green-500/10 hover:border-green-500`
+                                                            ? `border-${currentTheme.accent} bg-${currentTheme.accent}/20`
+                                                            : isEmpty
+                                                                ? `border-red-500/50 bg-red-500/10 hover:border-red-500`
+                                                                : isRecurring
+                                                                    ? `border-blue-500/50 bg-blue-500/10 hover:border-blue-500`
+                                                                    : `border-green-500/50 bg-green-500/10 hover:border-green-500`
                                                             }`}
                                                     >
                                                         <p className={`text-[10px] text-${currentTheme.textMuted}`}>{formatWeekRange(weekStart)}</p>
@@ -1016,7 +1092,9 @@ export default function AdminPrizesPage() {
 
                                     {/* Prize Type */}
                                     <div className="mb-3">
-                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Prize Type</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
+                                            <Tooltip text={TIPS.prize_type}>Prize Type</Tooltip>
+                                        </label>
                                         <div className="flex gap-1 flex-wrap">
                                             {[
                                                 { key: 'cash', label: '💵 Cash' },
@@ -1062,7 +1140,9 @@ export default function AdminPrizesPage() {
 
                                     {/* Winners */}
                                     <div className="mb-3">
-                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Winners</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
+                                            <Tooltip text={TIPS.number_of_winners}>Winners</Tooltip>
+                                        </label>
                                         <div className="flex gap-1 flex-wrap">
                                             {[1, 2, 3, 5, 10].map(num => (
                                                 <button
@@ -1079,7 +1159,9 @@ export default function AdminPrizesPage() {
                                     {/* Amounts */}
                                     <div className="mb-3">
                                         <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
-                                            {prizeType === 'cash' ? 'Amounts' : prizeType === 'tokens' ? 'Tokens' : 'Details'}
+                                            <Tooltip text={TIPS.prize_amount}>
+                                                {prizeType === 'cash' ? 'Amounts' : prizeType === 'tokens' ? 'Tokens' : 'Details'}
+                                            </Tooltip>
                                         </label>
                                         <div className="space-y-1">
                                             {prizeAmounts.map((amount, index) => (
