@@ -1,0 +1,1205 @@
+'use client'
+
+import { useEffect, useState, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
+
+// Card constants
+const SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
+const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+const SUIT_SYMBOLS = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' }
+const SUIT_COLORS = { hearts: 'text-red-500', diamonds: 'text-red-500', clubs: 'text-gray-900', spades: 'text-gray-900' }
+
+// Create a standard 52-card deck
+const createDeck = () => {
+    const deck = []
+    for (const suit of SUITS) {
+        for (let i = 0; i < VALUES.length; i++) {
+            deck.push({
+                suit,
+                value: VALUES[i],
+                numericValue: i + 1,
+                faceUp: false,
+                id: `${suit}-${VALUES[i]}`
+            })
+        }
+    }
+    return deck
+}
+
+// Shuffle deck
+const shuffleDeck = (deck) => {
+    const shuffled = [...deck]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+            ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    return shuffled
+}
+
+// Check if card is red
+const isRed = (suit) => suit === 'hearts' || suit === 'diamonds'
+
+// Check if can stack on tableau (alternating colors, descending)
+const canStackOnTableau = (card, targetCard) => {
+    if (!targetCard) return card.value === 'K'
+    if (isRed(card.suit) === isRed(targetCard.suit)) return false
+    return card.numericValue === targetCard.numericValue - 1
+}
+
+// Check if can stack on foundation (same suit, ascending from A)
+const canStackOnFoundation = (card, foundationPile) => {
+    if (foundationPile.length === 0) return card.value === 'A'
+    const topCard = foundationPile[foundationPile.length - 1]
+    return card.suit === topCard.suit && card.numericValue === topCard.numericValue + 1
+}
+
+export default function SolitairePage() {
+    const router = useRouter()
+    const { currentTheme } = useTheme()
+    const [user, setUser] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [gameStarted, setGameStarted] = useState(false)
+    const [gameComplete, setGameComplete] = useState(false)
+
+    // Game state
+    const [stock, setStock] = useState([])
+    const [waste, setWaste] = useState([])
+    const [foundations, setFoundations] = useState([[], [], [], []])
+    const [tableau, setTableau] = useState([[], [], [], [], [], [], []])
+    const [moves, setMoves] = useState(0)
+    const [startTime, setStartTime] = useState(null)
+    const [elapsedTime, setElapsedTime] = useState(0)
+
+    // Selection state
+    const [selectedCards, setSelectedCards] = useState(null)
+    const [selectedFrom, setSelectedFrom] = useState(null)
+
+    // Advertiser state
+    const [cardBackAdvertiser, setCardBackAdvertiser] = useState(null)
+    const [winSponsor, setWinSponsor] = useState(null)
+    const [displayAds, setDisplayAds] = useState([])
+    const [viewingAd, setViewingAd] = useState(null)
+    const trackedCardBackView = useRef(false)
+    const trackedDisplayAdViews = useRef(new Set())
+    const [sessionId, setSessionId] = useState(null)
+
+    // Leaderboard
+    const [leaderboard, setLeaderboard] = useState([])
+    const [showLeaderboard, setShowLeaderboard] = useState(false)
+    const [weeklyPrize, setWeeklyPrize] = useState(null)
+
+    useEffect(() => {
+        checkUser()
+        loadWeeklyPrize()
+        loadCardBackAdvertiser()
+        loadWinSponsor()
+        loadDisplayAds()
+    }, [])
+
+    // Track display ad views when ads are loaded
+    useEffect(() => {
+        if (displayAds.length > 0) {
+            displayAds.forEach(ad => {
+                trackDisplayAdView(ad.user_id)
+            })
+        }
+    }, [displayAds])
+
+    useEffect(() => {
+        let interval
+        if (gameStarted && !gameComplete && startTime) {
+            interval = setInterval(() => {
+                setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
+            }, 1000)
+        }
+        return () => clearInterval(interval)
+    }, [gameStarted, gameComplete, startTime])
+
+    // Check for win
+    useEffect(() => {
+        if (gameStarted && !gameComplete) {
+            const totalInFoundations = foundations.reduce((sum, f) => sum + f.length, 0)
+            if (totalInFoundations === 52) {
+                setGameComplete(true)
+                if (user) {
+                    const finalTime = elapsedTime
+                    const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
+                    saveScore(moves, finalTime, score)
+                    completeGameSession(moves, score)
+                }
+            }
+        }
+    }, [foundations, gameStarted, gameComplete])
+
+    const checkUser = async () => {
+        try {
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            setUser(authUser)
+            await loadLeaderboard()
+        } catch (error) {
+            console.error('Error:', error)
+            await loadLeaderboard()
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const loadWeeklyPrize = async () => {
+        try {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const weekStart = new Date(today)
+            weekStart.setDate(today.getDate() - dayOfWeek)
+            weekStart.setHours(0, 0, 0, 0)
+
+            const { data } = await supabase
+                .from('weekly_prizes')
+                .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('game_type', 'solitaire')
+                .eq('is_active', true)
+                .maybeSingle()
+
+            if (data) {
+                setWeeklyPrize(data)
+            }
+        } catch (error) {
+            console.log('No prize set for this week')
+        }
+    }
+
+    const loadCardBackAdvertiser = async () => {
+        try {
+            const { data: campaigns, error } = await supabase
+                .from('ad_campaigns')
+                .select('user_id, views_guaranteed, views_from_game, views_from_flips, views_from_card_back, bonus_views')
+                .eq('status', 'active')
+
+            if (error || !campaigns || campaigns.length === 0) return
+
+            const eligibleCampaigns = campaigns.filter(c => {
+                const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
+                return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+            })
+
+            if (eligibleCampaigns.length === 0) return
+
+            const randomCampaign = eligibleCampaigns[Math.floor(Math.random() * eligibleCampaigns.length)]
+
+            const { data: cards, error: cardError } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('user_id', randomCampaign.user_id)
+
+            if (cards && cards.length > 0) {
+                setCardBackAdvertiser(cards[0])
+            }
+        } catch (error) {
+            console.log('Error loading card back advertiser')
+        }
+    }
+
+    const loadWinSponsor = async () => {
+        try {
+            const { data: campaigns, error } = await supabase
+                .from('ad_campaigns')
+                .select('user_id, views_guaranteed, views_from_game, views_from_flips, views_from_card_back, bonus_views')
+                .eq('status', 'active')
+
+            if (error || !campaigns || campaigns.length === 0) return
+
+            const eligibleCampaigns = campaigns.filter(c => {
+                const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
+                return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+            })
+
+            if (eligibleCampaigns.length === 0) return
+
+            let selectedCampaign = eligibleCampaigns[Math.floor(Math.random() * eligibleCampaigns.length)]
+
+            const { data: cards } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('user_id', selectedCampaign.user_id)
+
+            if (cards && cards.length > 0) {
+                setWinSponsor(cards[0])
+            }
+        } catch (error) {
+            console.log('Error loading win sponsor')
+        }
+    }
+
+    const loadDisplayAds = async () => {
+        try {
+            const { data: campaigns, error } = await supabase
+                .from('ad_campaigns')
+                .select('user_id, views_guaranteed, views_from_game, views_from_flips, views_from_card_back, bonus_views')
+                .eq('status', 'active')
+
+            if (error || !campaigns || campaigns.length === 0) return
+
+            const eligibleCampaigns = campaigns.filter(c => {
+                const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
+                return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+            })
+
+            if (eligibleCampaigns.length === 0) return
+
+            // Get unique user_ids and shuffle them
+            const uniqueUserIds = [...new Set(eligibleCampaigns.map(c => c.user_id))]
+            const shuffledUserIds = uniqueUserIds.sort(() => Math.random() - 0.5)
+
+            // Take up to 8 advertisers
+            const selectedUserIds = shuffledUserIds.slice(0, 8)
+
+            // Get business cards for these advertisers
+            const { data: cards } = await supabase
+                .from('business_cards')
+                .select('*')
+                .in('user_id', selectedUserIds)
+
+            if (cards && cards.length > 0) {
+                // Get one card per user
+                const uniqueCards = []
+                const seenUsers = new Set()
+                for (const card of cards) {
+                    if (!seenUsers.has(card.user_id)) {
+                        uniqueCards.push(card)
+                        seenUsers.add(card.user_id)
+                    }
+                }
+                setDisplayAds(uniqueCards.slice(0, 8))
+            }
+        } catch (error) {
+            console.log('Error loading display ads')
+        }
+    }
+
+    const trackDisplayAdView = async (cardUserId) => {
+        if (!cardUserId || trackedDisplayAdViews.current.has(cardUserId)) return
+        trackedDisplayAdViews.current.add(cardUserId)
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_game')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_game: (campaigns[0].views_from_game || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaigns[0].id)
+            }
+        } catch (error) {
+            console.log('Error tracking display ad view')
+        }
+    }
+
+    const trackCardBackView = async (cardUserId, viewCount = 1) => {
+        if (!cardUserId || trackedCardBackView.current) return
+        trackedCardBackView.current = true
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_card_back')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                const campaign = campaigns[0]
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_card_back: (campaign.views_from_card_back || 0) + viewCount,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaign.id)
+            }
+        } catch (error) {
+            console.log('Error tracking card back view')
+        }
+    }
+
+    const trackWinSponsorView = async (cardUserId) => {
+        if (!cardUserId) return
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_game')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_game: (campaigns[0].views_from_game || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaigns[0].id)
+            }
+        } catch (error) {
+            console.log('Error tracking win sponsor view')
+        }
+    }
+
+    const trackSponsorClick = async (cardUserId) => {
+        if (!cardUserId) return
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_clicks')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_clicks: (campaigns[0].views_from_clicks || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaigns[0].id)
+            }
+        } catch (error) {
+            console.log('Error tracking sponsor click')
+        }
+    }
+
+    const loadLeaderboard = async () => {
+        try {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const weekStart = new Date(today)
+            weekStart.setDate(today.getDate() - dayOfWeek)
+            weekStart.setHours(0, 0, 0, 0)
+
+            const { data, error } = await supabase
+                .from('leaderboard')
+                .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('game_mode', 'solitaire')
+                .order('score', { ascending: false })
+                .limit(10)
+
+            if (error) throw error
+
+            const userIds = data.map(entry => entry.user_id)
+            let usersData = []
+            if (userIds.length > 0) {
+                const { data: users } = await supabase
+                    .from('users')
+                    .select('id, username')
+                    .in('id', userIds)
+                if (users) usersData = users
+            }
+
+            const leaderboardWithUsers = data.map(entry => ({
+                ...entry,
+                users: usersData.find(u => u.id === entry.user_id) || { username: 'Unknown' }
+            }))
+
+            setLeaderboard(leaderboardWithUsers)
+        } catch (error) {
+            console.error('Error loading leaderboard:', error)
+        }
+    }
+
+    const getDeviceType = () => {
+        if (typeof window !== 'undefined') {
+            return window.innerWidth < 768 ? 'mobile' : 'desktop'
+        }
+        return 'unknown'
+    }
+
+    const createGameSession = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('game_sessions')
+                .insert([{
+                    user_id: user?.id || null,
+                    game_mode: 'solitaire',
+                    started_at: new Date().toISOString(),
+                    device_type: getDeviceType()
+                }])
+                .select()
+                .maybeSingle()
+
+            if (!error && data) {
+                setSessionId(data.id)
+            }
+        } catch (error) {
+            console.error('Error creating game session:', error)
+        }
+    }
+
+    const completeGameSession = async (finalMoves, finalScore) => {
+        if (!sessionId) return
+
+        try {
+            await supabase
+                .from('game_sessions')
+                .update({
+                    completed_at: new Date().toISOString(),
+                    moves: finalMoves,
+                    score: finalScore
+                })
+                .eq('id', sessionId)
+        } catch (error) {
+            console.error('Error completing game session:', error)
+        }
+    }
+
+    const saveScore = async (finalMoves, finalTime, finalScore) => {
+        if (!user) return
+
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - dayOfWeek)
+        weekStart.setHours(0, 0, 0, 0)
+
+        try {
+            const { error } = await supabase
+                .from('leaderboard')
+                .insert([{
+                    user_id: user.id,
+                    game_mode: 'solitaire',
+                    moves: finalMoves,
+                    time_seconds: finalTime,
+                    score: finalScore,
+                    week_start: weekStart.toISOString().split('T')[0]
+                }])
+
+            if (error) throw error
+            await loadLeaderboard()
+        } catch (error) {
+            console.error('Error saving score:', error)
+        }
+    }
+
+    const startGame = async () => {
+        // Track card back views (52 cards face down initially, minus 7 face up = 45)
+        if (cardBackAdvertiser) {
+            trackCardBackView(cardBackAdvertiser.user_id, 45)
+        }
+
+        const deck = shuffleDeck(createDeck())
+
+        // Deal tableau
+        const newTableau = [[], [], [], [], [], [], []]
+        let cardIndex = 0
+        for (let col = 0; col < 7; col++) {
+            for (let row = col; row < 7; row++) {
+                const card = { ...deck[cardIndex], faceUp: row === col }
+                newTableau[row].push(card)
+                cardIndex++
+            }
+        }
+
+        // Remaining cards go to stock
+        const newStock = deck.slice(cardIndex).map(card => ({ ...card, faceUp: false }))
+
+        setTableau(newTableau)
+        setStock(newStock)
+        setWaste([])
+        setFoundations([[], [], [], []])
+        setMoves(0)
+        setStartTime(Date.now())
+        setElapsedTime(0)
+        setGameStarted(true)
+        setGameComplete(false)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+        trackedCardBackView.current = false
+
+        await createGameSession()
+    }
+
+    const drawFromStock = () => {
+        if (stock.length === 0) {
+            // Reset stock from waste
+            if (waste.length > 0) {
+                setStock(waste.map(card => ({ ...card, faceUp: false })).reverse())
+                setWaste([])
+                setMoves(m => m + 1)
+            }
+            return
+        }
+
+        const card = { ...stock[stock.length - 1], faceUp: true }
+        setStock(stock.slice(0, -1))
+        setWaste([...waste, card])
+        setMoves(m => m + 1)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+    }
+
+    const handleCardClick = (card, source, pileIndex, cardIndex) => {
+        if (!card.faceUp) {
+            // Flip face-down card if it's the top of a tableau pile
+            if (source === 'tableau') {
+                const pile = tableau[pileIndex]
+                if (cardIndex === pile.length - 1) {
+                    const newTableau = [...tableau]
+                    newTableau[pileIndex] = [...pile]
+                    newTableau[pileIndex][cardIndex] = { ...card, faceUp: true }
+                    setTableau(newTableau)
+                }
+            }
+            return
+        }
+
+        // If clicking on already selected cards, deselect
+        if (selectedFrom && selectedFrom.source === source && selectedFrom.pileIndex === pileIndex) {
+            setSelectedCards(null)
+            setSelectedFrom(null)
+            return
+        }
+
+        // If we have a selection, try to move
+        if (selectedCards && selectedFrom) {
+            let moved = false
+
+            if (source === 'tableau') {
+                const targetPile = tableau[pileIndex]
+                const topCard = targetPile.length > 0 ? targetPile[targetPile.length - 1] : null
+
+                if (canStackOnTableau(selectedCards[0], topCard)) {
+                    moveCards(pileIndex)
+                    moved = true
+                }
+            } else if (source === 'foundation' && selectedCards.length === 1) {
+                if (canStackOnFoundation(selectedCards[0], foundations[pileIndex])) {
+                    moveToFoundation(pileIndex)
+                    moved = true
+                }
+            }
+
+            if (!moved) {
+                // Select new cards instead
+                selectCards(card, source, pileIndex, cardIndex)
+            }
+        } else {
+            // Select cards
+            selectCards(card, source, pileIndex, cardIndex)
+        }
+    }
+
+    const selectCards = (card, source, pileIndex, cardIndex) => {
+        if (source === 'waste') {
+            setSelectedCards([card])
+            setSelectedFrom({ source, pileIndex: 0, cardIndex: waste.length - 1 })
+        } else if (source === 'tableau') {
+            const pile = tableau[pileIndex]
+            const cardsToSelect = pile.slice(cardIndex)
+            setSelectedCards(cardsToSelect)
+            setSelectedFrom({ source, pileIndex, cardIndex })
+        } else if (source === 'foundation') {
+            const pile = foundations[pileIndex]
+            if (pile.length > 0) {
+                setSelectedCards([pile[pile.length - 1]])
+                setSelectedFrom({ source, pileIndex, cardIndex: pile.length - 1 })
+            }
+        }
+    }
+
+    const handleEmptyTableauClick = (pileIndex) => {
+        if (selectedCards && selectedCards[0].value === 'K') {
+            moveCards(pileIndex)
+        }
+    }
+
+    const handleEmptyFoundationClick = (pileIndex) => {
+        if (selectedCards && selectedCards.length === 1 && selectedCards[0].value === 'A') {
+            moveToFoundation(pileIndex)
+        }
+    }
+
+    const moveCards = (targetPileIndex) => {
+        if (!selectedCards || !selectedFrom) return
+
+        const newTableau = [...tableau.map(p => [...p])]
+        const newWaste = [...waste]
+        const newFoundations = [...foundations.map(f => [...f])]
+
+        // Remove cards from source
+        if (selectedFrom.source === 'waste') {
+            newWaste.pop()
+            setWaste(newWaste)
+        } else if (selectedFrom.source === 'tableau') {
+            newTableau[selectedFrom.pileIndex] = newTableau[selectedFrom.pileIndex].slice(0, selectedFrom.cardIndex)
+        } else if (selectedFrom.source === 'foundation') {
+            newFoundations[selectedFrom.pileIndex].pop()
+            setFoundations(newFoundations)
+        }
+
+        // Add cards to target tableau
+        newTableau[targetPileIndex] = [...newTableau[targetPileIndex], ...selectedCards]
+
+        setTableau(newTableau)
+        setMoves(m => m + 1)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+    }
+
+    const moveToFoundation = (foundationIndex) => {
+        if (!selectedCards || selectedCards.length !== 1 || !selectedFrom) return
+
+        const card = selectedCards[0]
+        const newFoundations = [...foundations.map(f => [...f])]
+        const newTableau = [...tableau.map(p => [...p])]
+        const newWaste = [...waste]
+
+        // Remove from source
+        if (selectedFrom.source === 'waste') {
+            newWaste.pop()
+            setWaste(newWaste)
+        } else if (selectedFrom.source === 'tableau') {
+            newTableau[selectedFrom.pileIndex] = newTableau[selectedFrom.pileIndex].slice(0, selectedFrom.cardIndex)
+            setTableau(newTableau)
+        }
+
+        // Add to foundation
+        newFoundations[foundationIndex] = [...newFoundations[foundationIndex], card]
+
+        setFoundations(newFoundations)
+        setMoves(m => m + 1)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+    }
+
+    const handleFoundationClick = (foundationIndex) => {
+        if (!selectedCards || selectedCards.length !== 1) return
+
+        const card = selectedCards[0]
+        if (canStackOnFoundation(card, foundations[foundationIndex])) {
+            moveToFoundation(foundationIndex)
+        }
+    }
+
+    const isSelected = (card, source, pileIndex, cardIndex) => {
+        if (!selectedFrom || selectedFrom.source !== source) return false
+        if (selectedFrom.pileIndex !== pileIndex) return false
+        if (source === 'tableau') {
+            return cardIndex >= selectedFrom.cardIndex
+        }
+        return cardIndex === selectedFrom.cardIndex
+    }
+
+    const playAgain = () => {
+        setGameStarted(false)
+        setGameComplete(false)
+        setMoves(0)
+        setStock([])
+        setWaste([])
+        setFoundations([[], [], [], []])
+        setTableau([[], [], [], [], [], [], []])
+        setStartTime(null)
+        setElapsedTime(0)
+        setSelectedCards(null)
+        setSelectedFrom(null)
+    }
+
+    const getOrdinal = (n) => {
+        const s = ['th', 'st', 'nd', 'rd']
+        const v = n % 100
+        return n + (s[(v - 20) % 10] || s[v] || s[0])
+    }
+
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
+
+    // Card back component
+    const CardBack = ({ small = false }) => {
+        if (cardBackAdvertiser?.card_type === 'uploaded' && cardBackAdvertiser?.image_url) {
+            return (
+                <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg overflow-hidden border-2 border-blue-400 bg-gray-800`}>
+                    <img src={cardBackAdvertiser.image_url} alt="Sponsor" className="w-full h-full object-contain" />
+                </div>
+            )
+        } else if (cardBackAdvertiser) {
+            return (
+                <div
+                    className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg border-2 border-blue-400 flex items-center justify-center p-1`}
+                    style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
+                >
+                    <span className="text-center font-bold text-[8px] sm:text-[10px]" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>
+                        {cardBackAdvertiser.title}
+                    </span>
+                </div>
+            )
+        }
+        return (
+            <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} bg-blue-600 rounded-md shadow-lg border-2 border-blue-400 flex items-center justify-center`}>
+                <div className="w-8 h-12 sm:w-10 sm:h-14 border-2 border-blue-300 rounded opacity-50"></div>
+            </div>
+        )
+    }
+
+    // Card face component
+    const CardFace = ({ card, selected = false, small = false, onClick }) => {
+        const sizeClass = small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'
+        return (
+            <div
+                onClick={onClick}
+                className={`${sizeClass} bg-white rounded-md shadow-lg border-2 ${selected ? 'border-yellow-400 ring-2 ring-yellow-400' : 'border-gray-300'} flex flex-col items-center justify-between p-1 cursor-pointer hover:border-blue-400 transition-all`}
+            >
+                <div className={`self-start ${SUIT_COLORS[card.suit]} ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} font-bold leading-none`}>
+                    {card.value}
+                    <span className="block">{SUIT_SYMBOLS[card.suit]}</span>
+                </div>
+                <div className={`${SUIT_COLORS[card.suit]} ${small ? 'text-lg' : 'text-2xl sm:text-3xl'}`}>
+                    {SUIT_SYMBOLS[card.suit]}
+                </div>
+                <div className={`self-end ${SUIT_COLORS[card.suit]} ${small ? 'text-[10px]' : 'text-xs sm:text-sm'} font-bold leading-none rotate-180`}>
+                    {card.value}
+                    <span className="block">{SUIT_SYMBOLS[card.suit]}</span>
+                </div>
+            </div>
+        )
+    }
+
+    // Empty pile placeholder
+    const EmptyPile = ({ onClick, label }) => (
+        <div
+            onClick={onClick}
+            className="w-14 h-20 sm:w-16 sm:h-24 border-2 border-dashed border-green-500 rounded-md flex items-center justify-center cursor-pointer hover:border-green-400 transition-all"
+        >
+            <span className="text-green-500 text-xs">{label}</span>
+        </div>
+    )
+
+    // Small Display Ad component with eyeball
+    const DisplayAdSmall = ({ ad }) => {
+        if (!ad) return null
+
+        const handleExpand = (e) => {
+            e.stopPropagation()
+            trackSponsorClick(ad.user_id)
+            setViewingAd(ad)
+        }
+
+        if (ad.card_type === 'uploaded' && ad.image_url) {
+            return (
+                <div className="relative aspect-[4/3] rounded-lg shadow-lg overflow-hidden bg-gray-800">
+                    <img
+                        src={ad.image_url}
+                        alt={ad.title || 'Sponsor'}
+                        className="w-full h-full object-contain"
+                    />
+                    <button
+                        onClick={handleExpand}
+                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                    >
+                        👁
+                    </button>
+                </div>
+            )
+        } else {
+            return (
+                <div
+                    className="relative aspect-[4/3] rounded-lg shadow-lg flex items-center justify-center p-2"
+                    style={{ backgroundColor: ad.card_color || '#4F46E5' }}
+                >
+                    <h3 className="font-bold text-xs text-center line-clamp-2" style={{ color: ad.text_color || '#FFFFFF' }}>
+                        {ad.title}
+                    </h3>
+                    <button
+                        onClick={handleExpand}
+                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                    >
+                        👁
+                    </button>
+                </div>
+            )
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
+                <div className="flex flex-col items-center gap-4">
+                    <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} font-medium`}>Loading...</p>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className={`min-h-screen bg-green-800`}>
+            {/* Ad Expand Modal */}
+            {viewingAd && (
+                <div
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingAd(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-xl shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {viewingAd.card_type === 'uploaded' && viewingAd.image_url ? (
+                            <div className="bg-gray-800">
+                                <img src={viewingAd.image_url} alt="Card" className="w-full h-auto" />
+                                <button
+                                    onClick={() => setViewingAd(null)}
+                                    className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="p-6" style={{ backgroundColor: viewingAd.card_color || '#4F46E5' }}>
+                                <div className="text-center mb-4">
+                                    <h2 className="font-bold text-xl" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
+                                        {viewingAd.title}
+                                    </h2>
+                                </div>
+                                {viewingAd.message && (
+                                    <div className="text-center mb-4">
+                                        <p className="text-sm" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
+                                            {viewingAd.message}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="text-center space-y-1" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
+                                    {viewingAd.phone && <p className="text-sm">📞 {viewingAd.phone}</p>}
+                                    {viewingAd.email && <p className="text-sm">✉️ {viewingAd.email}</p>}
+                                </div>
+                                <button
+                                    onClick={() => setViewingAd(null)}
+                                    className="mt-4 w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Win Screen with Sponsor */}
+            {gameComplete && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div className="bg-gradient-to-b from-green-600 to-green-800 rounded-2xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-yellow-400">
+                        <h2 className="text-3xl sm:text-4xl font-bold text-yellow-400 mb-2">🎉 YOU WON! 🎉</h2>
+                        <p className="text-white text-lg mb-4">Congratulations!</p>
+
+                        <div className="bg-black/20 rounded-xl p-4 mb-4">
+                            <div className="grid grid-cols-3 gap-4 text-white">
+                                <div>
+                                    <p className="text-2xl font-bold">{moves}</p>
+                                    <p className="text-xs text-green-200">Moves</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{formatTime(elapsedTime)}</p>
+                                    <p className="text-xs text-green-200">Time</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{Math.max(0, 10000 - (moves * 10) - (elapsedTime * 2))}</p>
+                                    <p className="text-xs text-green-200">Score</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {user && (
+                            <p className="text-green-200 text-sm mb-4 animate-pulse">✓ Score saved to leaderboard!</p>
+                        )}
+
+                        {/* Win Sponsor */}
+                        {winSponsor && (
+                            <div className="mb-4">
+                                <p className="text-green-200 text-xs mb-2">This win brought to you by:</p>
+                                <div
+                                    className="cursor-pointer transform hover:scale-105 transition-transform"
+                                    onClick={() => {
+                                        trackSponsorClick(winSponsor.user_id)
+                                        trackWinSponsorView(winSponsor.user_id)
+                                    }}
+                                >
+                                    {winSponsor.card_type === 'uploaded' && winSponsor.image_url ? (
+                                        <img src={winSponsor.image_url} alt="Sponsor" className="w-full max-w-xs mx-auto rounded-lg shadow-lg" />
+                                    ) : (
+                                        <div
+                                            className="p-4 rounded-lg shadow-lg max-w-xs mx-auto"
+                                            style={{ backgroundColor: winSponsor.card_color || '#4F46E5' }}
+                                        >
+                                            <h3 className="font-bold text-lg" style={{ color: winSponsor.text_color || '#FFFFFF' }}>{winSponsor.title}</h3>
+                                            {winSponsor.message && <p className="text-sm mt-1" style={{ color: winSponsor.text_color || '#FFFFFF' }}>{winSponsor.message}</p>}
+                                            {winSponsor.phone && <p className="text-sm mt-2" style={{ color: winSponsor.text_color || '#FFFFFF' }}>📞 {winSponsor.phone}</p>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 justify-center">
+                            <button
+                                onClick={startGame}
+                                className="px-6 py-3 bg-yellow-400 text-green-900 font-bold rounded-lg hover:bg-yellow-300 transition-all"
+                            >
+                                Play Again
+                            </button>
+                            <button
+                                onClick={() => {
+                                    playAgain()
+                                    setShowLeaderboard(true)
+                                }}
+                                className="px-6 py-3 bg-white/20 text-white font-bold rounded-lg hover:bg-white/30 transition-all"
+                            >
+                                Leaderboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <main className="max-w-4xl mx-auto px-2 py-2 sm:px-4 sm:py-4">
+                {/* Weekly Prize Banner */}
+                {weeklyPrize && !gameStarted && (
+                    <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-4 mb-4 text-center shadow-lg">
+                        <p className="text-white font-bold mb-1 text-sm">🏆 This Week's Prize 🏆</p>
+                        {weeklyPrize.is_surprise ? (
+                            <p className="text-xl font-bold text-white">🎁 Surprise Prize! 🎁</p>
+                        ) : weeklyPrize.prize_type === 'cash' ? (
+                            <>
+                                <p className="text-xl font-bold text-white">${weeklyPrize.total_prize_pool}</p>
+                                <p className="text-white text-sm">
+                                    {weeklyPrize.number_of_winners === 1 ? 'Winner takes all!' : `Split among top ${weeklyPrize.number_of_winners} players`}
+                                </p>
+                            </>
+                        ) : (
+                            <p className="text-xl font-bold text-white">🎁 Special Prize!</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Pre-game Screen */}
+                {!gameStarted && (
+                    <>
+                        <div className="flex justify-center mb-4">
+                            <button
+                                onClick={() => setShowLeaderboard(!showLeaderboard)}
+                                className="px-4 py-2 bg-yellow-500 text-green-900 font-bold rounded-lg hover:bg-yellow-400 transition-all text-sm"
+                            >
+                                🏆 {showLeaderboard ? 'Hide' : 'Show'} Leaderboard
+                            </button>
+                        </div>
+
+                        {showLeaderboard && (
+                            <div className="bg-green-900/80 border border-green-700 rounded-xl p-4 mb-4">
+                                <h2 className="text-xl font-bold text-white mb-3">🃏 Solitaire Leaderboard</h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b border-green-700">
+                                                <th className="text-left py-2 text-green-300">#</th>
+                                                <th className="text-left py-2 text-green-300">Player</th>
+                                                <th className="text-left py-2 text-green-300">Moves</th>
+                                                <th className="text-left py-2 text-green-300">Time</th>
+                                                <th className="text-left py-2 text-green-300">Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {leaderboard.map((entry, index) => (
+                                                <tr key={entry.id} className="border-b border-green-700/50">
+                                                    <td className="py-2 text-white">{index + 1}</td>
+                                                    <td className="py-2 text-white">{entry.users.username}</td>
+                                                    <td className="py-2 text-green-300">{entry.moves}</td>
+                                                    <td className="py-2 text-green-300">{formatTime(entry.time_seconds)}</td>
+                                                    <td className="py-2 text-yellow-400 font-bold">{entry.score}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {leaderboard.length === 0 && (
+                                        <p className="text-center text-green-300 py-4">No scores yet!</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {!user && (
+                            <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-3 rounded-lg mb-4 text-sm text-center">
+                                <strong>Want to compete for prizes?</strong>
+                                <button onClick={() => router.push('/auth/register')} className="ml-2 underline hover:text-yellow-100">
+                                    Sign up now!
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="text-center py-8">
+                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">🃏 Solitaire</h1>
+                            <p className="text-green-200 mb-6">Classic Klondike - Stack cards, clear the board!</p>
+                            <button
+                                onClick={startGame}
+                                className="px-8 py-4 bg-yellow-500 text-green-900 text-lg font-bold rounded-xl hover:bg-yellow-400 transition-all shadow-lg"
+                            >
+                                Deal Cards
+                            </button>
+                        </div>
+
+                        {/* Display Ads - Pre-game: 8 on desktop, 4 on mobile */}
+                        {displayAds.length > 0 && (
+                            <div className="mt-8 mb-4">
+                                <p className="text-green-300 text-xs text-center mb-3">Our Sponsors</p>
+                                {/* Desktop: up to 8 ads, centered */}
+                                <div className="hidden md:flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 8).map((ad, index) => (
+                                        <div key={ad.id || index} className="w-24">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Mobile: up to 4 ads, centered */}
+                                <div className="md:hidden flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 4).map((ad, index) => (
+                                        <div key={ad.id || index} className="w-20">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Game Board */}
+                {gameStarted && !gameComplete && (
+                    <>
+                        {/* Stats Bar */}
+                        <div className="bg-green-900/80 border border-green-700 rounded-lg p-2 mb-3">
+                            <div className="flex justify-between items-center text-xs sm:text-sm">
+                                <span className="text-white"><span className="text-green-300">Moves:</span> {moves}</span>
+                                <span className="text-white"><span className="text-green-300">Time:</span> {formatTime(elapsedTime)}</span>
+                                <span className="text-white"><span className="text-green-300">Score:</span> {Math.max(0, 10000 - (moves * 10) - (elapsedTime * 2))}</span>
+                                <button
+                                    onClick={playAgain}
+                                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-all text-xs"
+                                >
+                                    Quit
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Top Row: Stock, Waste, Foundations */}
+                        <div className="flex justify-between items-start mb-4 gap-2">
+                            {/* Stock and Waste */}
+                            <div className="flex gap-2">
+                                {/* Stock */}
+                                <div onClick={drawFromStock} className="cursor-pointer">
+                                    {stock.length > 0 ? (
+                                        <CardBack />
+                                    ) : (
+                                        <div className="w-14 h-20 sm:w-16 sm:h-24 border-2 border-dashed border-green-500 rounded-md flex items-center justify-center">
+                                            <span className="text-green-400 text-2xl">↺</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Waste */}
+                                <div>
+                                    {waste.length > 0 ? (
+                                        <CardFace
+                                            card={waste[waste.length - 1]}
+                                            selected={isSelected(waste[waste.length - 1], 'waste', 0, waste.length - 1)}
+                                            onClick={() => handleCardClick(waste[waste.length - 1], 'waste', 0, waste.length - 1)}
+                                        />
+                                    ) : (
+                                        <EmptyPile onClick={() => { }} label="" />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Foundations */}
+                            <div className="flex gap-1 sm:gap-2">
+                                {foundations.map((foundation, i) => (
+                                    <div key={i} onClick={() => foundation.length === 0 ? handleEmptyFoundationClick(i) : handleFoundationClick(i)}>
+                                        {foundation.length > 0 ? (
+                                            <CardFace
+                                                card={foundation[foundation.length - 1]}
+                                                selected={isSelected(foundation[foundation.length - 1], 'foundation', i, foundation.length - 1)}
+                                                onClick={() => handleCardClick(foundation[foundation.length - 1], 'foundation', i, foundation.length - 1)}
+                                            />
+                                        ) : (
+                                            <EmptyPile onClick={() => handleEmptyFoundationClick(i)} label={SUIT_SYMBOLS[SUITS[i]]} />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Tableau - Centered */}
+                        <div className="flex gap-1 sm:gap-2 justify-center">
+                            {tableau.map((pile, pileIndex) => (
+                                <div key={pileIndex} className="flex flex-col items-center min-h-[200px]">
+                                    {pile.length === 0 ? (
+                                        <EmptyPile onClick={() => handleEmptyTableauClick(pileIndex)} label="K" />
+                                    ) : (
+                                        pile.map((card, cardIndex) => (
+                                            <div
+                                                key={card.id}
+                                                style={{ marginTop: cardIndex === 0 ? 0 : '-60px' }}
+                                                className="relative"
+                                            >
+                                                {card.faceUp ? (
+                                                    <CardFace
+                                                        card={card}
+                                                        selected={isSelected(card, 'tableau', pileIndex, cardIndex)}
+                                                        onClick={() => handleCardClick(card, 'tableau', pileIndex, cardIndex)}
+                                                    />
+                                                ) : (
+                                                    <div onClick={() => handleCardClick(card, 'tableau', pileIndex, cardIndex)}>
+                                                        <CardBack />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="mt-4 text-center text-green-300 text-xs">
+                            <p>Click to select cards, then click destination to move. Click stock to draw.</p>
+                        </div>
+
+                        {/* Display Ads - Desktop only during gameplay: up to 8 ads, centered */}
+                        {displayAds.length > 0 && (
+                            <div className="hidden md:block mt-8">
+                                <p className="text-green-300 text-xs text-center mb-3">Our Sponsors</p>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 8).map((ad, index) => (
+                                        <div key={ad.id || index} className="w-24">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </main>
+        </div>
+    )
+}

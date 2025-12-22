@@ -121,7 +121,7 @@ export default function Navbar() {
         return userData.username?.charAt(0).toUpperCase() || ''
     }
 
-    const isGamesPage = pathname === '/game' || pathname === '/slots' || pathname === '/card-gallery'
+    const isGamesPage = pathname === '/game' || pathname === '/slots' || pathname === '/card-gallery' || pathname === '/solitaire'
 
     if (pathname?.startsWith('/admin')) {
         return null
@@ -169,7 +169,7 @@ export default function Navbar() {
                             </button>
 
                             {gamesDropdownOpen && (
-                                <div className={`absolute left-0 mt-1 w-44 bg-${currentTheme.card} border border-${currentTheme.border} rounded shadow-lg py-1 z-50`}>
+                                <div className={`absolute left-0 mt-1 w-56 bg-${currentTheme.card} border border-${currentTheme.border} rounded shadow-lg py-1 z-50`}>
                                     <Link
                                         href="/game"
                                         onClick={() => setGamesDropdownOpen(false)}
@@ -178,17 +178,17 @@ export default function Navbar() {
                                             : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
                                             }`}
                                     >
-                                        🎮 Match Game
+                                        🃏 Memory Match Cards
                                     </Link>
                                     <Link
-                                        href="/card-gallery"
+                                        href="/solitaire"
                                         onClick={() => setGamesDropdownOpen(false)}
-                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/card-gallery'
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/solitaire'
                                             ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
                                             : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
                                             }`}
                                     >
-                                        🖼️ Card Gallery
+                                        🃏 Solitaire
                                     </Link>
                                     <Link
                                         href="/slots"
@@ -198,12 +198,24 @@ export default function Navbar() {
                                             : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
                                             }`}
                                     >
-                                        🎰 Slots
+                                        🎰 Slot Machine
                                         {hasUnclaimedRewards && (
                                             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500 text-white">
                                                 Reward!
                                             </span>
                                         )}
+                                    </Link>
+                                    <div className={`border-t border-${currentTheme.border} my-1`}></div>
+                                    <Link
+                                        href="/card-gallery"
+                                        onClick={() => setGamesDropdownOpen(false)}
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/card-gallery'
+                                            ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                            : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                            }`}
+                                    >
+                                        🎁 Card Gallery
+                                        <span className={`block text-xs text-green-500`}>Earn Free Tokens!</span>
                                     </Link>
                                 </div>
                             )}
@@ -335,26 +347,34 @@ export default function Navbar() {
                                 onClick={() => setMenuOpen(false)}
                                 className={`px-4 py-2 text-sm font-medium ${pathname === '/game' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
                             >
-                                🎮 Match Game
+                                🃏 Memory Match Cards
                             </Link>
                             <Link
-                                href="/card-gallery"
+                                href="/solitaire"
                                 onClick={() => setMenuOpen(false)}
-                                className={`px-4 py-2 text-sm font-medium ${pathname === '/card-gallery' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                                className={`px-4 py-2 text-sm font-medium ${pathname === '/solitaire' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
                             >
-                                🖼️ Card Gallery
+                                🃏 Solitaire
                             </Link>
                             <Link
                                 href="/slots"
                                 onClick={() => setMenuOpen(false)}
                                 className={`px-4 py-2 text-sm font-medium flex items-center ${pathname === '/slots' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
                             >
-                                🎰 Slots
+                                🎰 Slot Machine
                                 {hasUnclaimedRewards && (
                                     <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-500 text-white">
                                         Reward!
                                     </span>
                                 )}
+                            </Link>
+                            <Link
+                                href="/card-gallery"
+                                onClick={() => setMenuOpen(false)}
+                                className={`px-4 py-2 text-sm font-medium ${pathname === '/card-gallery' ? `text-${currentTheme.accentHover}` : `text-${currentTheme.textMuted}`}`}
+                            >
+                                🎁 Card Gallery
+                                <span className="text-xs text-green-500 ml-1">Earn Free Tokens!</span>
                             </Link>
 
                             <div className={`border-t border-${currentTheme.card} mt-2 pt-2`}></div>
