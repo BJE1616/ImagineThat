@@ -363,11 +363,11 @@ export default function EconomyDashboardPage() {
         const engagementRate = statsData.totalUsers > 0
             ? (statsData.usersWithBalance / statsData.totalUsers) * 100
             : 0
-        let engagementScore = Math.min(100, engagementRate * 2) // 50% engagement = 100 score
+        let engagementScore = Math.min(100, Math.round(engagementRate * 2)) // 50% engagement = 100 score
 
         factors.push({
             name: 'User Engagement',
-            score: engagementScore,
+            score: Math.round(engagementScore),
             weight: 25,
             value: `${engagementRate.toFixed(1)}%`,
             status: engagementScore >= 70 ? 'good' : engagementScore >= 40 ? 'warning' : 'critical',
