@@ -87,6 +87,13 @@ export default function SolitairePage() {
     // Auto-complete state
     const [autoCompleting, setAutoCompleting] = useState(false)
 
+    // Pause state
+    const [isPaused, setIsPaused] = useState(false)
+    const [pausedTime, setPausedTime] = useState(0)
+
+    // Restart same deal state
+    const [initialDeck, setInitialDeck] = useState(null)
+
     // Advertiser state
     const [cardBackAdvertiser, setCardBackAdvertiser] = useState(null)
     const [winSponsor, setWinSponsor] = useState(null)
@@ -96,10 +103,29 @@ export default function SolitairePage() {
     const trackedDisplayAdViews = useRef(new Set())
     const [sessionId, setSessionId] = useState(null)
 
+    // Sound refs
+    const audioContext = useRef(null)
+
+    // Double-click detection
+    const clickTimeout = useRef(null)
+
     // Leaderboard
     const [leaderboard, setLeaderboard] = useState([])
     const [showLeaderboard, setShowLeaderboard] = useState(false)
     const [weeklyPrize, setWeeklyPrize] = useState(null)
+
+    // Settings
+    const [showSettings, setShowSettings] = useState(false)
+    const [settings, setSettings] = useState({
+        soundEffects: true,
+        animations: true,
+        animationSpeed: 'normal', // 'fast', 'normal', 'slow'
+        showPauseButton: true,
+        showTimer: true
+    })
+
+    // Animation state
+    const [animatingCards, setAnimatingCards] = useState([])
 
     useEffect(() => {
         checkUser()
@@ -107,7 +133,125 @@ export default function SolitairePage() {
         loadCardBackAdvertiser()
         loadWinSponsor()
         loadDisplayAds()
+        loadSettings()
+
+        // Initialize audio context on user interaction
+        const initAudio = () => {
+            if (!audioContext.current) {
+                audioContext.current = new (window.AudioContext || window.webkitAudioContext)()
+            }
+            document.removeEventListener('click', initAudio)
+        }
+        document.addEventListener('click', initAudio)
+
+        return () => document.removeEventListener('click', initAudio)
     }, [])
+
+    // Load settings from localStorage
+    const loadSettings = () => {
+        try {
+            const saved = localStorage.getItem('solitaire-settings')
+            if (saved) {
+                setSettings(JSON.parse(saved))
+            }
+        } catch (error) {
+            console.log('Error loading settings')
+        }
+    }
+
+    // Save settings to localStorage
+    const saveSettings = (newSettings) => {
+        setSettings(newSettings)
+        try {
+            localStorage.setItem('solitaire-settings', JSON.stringify(newSettings))
+        } catch (error) {
+            console.log('Error saving settings')
+        }
+    }
+
+    // Play sound effect using Web Audio API
+    const playSound = (type) => {
+        if (!settings.soundEffects || !audioContext.current) return
+
+        try {
+            const ctx = audioContext.current
+            const oscillator = ctx.createOscillator()
+            const gainNode = ctx.createGain()
+
+            oscillator.connect(gainNode)
+            gainNode.connect(ctx.destination)
+
+            switch (type) {
+                case 'flip':
+                    oscillator.frequency.setValueAtTime(800, ctx.currentTime)
+                    oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1)
+                    gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1)
+                    oscillator.start(ctx.currentTime)
+                    oscillator.stop(ctx.currentTime + 0.1)
+                    break
+                case 'place':
+                    oscillator.frequency.setValueAtTime(300, ctx.currentTime)
+                    oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.08)
+                    gainNode.gain.setValueAtTime(0.2, ctx.currentTime)
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08)
+                    oscillator.start(ctx.currentTime)
+                    oscillator.stop(ctx.currentTime + 0.08)
+                    break
+                case 'shuffle':
+                    // Multiple quick sounds for shuffle effect
+                    for (let i = 0; i < 5; i++) {
+                        const osc = ctx.createOscillator()
+                        const gain = ctx.createGain()
+                        osc.connect(gain)
+                        gain.connect(ctx.destination)
+                        osc.frequency.setValueAtTime(200 + Math.random() * 400, ctx.currentTime + i * 0.05)
+                        gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.05)
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.05 + 0.05)
+                        osc.start(ctx.currentTime + i * 0.05)
+                        osc.stop(ctx.currentTime + i * 0.05 + 0.05)
+                    }
+                    break
+                case 'win':
+                    // Victory fanfare
+                    const notes = [523, 659, 784, 1047] // C5, E5, G5, C6
+                    notes.forEach((freq, i) => {
+                        const osc = ctx.createOscillator()
+                        const gain = ctx.createGain()
+                        osc.connect(gain)
+                        gain.connect(ctx.destination)
+                        osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15)
+                        gain.gain.setValueAtTime(0.3, ctx.currentTime + i * 0.15)
+                        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * 0.15 + 0.3)
+                        osc.start(ctx.currentTime + i * 0.15)
+                        osc.stop(ctx.currentTime + i * 0.15 + 0.3)
+                    })
+                    break
+                case 'draw':
+                    oscillator.frequency.setValueAtTime(500, ctx.currentTime)
+                    oscillator.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.05)
+                    gainNode.gain.setValueAtTime(0.2, ctx.currentTime)
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05)
+                    oscillator.start(ctx.currentTime)
+                    oscillator.stop(ctx.currentTime + 0.05)
+                    break
+                default:
+                    break
+            }
+        } catch (error) {
+            console.log('Error playing sound')
+        }
+    }
+
+    // Get animation duration based on settings
+    const getAnimationDuration = () => {
+        if (!settings.animations) return 0
+        switch (settings.animationSpeed) {
+            case 'fast': return 100
+            case 'slow': return 400
+            default: return 200
+        }
+    }
 
     // Track display ad views when ads are loaded
     useEffect(() => {
@@ -120,13 +264,13 @@ export default function SolitairePage() {
 
     useEffect(() => {
         let interval
-        if (gameStarted && !gameComplete && startTime) {
+        if (gameStarted && !gameComplete && startTime && !isPaused) {
             interval = setInterval(() => {
-                setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
+                setElapsedTime(Math.floor((Date.now() - startTime - pausedTime) / 1000))
             }, 1000)
         }
         return () => clearInterval(interval)
-    }, [gameStarted, gameComplete, startTime])
+    }, [gameStarted, gameComplete, startTime, isPaused, pausedTime])
 
     // Check for win
     useEffect(() => {
@@ -134,6 +278,7 @@ export default function SolitairePage() {
             const totalInFoundations = foundations.reduce((sum, f) => sum + f.length, 0)
             if (totalInFoundations === 52) {
                 setGameComplete(true)
+                playSound('win')
                 if (user) {
                     const finalTime = elapsedTime
                     const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
@@ -148,6 +293,7 @@ export default function SolitairePage() {
     useEffect(() => {
         if (!autoCompleting) return
 
+        const duration = getAnimationDuration()
         const timer = setTimeout(() => {
             // Find a card to move to foundation
             let moved = false
@@ -164,6 +310,7 @@ export default function SolitairePage() {
                         setWaste(newWaste)
                         setFoundations(newFoundations)
                         setMoves(m => m + 1)
+                        playSound('place')
                         moved = true
                         break
                     }
@@ -188,6 +335,7 @@ export default function SolitairePage() {
                                     setTableau(newTableau)
                                     setFoundations(newFoundations)
                                     setMoves(m => m + 1)
+                                    playSound('place')
                                     moved = true
                                     break
                                 }
@@ -204,6 +352,7 @@ export default function SolitairePage() {
                 setAutoCompleting(false)
                 if (totalInFoundations === 52) {
                     setGameComplete(true)
+                    playSound('win')
                     if (user) {
                         const finalTime = elapsedTime
                         const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
@@ -212,7 +361,7 @@ export default function SolitairePage() {
                     }
                 }
             }
-        }, 150)
+        }, Math.max(150, duration))
 
         return () => clearTimeout(timer)
     }, [autoCompleting, foundations, tableau, waste])
@@ -702,16 +851,22 @@ export default function SolitairePage() {
         }
     }
 
-    const startGame = async (draw = 1) => {
-        setDrawCount(draw)
-
-        // Track card back views (52 cards face down initially, minus 7 face up = 45)
-        if (cardBackAdvertiser) {
-            trackCardBackView(cardBackAdvertiser.user_id, 45)
+    // Toggle pause
+    const togglePause = () => {
+        if (isPaused) {
+            // Resuming - add paused duration to total
+            setPausedTime(prev => prev + (Date.now() - pauseStartRef.current))
+            setIsPaused(false)
+        } else {
+            // Pausing - record when we paused
+            pauseStartRef.current = Date.now()
+            setIsPaused(true)
         }
+    }
+    const pauseStartRef = useRef(null)
 
-        const deck = shuffleDeck(createDeck())
-
+    // Deal cards from a specific deck (for restart same deal)
+    const dealFromDeck = (deck) => {
         // Deal tableau
         const newTableau = [[], [], [], [], [], [], []]
         let cardIndex = 0
@@ -726,6 +881,31 @@ export default function SolitairePage() {
         // Remaining cards go to stock
         const newStock = deck.slice(cardIndex).map(card => ({ ...card, faceUp: false }))
 
+        return { newTableau, newStock }
+    }
+
+    const startGame = async (draw = 1, useExistingDeck = false) => {
+        setDrawCount(draw)
+        playSound('shuffle')
+
+        // Track card back views (52 cards face down initially, minus 7 face up = 45)
+        if (cardBackAdvertiser) {
+            trackCardBackView(cardBackAdvertiser.user_id, 45)
+        }
+
+        let deck
+        if (useExistingDeck && initialDeck) {
+            // Use saved deck for restart
+            deck = JSON.parse(JSON.stringify(initialDeck))
+        } else {
+            // Create and shuffle new deck
+            deck = shuffleDeck(createDeck())
+            // Save this deck for potential restart
+            setInitialDeck(JSON.parse(JSON.stringify(deck)))
+        }
+
+        const { newTableau, newStock } = dealFromDeck(deck)
+
         setTableau(newTableau)
         setStock(newStock)
         setWaste([])
@@ -734,6 +914,8 @@ export default function SolitairePage() {
         setMoveHistory([])
         setStartTime(Date.now())
         setElapsedTime(0)
+        setPausedTime(0)
+        setIsPaused(false)
         setGameStarted(true)
         setGameComplete(false)
         setSelectedCards(null)
@@ -743,7 +925,15 @@ export default function SolitairePage() {
         setAutoCompleting(false)
         trackedCardBackView.current = false
 
-        await createGameSession()
+        if (!useExistingDeck) {
+            await createGameSession()
+        }
+    }
+
+    // Restart same deal
+    const restartSameDeal = () => {
+        if (!initialDeck) return
+        startGame(drawCount, true)
     }
 
     const startNewGame = async () => {
@@ -758,14 +948,19 @@ export default function SolitairePage() {
         setTableau([[], [], [], [], [], [], []])
         setStartTime(null)
         setElapsedTime(0)
+        setPausedTime(0)
+        setIsPaused(false)
         setSelectedCards(null)
         setSelectedFrom(null)
         setHintCard(null)
         setHintTarget(null)
         setAutoCompleting(false)
+        setInitialDeck(null)
     }
 
     const drawFromStock = () => {
+        if (isPaused) return
+
         saveStateForUndo()
         setHintCard(null)
         setHintTarget(null)
@@ -776,6 +971,7 @@ export default function SolitairePage() {
                 setStock(waste.map(card => ({ ...card, faceUp: false })).reverse())
                 setWaste([])
                 setMoves(m => m + 1)
+                playSound('shuffle')
             }
             return
         }
@@ -788,9 +984,12 @@ export default function SolitairePage() {
         setMoves(m => m + 1)
         setSelectedCards(null)
         setSelectedFrom(null)
+        playSound('draw')
     }
 
     const handleCardClick = (card, source, pileIndex, cardIndex) => {
+        if (isPaused) return
+
         setHintCard(null)
         setHintTarget(null)
 
@@ -804,6 +1003,7 @@ export default function SolitairePage() {
                     newTableau[pileIndex] = [...pile]
                     newTableau[pileIndex][cardIndex] = { ...card, faceUp: true }
                     setTableau(newTableau)
+                    playSound('flip')
                 }
             }
             return
@@ -847,6 +1047,7 @@ export default function SolitairePage() {
 
     // Double-click to auto-move to foundation
     const handleCardDoubleClick = (card, source, pileIndex, cardIndex) => {
+        if (isPaused) return
         if (!card.faceUp) return
 
         // Only works for single cards (top of pile or waste)
@@ -878,6 +1079,7 @@ export default function SolitairePage() {
                 setSelectedFrom(null)
                 setHintCard(null)
                 setHintTarget(null)
+                playSound('place')
                 return
             }
         }
@@ -902,12 +1104,14 @@ export default function SolitairePage() {
     }
 
     const handleEmptyTableauClick = (pileIndex) => {
+        if (isPaused) return
         if (selectedCards && selectedCards[0].value === 'K') {
             moveCards(pileIndex)
         }
     }
 
     const handleEmptyFoundationClick = (pileIndex) => {
+        if (isPaused) return
         if (selectedCards && selectedCards.length === 1 && selectedCards[0].value === 'A') {
             moveToFoundation(pileIndex)
         }
@@ -940,6 +1144,7 @@ export default function SolitairePage() {
         setMoves(m => m + 1)
         setSelectedCards(null)
         setSelectedFrom(null)
+        playSound('place')
     }
 
     const moveToFoundation = (foundationIndex) => {
@@ -968,9 +1173,11 @@ export default function SolitairePage() {
         setMoves(m => m + 1)
         setSelectedCards(null)
         setSelectedFrom(null)
+        playSound('place')
     }
 
     const handleFoundationClick = (foundationIndex) => {
+        if (isPaused) return
         if (!selectedCards || selectedCards.length !== 1) return
 
         const card = selectedCards[0]
@@ -1011,6 +1218,8 @@ export default function SolitairePage() {
         setTableau([[], [], [], [], [], [], []])
         setStartTime(null)
         setElapsedTime(0)
+        setPausedTime(0)
+        setIsPaused(false)
         setSelectedCards(null)
         setSelectedFrom(null)
         setHintCard(null)
@@ -1033,16 +1242,18 @@ export default function SolitairePage() {
     // Card back component
     const CardBack = ({ small = false }) => {
         const isStockHinted = hintCard?.source === 'stock'
+        const animClass = settings.animations ? `transition-all duration-${getAnimationDuration()}` : ''
+
         if (cardBackAdvertiser?.card_type === 'uploaded' && cardBackAdvertiser?.image_url) {
             return (
-                <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg overflow-hidden border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} bg-gray-800`}>
+                <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg overflow-hidden border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} bg-gray-800 ${animClass}`}>
                     <img src={cardBackAdvertiser.image_url} alt="Sponsor" className="w-full h-full object-contain" />
                 </div>
             )
         } else if (cardBackAdvertiser) {
             return (
                 <div
-                    className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center p-1`}
+                    className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center p-1 ${animClass}`}
                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                 >
                     <span className="text-center font-bold text-[8px] sm:text-[10px]" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>
@@ -1052,7 +1263,7 @@ export default function SolitairePage() {
             )
         }
         return (
-            <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} bg-blue-600 rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center`}>
+            <div className={`${small ? 'w-8 h-11' : 'w-14 h-20 sm:w-16 sm:h-24'} bg-blue-600 rounded-md shadow-lg border-2 ${isStockHinted ? 'border-green-400 ring-2 ring-green-400' : 'border-blue-400'} flex items-center justify-center ${animClass}`}>
                 <div className="w-8 h-12 sm:w-10 sm:h-14 border-2 border-blue-300 rounded opacity-50"></div>
             </div>
         )
@@ -1065,11 +1276,28 @@ export default function SolitairePage() {
         if (selected) borderClass = 'border-yellow-400 ring-2 ring-yellow-400'
         else if (hinted) borderClass = 'border-green-400 ring-2 ring-green-400'
 
+        const animDuration = getAnimationDuration()
+        const animClass = settings.animations ? `transition-all` : ''
+        const animStyle = settings.animations ? { transitionDuration: `${animDuration}ms` } : {}
+
+        const handleClick = (e) => {
+            if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current)
+                clickTimeout.current = null
+                onDoubleClick && onDoubleClick(e)
+            } else {
+                clickTimeout.current = setTimeout(() => {
+                    clickTimeout.current = null
+                    onClick && onClick(e)
+                }, 250)
+            }
+        }
+
         return (
             <div
-                onClick={onClick}
-                onDoubleClick={onDoubleClick}
-                className={`${sizeClass} bg-white rounded-md shadow-lg border-2 ${borderClass} flex flex-col items-center justify-between p-0.5 cursor-pointer hover:border-blue-400 transition-all overflow-hidden flex-shrink-0`}
+                onClick={handleClick}
+                className={`${sizeClass} bg-white rounded-md shadow-lg border-2 ${borderClass} flex flex-col items-center justify-between p-0.5 cursor-pointer hover:border-blue-400 overflow-hidden flex-shrink-0 ${animClass}`}
+                style={animStyle}
             >
                 <div className={`self-start ${SUIT_COLORS[card.suit]} ${small ? 'text-[8px]' : 'text-[10px] sm:text-xs'} font-bold leading-tight flex-shrink-0`}>
                     {card.value}
@@ -1155,6 +1383,109 @@ export default function SolitairePage() {
 
     return (
         <div className={`min-h-screen bg-green-800`}>
+            {/* Settings Modal */}
+            {showSettings && (
+                <div
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowSettings(false)}
+                >
+                    <div
+                        className="bg-green-900 border-2 border-green-600 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            ⚙️ Game Settings
+                        </h2>
+
+                        {/* Sound Effects */}
+                        <div className="flex items-center justify-between py-3 border-b border-green-700">
+                            <span className="text-white">🔊 Sound Effects</span>
+                            <button
+                                onClick={() => saveSettings({ ...settings, soundEffects: !settings.soundEffects })}
+                                className={`w-14 h-8 rounded-full transition-all ${settings.soundEffects ? 'bg-green-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all ${settings.soundEffects ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </button>
+                        </div>
+
+                        {/* Animations */}
+                        <div className="flex items-center justify-between py-3 border-b border-green-700">
+                            <span className="text-white">🎬 Animations</span>
+                            <button
+                                onClick={() => saveSettings({ ...settings, animations: !settings.animations })}
+                                className={`w-14 h-8 rounded-full transition-all ${settings.animations ? 'bg-green-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all ${settings.animations ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </button>
+                        </div>
+
+                        {/* Animation Speed */}
+                        {settings.animations && (
+                            <div className="flex items-center justify-between py-3 border-b border-green-700">
+                                <span className="text-white text-sm">Animation Speed</span>
+                                <div className="flex gap-1">
+                                    {['fast', 'normal', 'slow'].map((speed) => (
+                                        <button
+                                            key={speed}
+                                            onClick={() => saveSettings({ ...settings, animationSpeed: speed })}
+                                            className={`px-3 py-1 rounded text-xs font-medium transition-all ${settings.animationSpeed === speed ? 'bg-green-500 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
+                                        >
+                                            {speed.charAt(0).toUpperCase() + speed.slice(1)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show Pause Button */}
+                        <div className="flex items-center justify-between py-3 border-b border-green-700">
+                            <span className="text-white">⏸️ Pause Button</span>
+                            <button
+                                onClick={() => saveSettings({ ...settings, showPauseButton: !settings.showPauseButton })}
+                                className={`w-14 h-8 rounded-full transition-all ${settings.showPauseButton ? 'bg-green-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all ${settings.showPauseButton ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </button>
+                        </div>
+
+                        {/* Show Timer */}
+                        <div className="flex items-center justify-between py-3 border-b border-green-700">
+                            <span className="text-white">⏱️ Show Timer</span>
+                            <button
+                                onClick={() => saveSettings({ ...settings, showTimer: !settings.showTimer })}
+                                className={`w-14 h-8 rounded-full transition-all ${settings.showTimer ? 'bg-green-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all ${settings.showTimer ? 'translate-x-7' : 'translate-x-1'}`}></div>
+                            </button>
+                        </div>
+
+                        {/* Close Button */}
+                        <button
+                            onClick={() => setShowSettings(false)}
+                            className="mt-6 w-full py-3 bg-yellow-500 text-green-900 font-bold rounded-lg hover:bg-yellow-400 transition-all"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Pause Overlay */}
+            {isPaused && gameStarted && !gameComplete && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40">
+                    <div className="bg-green-900 border-2 border-green-600 rounded-xl p-8 text-center shadow-2xl">
+                        <h2 className="text-3xl font-bold text-white mb-4">⏸️ PAUSED</h2>
+                        <p className="text-green-300 mb-6">Game is paused</p>
+                        <button
+                            onClick={togglePause}
+                            className="px-8 py-4 bg-yellow-500 text-green-900 font-bold text-lg rounded-xl hover:bg-yellow-400 transition-all"
+                        >
+                            ▶️ Resume
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Ad Expand Modal */}
             {viewingAd && (
                 <div
@@ -1231,6 +1562,20 @@ export default function SolitairePage() {
 
                         {user && (
                             <p className="text-green-200 text-sm mb-4 animate-pulse">✓ Score saved to leaderboard!</p>
+                        )}
+
+                        {!user && (
+                            <div className="bg-yellow-400 text-green-900 rounded-lg p-4 mb-4">
+                                <p className="font-bold text-lg">🎉 Great Score!</p>
+                                <p className="text-sm mt-1">Sign up <span className="font-black underline">100% FREE</span> to save your scores & compete for prizes!</p>
+                                <p className="text-xs mt-1 font-medium">No purchase necessary to win.</p>
+                                <button
+                                    onClick={() => router.push('/auth/register')}
+                                    className="mt-3 px-6 py-2 bg-green-800 text-yellow-400 font-bold rounded-lg hover:bg-green-700 transition-all"
+                                >
+                                    Create Free Account
+                                </button>
+                            </div>
                         )}
 
                         {/* Win Sponsor */}
@@ -1356,16 +1701,30 @@ export default function SolitairePage() {
                         )}
 
                         {!user && (
-                            <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-3 rounded-lg mb-4 text-sm text-center">
-                                <strong>Want to compete for prizes?</strong>
-                                <button onClick={() => router.push('/auth/register')} className="ml-2 underline hover:text-yellow-100">
-                                    Sign up now!
+                            <div className="bg-yellow-400 text-green-900 rounded-lg p-4 mb-4 text-center">
+                                <p className="font-bold text-lg">🏆 Want to Compete for Prizes?</p>
+                                <p className="text-sm mt-1 animate-pulse">Sign up <span className="font-black underline">100% FREE</span> to save your scores & win!</p>
+                                <p className="text-xs mt-1 font-medium">No purchase necessary to win.</p>
+                                <button
+                                    onClick={() => router.push('/auth/register')}
+                                    className="mt-3 px-6 py-2 bg-green-800 text-yellow-400 font-bold rounded-lg hover:bg-green-700 transition-all"
+                                >
+                                    Create Free Account
                                 </button>
                             </div>
                         )}
 
                         <div className="text-center py-8">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">🃏 Solitaire</h1>
+                            <div className="flex justify-center items-center gap-3 mb-3">
+                                <h1 className="text-3xl sm:text-4xl font-bold text-white">🃏 Solitaire</h1>
+                                <button
+                                    onClick={() => setShowSettings(true)}
+                                    className="p-2 bg-green-700 hover:bg-green-600 rounded-lg transition-all text-xl"
+                                    title="Settings"
+                                >
+                                    ⚙️
+                                </button>
+                            </div>
                             <p className="text-green-200 mb-6">Classic Klondike - Stack cards, clear the board!</p>
 
                             <div className="flex gap-4 justify-center flex-wrap">
@@ -1419,31 +1778,51 @@ export default function SolitairePage() {
                             <div className="flex justify-between items-center text-xs sm:text-sm flex-wrap gap-2">
                                 <div className="flex gap-3">
                                     <span className="text-white"><span className="text-green-300">Moves:</span> {moves}</span>
-                                    <span className="text-white"><span className="text-green-300">Time:</span> {formatTime(elapsedTime)}</span>
+                                    {settings.showTimer && (
+                                        <span className="text-white"><span className="text-green-300">Time:</span> {formatTime(elapsedTime)}</span>
+                                    )}
                                     <span className="text-white"><span className="text-green-300">Score:</span> {Math.max(0, 10000 - (moves * 10) - (elapsedTime * 2))}</span>
                                 </div>
                                 <div className="flex gap-1 sm:gap-2">
                                     <button
                                         onClick={undoMove}
-                                        disabled={moveHistory.length === 0}
-                                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${moveHistory.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                                        disabled={moveHistory.length === 0 || isPaused}
+                                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${moveHistory.length > 0 && !isPaused ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
                                     >
                                         ↩ Undo
                                     </button>
                                     <button
                                         onClick={findHint}
-                                        className="px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-500 transition-all text-xs font-medium"
+                                        disabled={isPaused}
+                                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${!isPaused ? 'bg-purple-600 text-white hover:bg-purple-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
                                     >
                                         💡 Hint
                                     </button>
                                     {canAutoComplete() && (
                                         <button
                                             onClick={() => setAutoCompleting(true)}
-                                            className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-500 transition-all text-xs font-medium animate-pulse"
+                                            disabled={isPaused}
+                                            className={`px-2 py-1 rounded text-xs font-medium animate-pulse ${!isPaused ? 'bg-green-600 text-white hover:bg-green-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
                                         >
                                             ✨ Auto
                                         </button>
                                     )}
+                                    {settings.showPauseButton && (
+                                        <button
+                                            onClick={togglePause}
+                                            className="px-2 py-1 bg-orange-600 text-white rounded hover:bg-orange-500 transition-all text-xs font-medium"
+                                        >
+                                            {isPaused ? '▶️' : '⏸️'}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={restartSameDeal}
+                                        disabled={!initialDeck || isPaused}
+                                        className={`px-2 py-1 rounded text-xs font-medium transition-all ${initialDeck && !isPaused ? 'bg-cyan-600 text-white hover:bg-cyan-500' : 'bg-gray-600 text-gray-400 cursor-not-allowed'}`}
+                                        title="Restart same deal"
+                                    >
+                                        🔄
+                                    </button>
                                     <button
                                         onClick={startNewGame}
                                         className="px-2 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-500 transition-all text-xs font-medium"
@@ -1472,7 +1851,7 @@ export default function SolitairePage() {
                             {/* Stock and Waste */}
                             <div className="flex gap-2">
                                 {/* Stock */}
-                                <div onClick={drawFromStock} className="cursor-pointer">
+                                <div onClick={drawFromStock} className={`cursor-pointer ${isPaused ? 'opacity-50 pointer-events-none' : ''}`}>
                                     {stock.length > 0 ? (
                                         <CardBack />
                                     ) : (
@@ -1483,7 +1862,7 @@ export default function SolitairePage() {
                                 </div>
 
                                 {/* Waste */}
-                                <div>
+                                <div className={isPaused ? 'opacity-50 pointer-events-none' : ''}>
                                     {waste.length > 0 ? (
                                         <CardFace
                                             card={waste[waste.length - 1]}
@@ -1499,7 +1878,7 @@ export default function SolitairePage() {
                             </div>
 
                             {/* Foundations */}
-                            <div className="flex gap-1 sm:gap-2">
+                            <div className={`flex gap-1 sm:gap-2 ${isPaused ? 'opacity-50 pointer-events-none' : ''}`}>
                                 {foundations.map((foundation, i) => (
                                     <div key={i} onClick={() => foundation.length === 0 ? handleEmptyFoundationClick(i) : handleFoundationClick(i)}>
                                         {foundation.length > 0 ? (
@@ -1523,7 +1902,7 @@ export default function SolitairePage() {
                         </div>
 
                         {/* Tableau - Centered */}
-                        <div className="flex gap-1 sm:gap-2 justify-center">
+                        <div className={`flex gap-1 sm:gap-2 justify-center ${isPaused ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tableau.map((pile, pileIndex) => (
                                 <div key={pileIndex} className="flex flex-col items-center min-h-[200px]">
                                     {pile.length === 0 ? (
