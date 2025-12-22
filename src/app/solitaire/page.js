@@ -124,6 +124,16 @@ export default function SolitairePage() {
         showTimer: true
     })
 
+    // Statistics
+    const [stats, setStats] = useState({
+        gamesPlayed: 0,
+        gamesWon: 0,
+        bestTime: null,
+        bestScore: null,
+        currentStreak: 0,
+        bestStreak: 0
+    })
+
     // Animation state
     const [animatingCards, setAnimatingCards] = useState([])
 
@@ -134,6 +144,7 @@ export default function SolitairePage() {
         loadWinSponsor()
         loadDisplayAds()
         loadSettings()
+        loadStats()
 
         // Initialize audio context on user interaction
         const initAudio = () => {
@@ -157,6 +168,109 @@ export default function SolitairePage() {
         } catch (error) {
             console.log('Error loading settings')
         }
+    }
+
+    // Load stats (from Supabase for users, localStorage for guests)
+    const loadStats = async () => {
+        if (user) {
+            try {
+                const { data, error } = await supabase
+                    .from('user_game_stats')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('game_type', 'solitaire')
+                    .maybeSingle()
+
+                if (data) {
+                    setStats({
+                        gamesPlayed: data.games_played || 0,
+                        gamesWon: data.games_won || 0,
+                        bestTime: data.best_time_seconds,
+                        bestScore: data.best_score,
+                        currentStreak: data.current_streak || 0,
+                        bestStreak: data.best_streak || 0
+                    })
+                }
+            } catch (error) {
+                console.log('Error loading stats from database')
+            }
+        } else {
+            try {
+                const saved = localStorage.getItem('solitaire-stats')
+                if (saved) {
+                    setStats(JSON.parse(saved))
+                }
+            } catch (error) {
+                console.log('Error loading stats from localStorage')
+            }
+        }
+    }
+
+    // Save stats (to Supabase for users, localStorage for guests)
+    const saveStats = async (newStats) => {
+        setStats(newStats)
+
+        if (user) {
+            try {
+                const { data: existing } = await supabase
+                    .from('user_game_stats')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('game_type', 'solitaire')
+                    .maybeSingle()
+
+                if (existing) {
+                    await supabase
+                        .from('user_game_stats')
+                        .update({
+                            games_played: newStats.gamesPlayed,
+                            games_won: newStats.gamesWon,
+                            best_time_seconds: newStats.bestTime,
+                            best_score: newStats.bestScore,
+                            current_streak: newStats.currentStreak,
+                            best_streak: newStats.bestStreak,
+                            last_played_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existing.id)
+                } else {
+                    await supabase
+                        .from('user_game_stats')
+                        .insert([{
+                            user_id: user.id,
+                            game_type: 'solitaire',
+                            games_played: newStats.gamesPlayed,
+                            games_won: newStats.gamesWon,
+                            best_time_seconds: newStats.bestTime,
+                            best_score: newStats.bestScore,
+                            current_streak: newStats.currentStreak,
+                            best_streak: newStats.bestStreak,
+                            last_played_at: new Date().toISOString()
+                        }])
+                }
+            } catch (error) {
+                console.log('Error saving stats to database')
+            }
+        } else {
+            try {
+                localStorage.setItem('solitaire-stats', JSON.stringify(newStats))
+            } catch (error) {
+                console.log('Error saving stats to localStorage')
+            }
+        }
+    }
+
+    // Update stats after a game
+    const updateStatsAfterGame = (won, finalTime, finalScore) => {
+        const newStats = {
+            gamesPlayed: stats.gamesPlayed + 1,
+            gamesWon: won ? stats.gamesWon + 1 : stats.gamesWon,
+            bestTime: won ? (stats.bestTime === null ? finalTime : Math.min(stats.bestTime, finalTime)) : stats.bestTime,
+            bestScore: won ? (stats.bestScore === null ? finalScore : Math.max(stats.bestScore, finalScore)) : stats.bestScore,
+            currentStreak: won ? stats.currentStreak + 1 : 0,
+            bestStreak: won ? Math.max(stats.bestStreak, stats.currentStreak + 1) : stats.bestStreak
+        }
+        saveStats(newStats)
     }
 
     // Save settings to localStorage
@@ -279,9 +393,10 @@ export default function SolitairePage() {
             if (totalInFoundations === 52) {
                 setGameComplete(true)
                 playSound('win')
+                const finalTime = elapsedTime
+                const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
+                updateStatsAfterGame(true, finalTime, score)
                 if (user) {
-                    const finalTime = elapsedTime
-                    const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
                     saveScore(moves, finalTime, score)
                     completeGameSession(moves, score)
                 }
@@ -390,6 +505,13 @@ export default function SolitairePage() {
             setLoading(false)
         }
     }
+
+    // Reload stats when user changes
+    useEffect(() => {
+        if (!loading) {
+            loadStats()
+        }
+    }, [user, loading])
 
     const loadWeeklyPrize = async () => {
         try {
@@ -739,10 +861,13 @@ export default function SolitairePage() {
                     week_start: weekStart.toISOString().split('T')[0]
                 }])
 
-            if (error) throw error
+            if (error) {
+                console.error('Supabase error details:', error.message, error.details, error.hint)
+                throw error
+            }
             await loadLeaderboard()
         } catch (error) {
-            console.error('Error saving score:', error)
+            console.error('Error saving score:', error.message || error)
         }
     }
 
@@ -1725,7 +1850,42 @@ export default function SolitairePage() {
                                     ⚙️
                                 </button>
                             </div>
-                            <p className="text-green-200 mb-6">Classic Klondike - Stack cards, clear the board!</p>
+                            <p className="text-green-200 mb-4">Classic Klondike - Stack cards, clear the board!</p>
+
+                            {/* Stats Display */}
+                            {stats.gamesPlayed > 0 && (
+                                <div className="bg-green-900/60 border border-green-700 rounded-lg p-3 mb-6 max-w-md mx-auto">
+                                    <p className="text-green-300 text-xs mb-2">📊 Your Stats</p>
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                        <div>
+                                            <p className="text-white font-bold">{stats.gamesPlayed}</p>
+                                            <p className="text-green-400 text-xs">Played</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-white font-bold">{stats.gamesWon}</p>
+                                            <p className="text-green-400 text-xs">Won</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-white font-bold">{stats.gamesPlayed > 0 ? Math.round((stats.gamesWon / stats.gamesPlayed) * 100) : 0}%</p>
+                                            <p className="text-green-400 text-xs">Win Rate</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 text-center mt-2 pt-2 border-t border-green-700">
+                                        <div>
+                                            <p className="text-yellow-400 font-bold">{stats.bestScore || '-'}</p>
+                                            <p className="text-green-400 text-xs">Best Score</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-yellow-400 font-bold">{stats.bestTime ? formatTime(stats.bestTime) : '-'}</p>
+                                            <p className="text-green-400 text-xs">Best Time</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-yellow-400 font-bold">🔥 {stats.currentStreak}</p>
+                                            <p className="text-green-400 text-xs">Streak</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex gap-4 justify-center flex-wrap">
                                 <button
@@ -1834,6 +1994,22 @@ export default function SolitairePage() {
                                         className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-500 transition-all text-xs font-medium"
                                     >
                                         Quit
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const finalTime = elapsedTime
+                                            const score = Math.max(0, 10000 - (moves * 10) - (finalTime * 2))
+                                            playSound('win')
+                                            updateStatsAfterGame(true, finalTime, score)
+                                            if (user) {
+                                                saveScore(moves, finalTime, score)
+                                                completeGameSession(moves, score)
+                                            }
+                                            setGameComplete(true)
+                                        }}
+                                        className="px-2 py-1 bg-pink-600 text-white rounded text-xs font-medium"
+                                    >
+                                        TEST WIN
                                     </button>
                                 </div>
                             </div>
