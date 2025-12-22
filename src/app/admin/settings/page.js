@@ -3,6 +3,28 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import Tooltip from '@/components/Tooltip'
+
+// ===== TOOLTIP CONTENT =====
+const TIPS = {
+    // Theme
+    colorTheme: "Changes the look of the entire platform. Affects all users. Use arrow keys to preview before saving.",
+
+    // Email
+    emailTestMode: "When ON, all emails go to the test recipient only. Turn OFF for production to send real emails to users.",
+    testRecipient: "The email address that receives all emails when Test Mode is ON.",
+
+    // Ad Campaign
+    adPrice: "What advertisers pay for one campaign. This is your primary revenue source. Typical range: $75-$150.",
+    guaranteedViews: "How many ad views each campaign receives. Higher = better value for advertisers, slower fulfillment.",
+
+    // Matrix
+    matrixPayout: "Amount paid to users when they complete their matrix (fill all 7 spots). Funded by their referrals' ad purchases.",
+
+    // Card Back
+    showAdvertiserCards: "When ON, random advertiser cards appear on card backs during games. When OFF, your company logo shows.",
+    companyLogo: "Your logo shown on card backs when 'Show Advertiser Cards' is OFF. Recommended: square image, 200x200px or larger."
+}
 
 // Default values and recommended ranges for slot settings
 const slotDefaults = {
@@ -322,7 +344,9 @@ export default function AdminSettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Color Theme (use arrow keys to preview)</label>
+                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                <Tooltip text={TIPS.colorTheme}>Color Theme</Tooltip>
+                            </label>
                             <select
                                 value={theme}
                                 onChange={(e) => updateTheme(e.target.value)}
@@ -507,7 +531,9 @@ export default function AdminSettingsPage() {
                         <div className={`p-2 bg-${currentTheme.border}/50 rounded`}>
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>Email Test Mode</h3>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>
+                                        <Tooltip text={TIPS.emailTestMode}>Email Test Mode</Tooltip>
+                                    </h3>
                                     <p className={`text-${currentTheme.textMuted} text-[10px]`}>Only send to test address</p>
                                 </div>
                                 <button
@@ -524,7 +550,9 @@ export default function AdminSettingsPage() {
                             )}
 
                             <div className="mt-2">
-                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Test Recipient</label>
+                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                    <Tooltip text={TIPS.testRecipient}>Test Recipient</Tooltip>
+                                </label>
                                 <select
                                     value={settings.test_email_recipient}
                                     onChange={(e) => handleChange('test_email_recipient', e.target.value)}
@@ -555,7 +583,9 @@ export default function AdminSettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Ad Price ($)</label>
+                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                <Tooltip text={TIPS.adPrice}>Ad Price ($)</Tooltip>
+                            </label>
                             <div className="relative">
                                 <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
                                 <input
@@ -568,7 +598,9 @@ export default function AdminSettingsPage() {
                         </div>
 
                         <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Guaranteed Views</label>
+                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                <Tooltip text={TIPS.guaranteedViews}>Guaranteed Views</Tooltip>
+                            </label>
                             <input
                                 type="number"
                                 value={settings.guaranteed_views}
@@ -585,7 +617,9 @@ export default function AdminSettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Matrix Payout ($)</label>
+                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                <Tooltip text={TIPS.matrixPayout}>Matrix Payout ($)</Tooltip>
+                            </label>
                             <div className="relative">
                                 <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
                                 <input
@@ -614,7 +648,9 @@ export default function AdminSettingsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Company Logo</label>
+                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                <Tooltip text={TIPS.companyLogo}>Company Logo</Tooltip>
+                            </label>
                             <input
                                 type="file"
                                 accept="image/*"
@@ -627,7 +663,9 @@ export default function AdminSettingsPage() {
                             <div className={`mt-2 p-1.5 bg-${currentTheme.border}/50 rounded`}>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>Show Advertiser Cards</h3>
+                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>
+                                            <Tooltip text={TIPS.showAdvertiserCards}>Show Advertiser Cards</Tooltip>
+                                        </h3>
                                         <p className={`text-${currentTheme.textMuted} text-[10px]`}>Random card on backs</p>
                                     </div>
                                     <button
