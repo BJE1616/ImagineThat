@@ -40,10 +40,10 @@ export default function IPGeographyPage() {
     }, [hasAccess])
 
     useEffect(() => {
-        if (hasAccess && activeTab === 'map' && ipLogs.length > 0) {
+        if (hasAccess && activeTab === 'map' && ipLogs.length > 0 && Object.keys(users).length > 0) {
             initMap()
         }
-    }, [hasAccess, activeTab, ipLogs])
+    }, [hasAccess, activeTab, ipLogs, users])
 
     const checkAccess = async () => {
         try {
@@ -270,7 +270,7 @@ export default function IPGeographyPage() {
         Object.values(locationGroups).forEach(loc => {
             const userList = Array.from(loc.users).map(uid => {
                 const u = users[uid]
-                return u ? `${u.username || u.email}` : uid
+                return u ? (u.username || u.email || 'Unknown') : 'Unknown'
             }).join('<br>')
 
             const popup = `
@@ -408,8 +408,8 @@ export default function IPGeographyPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab
-                                ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
-                                : `bg-${currentTheme.card} text-${currentTheme.textMuted} hover:bg-${currentTheme.border}`
+                            ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                            : `bg-${currentTheme.card} text-${currentTheme.textMuted} hover:bg-${currentTheme.border}`
                             }`}
                     >
                         {tab === 'map' && '🗺️ Map'}
