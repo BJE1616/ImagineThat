@@ -659,10 +659,10 @@ export default function SlotMachinePage() {
             } else if (resultType === 'pair') {
                 setCelebration({ type: 'pair', amount: winAmount, tickets: ticketsWon, entries: entriesEarned })
             }
-            setTimeout(() => setCelebration(null), 2500)
+            setTimeout(() => setCelebration(null), 4000)
         } else if (hitWinCap && entriesEarned > 0) {
             setCelebration({ type: 'entries', entries: entriesEarned })
-            setTimeout(() => setCelebration(null), 2500)
+            setTimeout(() => setCelebration(null), 4000)
         }
 
         if (freeSpinsLeft > 0) {
@@ -917,27 +917,59 @@ export default function SlotMachinePage() {
 
             {/* ===== CELEBRATION ===== */}
             {celebration && (
-                <div className="fixed inset-0 pointer-events-none z-40 flex items-center justify-center">
-                    <div className="text-center animate-bounce">
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 pointer-events-none">
+                    <div
+                        className="text-center px-8 py-6 rounded-2xl"
+                        style={{
+                            animation: 'celebrationPop 0.4s ease-out forwards, celebrationPulse 0.6s ease-in-out 0.4s infinite'
+                        }}
+                    >
                         {celebration.type === 'reward' ? (
                             <>
-                                <div className="text-2xl font-bold text-yellow-400 drop-shadow-lg">🎉 #{celebration.place} Reward!</div>
-                                <div className="text-lg text-white">+{celebration.tokens} 🪙 +{celebration.entries} 🎟️</div>
+                                <div className="text-4xl font-bold text-yellow-400 mb-2" style={{ textShadow: '0 0 20px rgba(250, 204, 21, 0.8), 0 0 40px rgba(250, 204, 21, 0.5)' }}>🎉 #{celebration.place} Reward!</div>
+                                <div className="text-2xl text-white font-bold">+{celebration.tokens} 🪙 +{celebration.entries} 🎟️</div>
                             </>
                         ) : celebration.type === 'entries' ? (
-                            <div className="text-xl font-bold text-purple-400 drop-shadow-lg">🎟️ +{celebration.entries} Entries!</div>
+                            <div className="text-4xl font-bold text-purple-400" style={{ textShadow: '0 0 20px rgba(192, 132, 252, 0.8), 0 0 40px rgba(192, 132, 252, 0.5)' }}>🎟️ +{celebration.entries} Entries!</div>
                         ) : (
                             <>
-                                <div className={`text-2xl font-bold drop-shadow-lg ${celebration.type === 'jackpot' ? 'text-yellow-400' : celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'}`}>
+                                <div
+                                    className={`text-5xl font-bold mb-2 ${celebration.type === 'jackpot' ? 'text-yellow-400' : celebration.type === 'triple' ? 'text-green-400' : 'text-blue-400'}`}
+                                    style={{
+                                        textShadow: celebration.type === 'jackpot'
+                                            ? '0 0 20px rgba(250, 204, 21, 0.8), 0 0 40px rgba(250, 204, 21, 0.5), 0 0 60px rgba(250, 204, 21, 0.3)'
+                                            : celebration.type === 'triple'
+                                                ? '0 0 20px rgba(74, 222, 128, 0.8), 0 0 40px rgba(74, 222, 128, 0.5)'
+                                                : '0 0 20px rgba(96, 165, 250, 0.8), 0 0 40px rgba(96, 165, 250, 0.5)'
+                                    }}
+                                >
+                                    {celebration.type === 'jackpot' && '🎊 JACKPOT! 🎊'}
+                                    {celebration.type === 'triple' && '🎉 TRIPLE! 🎉'}
+                                    {celebration.type === 'pair' && '✨ PAIR! ✨'}
+                                </div>
+                                <div className="text-3xl text-white font-bold">
                                     {celebration.amount > 0 && `+${celebration.amount} 🪙`}
                                 </div>
-                                {celebration.tickets > 0 && <div className="text-sm text-purple-400">+{celebration.tickets} 🎟️</div>}
-                                {celebration.entries > 0 && <div className="text-sm text-purple-400">+{celebration.entries} entries</div>}
+                                {celebration.tickets > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.tickets} 🎟️</div>}
+                                {celebration.entries > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.entries} entries</div>}
                             </>
                         )}
                     </div>
                 </div>
             )}
+
+            {/* Celebration Animation Styles */}
+            <style jsx>{`
+                @keyframes celebrationPop {
+                    0% { transform: scale(0.3); opacity: 0; }
+                    50% { transform: scale(1.1); }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                @keyframes celebrationPulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.05); }
+                }
+            `}</style>
 
             <div className="max-w-sm mx-auto">
                 {/* ===== MESSAGE ===== */}
