@@ -5,9 +5,11 @@ import { supabase } from '@/lib/supabase'
 
 export default function PayoutQueuePage() {
     const [loading, setLoading] = useState(true)
+    const [currentUser, setCurrentUser] = useState(null)
     const [queue, setQueue] = useState([])
     const [history, setHistory] = useState([])
     const [activeTab, setActiveTab] = useState('queue')
+    const [historyFilter, setHistoryFilter] = useState('30')
     const [message, setMessage] = useState(null)
     const [processingId, setProcessingId] = useState(null)
     const [payoutForm, setPayoutForm] = useState({
@@ -32,8 +34,20 @@ export default function PayoutQueuePage() {
     })
 
     useEffect(() => {
+        getCurrentUser()
         loadAllData()
     }, [])
+
+    useEffect(() => {
+        if (activeTab === 'history') {
+            loadHistory()
+        }
+    }, [historyFilter])
+
+    const getCurrentUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        setCurrentUser(user)
+    }
 
     const loadAllData = async () => {
         setLoading(true)
@@ -60,14 +74,22 @@ export default function PayoutQueuePage() {
     }
 
     const loadHistory = async () => {
-        const { data, error } = await supabase
+        let query = supabase
             .from('payout_history')
             .select(`
                 *,
-                users (id, username, email, first_name, last_name)
+                users!payout_history_user_id_fkey (id, username, email, first_name, last_name),
+                paid_by_user:users!payout_history_paid_by_fkey (username)
             `)
             .order('paid_at', { ascending: false })
-            .limit(50)
+
+        if (historyFilter !== 'all') {
+            const daysAgo = new Date()
+            daysAgo.setDate(daysAgo.getDate() - parseInt(historyFilter))
+            query = query.gte('paid_at', daysAgo.toISOString())
+        }
+
+        const { data, error } = await query.limit(200)
 
         if (!error) setHistory(data || [])
     }
@@ -156,7 +178,6 @@ export default function PayoutQueuePage() {
 
     const markAsPaid = async (payout) => {
         try {
-            // Insert into payout_history
             const { error: historyError } = await supabase
                 .from('payout_history')
                 .insert([{
@@ -165,16 +186,16 @@ export default function PayoutQueuePage() {
                     reason: payout.reason,
                     reference_type: payout.reference_type,
                     reference_id: payout.reference_id,
-                    payment_method: payout.payment_method || payout.users?.preferred_payment_method,
-                    payment_handle: payout.payment_handle || payout.users?.payment_handle,
+                    payment_method: payout.payment_method || payout.users?.preferred_payment_method || 'unknown',
+                    payment_handle: payout.payment_handle || payout.users?.payment_handle || 'unknown',
                     confirmation_number: payoutForm.confirmation_number || null,
                     notes: payoutForm.notes || null,
-                    paid_at: new Date().toISOString()
+                    paid_at: new Date().toISOString(),
+                    paid_by: currentUser?.id || null
                 }])
 
             if (historyError) throw historyError
 
-            // Update matrix payout_status if it's a matrix payout
             if (payout.reference_type === 'matrix' && payout.reference_id) {
                 await supabase
                     .from('matrix_entries')
@@ -185,7 +206,6 @@ export default function PayoutQueuePage() {
                     .eq('id', payout.reference_id)
             }
 
-            // Update prize_payouts status if it's a weekly prize
             if (payout.reference_type === 'weekly_prize' && payout.reference_id) {
                 await supabase
                     .from('prize_payouts')
@@ -197,7 +217,6 @@ export default function PayoutQueuePage() {
                     .eq('id', payout.reference_id)
             }
 
-            // Delete from queue
             const { error: deleteError } = await supabase
                 .from('payout_queue')
                 .delete()
@@ -267,6 +286,18 @@ export default function PayoutQueuePage() {
             return { bg: 'bg-green-500/20', text: 'text-green-400', icon: '🎮' }
         }
         return { bg: 'bg-slate-500/20', text: 'text-slate-400', icon: '💵' }
+    }
+
+    const getDateGroupIndex = (index) => {
+        let groupIndex = 0
+        for (let i = 0; i <= index; i++) {
+            const thisDate = history[i].paid_at ? history[i].paid_at.split('T')[0] : ''
+            const prevDate = i > 0 && history[i - 1].paid_at ? history[i - 1].paid_at.split('T')[0] : ''
+            if (i === 0 || thisDate !== prevDate) {
+                groupIndex++
+            }
+        }
+        return groupIndex
     }
 
     const formatDate = (dateString) => {
@@ -490,9 +521,9 @@ export default function PayoutQueuePage() {
                                                         />
                                                         <button
                                                             onClick={() => markAsPaid(payout)}
-                                                            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400"
+                                                            className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
                                                         >
-                                                            ✓ Paid
+                                                            Confirm Paid
                                                         </button>
                                                         <button
                                                             onClick={cancelProcessing}
@@ -519,6 +550,23 @@ export default function PayoutQueuePage() {
                 </div>
             )}
 
+            {/* History Filter */}
+            {activeTab === 'history' && (
+                <div className="mb-3 flex items-center gap-2">
+                    <span className="text-slate-400 text-sm">Show:</span>
+                    <select
+                        value={historyFilter}
+                        onChange={(e) => setHistoryFilter(e.target.value)}
+                        className="px-3 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                    >
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="all">All time</option>
+                    </select>
+                </div>
+            )}
+
             {/* History Tab */}
             {activeTab === 'history' && (
                 <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
@@ -536,14 +584,18 @@ export default function PayoutQueuePage() {
                                     <th className="text-left py-2 px-3">Payment</th>
                                     <th className="text-right py-2 px-3">Amount</th>
                                     <th className="text-left py-2 px-3">Conf #</th>
+                                    <th className="text-left py-2 px-3">Paid By</th>
                                     <th className="text-left py-2 px-3">Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {history.map(payout => {
+                                {history.map((payout, index) => {
                                     const badge = getReasonBadge(payout)
+                                    const dateGroupIndex = getDateGroupIndex(index)
+                                    const leftBorder = dateGroupIndex % 2 === 0 ? 'border-l-4 border-l-yellow-500' : 'border-l-4 border-l-slate-600'
+
                                     return (
-                                        <tr key={payout.id} className="border-t border-slate-700">
+                                        <tr key={payout.id} className={`border-t border-slate-700 ${leftBorder}`}>
                                             <td className="py-2 px-3 text-slate-400 text-xs">
                                                 {formatDate(payout.paid_at)}<br />
                                                 <span className="text-slate-500">{formatTime(payout.paid_at)}</span>
@@ -566,7 +618,10 @@ export default function PayoutQueuePage() {
                                             <td className="py-2 px-3 text-slate-400 text-xs">
                                                 {payout.confirmation_number || '-'}
                                             </td>
-                                            <td className="py-2 px-3 text-slate-500 text-xs max-w-32 truncate">
+                                            <td className="py-2 px-3 text-slate-400 text-xs">
+                                                {payout.paid_by_user?.username || '-'}
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-500 text-xs max-w-48 break-words">
                                                 {payout.notes || '-'}
                                             </td>
                                         </tr>
