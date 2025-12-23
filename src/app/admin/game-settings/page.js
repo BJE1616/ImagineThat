@@ -56,6 +56,7 @@ export default function TokenSettingsPage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(null)
     const [message, setMessage] = useState(null)
+    const [expandedGame, setExpandedGame] = useState(null)
 
     useEffect(() => {
         loadGames()
@@ -99,6 +100,7 @@ export default function TokenSettingsPage() {
                 g.id === gameId ? { ...g, [field]: value } : g
             ))
             setMessage({ type: 'success', text: 'Setting updated!' })
+            setTimeout(() => setMessage(null), 2000)
         } catch (error) {
             console.error('Error updating game:', error)
             setMessage({ type: 'error', text: 'Failed to update setting' })
@@ -126,6 +128,11 @@ export default function TokenSettingsPage() {
         return warnings.find(w => w.field === field)
     }
 
+    // ===== TOGGLE GAME EXPANSION =====
+    const toggleGame = (gameId) => {
+        setExpandedGame(expandedGame === gameId ? null : gameId)
+    }
+
     // ===== LOADING STATE =====
     if (loading) {
         return (
@@ -141,8 +148,8 @@ export default function TokenSettingsPage() {
 
             {/* ===== HEADER ===== */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white">🪙 Token Settings</h1>
-                <p className="text-slate-400 mt-1">Configure token rewards for each game</p>
+                <h1 className="text-2xl font-bold text-white">🪙 Game Token Settings</h1>
+                <p className="text-slate-400 mt-1">Configure token rewards for each game. Click a game to expand settings.</p>
             </div>
 
             {/* ===== MESSAGE ===== */}
@@ -153,162 +160,208 @@ export default function TokenSettingsPage() {
             )}
 
             {/* ===== GAME CARDS ===== */}
-            <div className="space-y-4">
+            <div className="space-y-2">
                 {games.map(game => {
                     const warnings = getWarnings(game)
+                    const isExpanded = expandedGame === game.id
 
                     return (
-                        <div key={game.id} className={`bg-slate-800 border rounded-lg p-4 ${warnings.length > 0 ? 'border-yellow-500/50' : 'border-slate-700'}`}>
+                        <div key={game.id} className={`bg-slate-800 border rounded-lg ${warnings.length > 0 ? 'border-yellow-500/50' : 'border-slate-700'}`}>
 
-                            {/* ----- Game Header ----- */}
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-white">{game.game_name}</h2>
-                                    <p className="text-slate-500 text-sm">Key: {game.game_key}</p>
+                            {/* ----- Game Header (Always Visible) ----- */}
+                            <button
+                                onClick={() => toggleGame(game.id)}
+                                className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-700/30 transition-colors rounded-lg"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className={`text-2xl ${isExpanded ? '' : 'grayscale opacity-50'}`}>
+                                        {game.game_key.includes('slot') ? '🎰' :
+                                            game.game_key.includes('card_gallery') ? '🎴' :
+                                                game.game_key.includes('memory') || game.game_key.includes('match') ? '🃏' :
+                                                    game.game_key.includes('solitaire') ? '🃏' : '🎮'}
+                                    </span>
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-white">{game.game_name}</h2>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className={`text-xs px-2 py-0.5 rounded ${game.is_enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                {game.is_enabled ? 'Enabled' : 'Disabled'}
+                                            </span>
+                                            {warnings.length > 0 && (
+                                                <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                                                    ⚠️ {warnings.length} warning{warnings.length > 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <span className="text-slate-400 text-sm">Enabled</span>
-                                    <input
-                                        type="checkbox"
-                                        checked={game.is_enabled}
-                                        onChange={(e) => updateGame(game.id, 'is_enabled', e.target.checked)}
-                                        className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-yellow-500"
-                                    />
-                                </label>
-                            </div>
-
-                            {/* ----- Warnings Banner ----- */}
-                            {warnings.length > 0 && (
-                                <div className="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                                    <p className="text-yellow-400 text-xs font-medium mb-1">⚠️ Suggestions:</p>
-                                    <ul className="text-yellow-300/80 text-xs space-y-0.5">
-                                        {warnings.map((w, i) => (
-                                            <li key={i}>• {w.message}</li>
-                                        ))}
-                                    </ul>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right text-sm">
+                                        <p className="text-slate-400">Daily Cap: <span className="text-white font-medium">{game.daily_bb_cap ?? '∞'}</span></p>
+                                        <p className="text-slate-400">Award: <span className="text-white font-medium">{game.bb_award_chance ?? 0}%</span></p>
+                                    </div>
+                                    <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                                        ▼
+                                    </span>
                                 </div>
-                            )}
+                            </button>
 
-                            {/* ----- Token Settings Grid ----- */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.bb_award_chance}>Award Chance %</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={game.bb_award_chance ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'bb_award_chance', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'bb_award_chance', e.target.value, true)}
-                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_award_chance') ? 'border-yellow-500/50' : 'border-slate-600'
-                                            }`}
-                                    />
-                                </div>
+                            {/* ----- Expanded Settings ----- */}
+                            {isExpanded && (
+                                <div className="px-4 pb-4 border-t border-slate-700">
 
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.bb_min_amount}>Min Tokens</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={game.bb_min_amount ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'bb_min_amount', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'bb_min_amount', e.target.value, true)}
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500"
-                                    />
-                                </div>
+                                    {/* Enable Toggle */}
+                                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                                        <div>
+                                            <p className="text-white font-medium">Game Enabled</p>
+                                            <p className="text-slate-500 text-xs">Turn this game on or off</p>
+                                        </div>
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={game.is_enabled}
+                                                onChange={(e) => updateGame(game.id, 'is_enabled', e.target.checked)}
+                                                className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-yellow-500"
+                                            />
+                                        </label>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.bb_max_amount}>Max Tokens</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={game.bb_max_amount ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'bb_max_amount', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'bb_max_amount', e.target.value, true)}
-                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_max_amount') ? 'border-yellow-500/50' : 'border-slate-600'
-                                            }`}
-                                    />
-                                </div>
+                                    {/* ----- Warnings Banner ----- */}
+                                    {warnings.length > 0 && (
+                                        <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                                            <p className="text-yellow-400 text-xs font-medium mb-1">⚠️ Suggestions:</p>
+                                            <ul className="text-yellow-300/80 text-xs space-y-0.5">
+                                                {warnings.map((w, i) => (
+                                                    <li key={i}>• {w.message}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
 
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.daily_bb_cap}>Daily Token Cap</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={game.daily_bb_cap ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'daily_bb_cap', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'daily_bb_cap', e.target.value, true)}
-                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'daily_bb_cap') ? 'border-yellow-500/50' : 'border-slate-600'
-                                            }`}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.daily_play_cap}>Daily Play Cap</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={game.daily_play_cap ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'daily_play_cap', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'daily_play_cap', e.target.value, true)}
-                                        placeholder="No limit"
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-slate-400 text-xs mb-1">
-                                        <Tooltip text={TIPS.free_plays_per_day}>Free Plays/Day</Tooltip>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={game.free_plays_per_day ?? ''}
-                                        onChange={(e) => handleInputChange(game.id, 'free_plays_per_day', e.target.value, true)}
-                                        onBlur={(e) => handleBlur(game.id, 'free_plays_per_day', e.target.value, true)}
-                                        placeholder="N/A"
-                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500 ${getFieldWarning(game, 'free_plays_per_day') ? 'border-yellow-500/50' : 'border-slate-600'
-                                            }`}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* ----- Slot Machine Extra Settings ----- */}
-                            {game.game_key.includes('slot_machine') && (
-                                <div className="mt-4 pt-4 border-t border-slate-700">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {/* ----- Token Settings Grid ----- */}
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                                         <div>
                                             <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.win_percentage}>Win % (RTP)</Tooltip>
+                                                <Tooltip text={TIPS.bb_award_chance}>Award Chance %</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 max="100"
-                                                step="0.1"
-                                                value={game.win_percentage ?? ''}
-                                                onChange={(e) => handleInputChange(game.id, 'win_percentage', e.target.value, true)}
-                                                onBlur={(e) => handleBlur(game.id, 'win_percentage', e.target.value, true)}
-                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'win_percentage') ? 'border-yellow-500/50' : 'border-slate-600'
+                                                value={game.bb_award_chance ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'bb_award_chance', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'bb_award_chance', e.target.value, true)}
+                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_award_chance') ? 'border-yellow-500/50' : 'border-slate-600'
+                                                    }`}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-slate-400 text-xs mb-1">
+                                                <Tooltip text={TIPS.bb_min_amount}>Min Tokens</Tooltip>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={game.bb_min_amount ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'bb_min_amount', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'bb_min_amount', e.target.value, true)}
+                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-slate-400 text-xs mb-1">
+                                                <Tooltip text={TIPS.bb_max_amount}>Max Tokens</Tooltip>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={game.bb_max_amount ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'bb_max_amount', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'bb_max_amount', e.target.value, true)}
+                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_max_amount') ? 'border-yellow-500/50' : 'border-slate-600'
+                                                    }`}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-slate-400 text-xs mb-1">
+                                                <Tooltip text={TIPS.daily_bb_cap}>Daily Token Cap</Tooltip>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={game.daily_bb_cap ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'daily_bb_cap', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'daily_bb_cap', e.target.value, true)}
+                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'daily_bb_cap') ? 'border-yellow-500/50' : 'border-slate-600'
+                                                    }`}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-slate-400 text-xs mb-1">
+                                                <Tooltip text={TIPS.daily_play_cap}>Daily Play Cap</Tooltip>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={game.daily_play_cap ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'daily_play_cap', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'daily_play_cap', e.target.value, true)}
+                                                placeholder="No limit"
+                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-slate-400 text-xs mb-1">
+                                                <Tooltip text={TIPS.free_plays_per_day}>Free Plays/Day</Tooltip>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={game.free_plays_per_day ?? ''}
+                                                onChange={(e) => handleInputChange(game.id, 'free_plays_per_day', e.target.value, true)}
+                                                onBlur={(e) => handleBlur(game.id, 'free_plays_per_day', e.target.value, true)}
+                                                placeholder="N/A"
+                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500 ${getFieldWarning(game, 'free_plays_per_day') ? 'border-yellow-500/50' : 'border-slate-600'
                                                     }`}
                                             />
                                         </div>
                                     </div>
-                                </div>
-                            )}
 
-                            {saving === game.id && (
-                                <div className="mt-2 text-yellow-500 text-sm">Saving...</div>
+                                    {/* ----- Slot Machine Extra Settings ----- */}
+                                    {game.game_key.includes('slot_machine') && (
+                                        <div className="mt-4 pt-4 border-t border-slate-700">
+                                            <p className="text-slate-400 text-xs mb-2 font-medium">Slot Machine Settings</p>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div>
+                                                    <label className="block text-slate-400 text-xs mb-1">
+                                                        <Tooltip text={TIPS.win_percentage}>Win % (RTP)</Tooltip>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.1"
+                                                        value={game.win_percentage ?? ''}
+                                                        onChange={(e) => handleInputChange(game.id, 'win_percentage', e.target.value, true)}
+                                                        onBlur={(e) => handleBlur(game.id, 'win_percentage', e.target.value, true)}
+                                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'win_percentage') ? 'border-yellow-500/50' : 'border-slate-600'
+                                                            }`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {saving === game.id && (
+                                        <div className="mt-2 text-yellow-500 text-sm">Saving...</div>
+                                    )}
+
+                                    <p className="text-slate-500 text-xs mt-3">Game Key: {game.game_key}</p>
+                                </div>
                             )}
                         </div>
                     )

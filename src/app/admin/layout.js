@@ -17,7 +17,6 @@ const PAGE_ACCESS = {
     '/admin/audit-log': ['super_admin'],
     '/admin/accounting': ['super_admin'],
     '/admin/geography': ['super_admin'],
-    '/admin/campaigns': ['super_admin', 'admin', 'manager'],
 
     // Super Admin + Admin
     '/admin/reports': ['super_admin', 'admin'],
@@ -25,11 +24,14 @@ const PAGE_ACCESS = {
     '/admin/payment-processors': ['super_admin', 'admin'],
     '/admin/partner-withdrawals': ['super_admin', 'admin'],
     '/admin/payout-queue': ['super_admin', 'admin'],
+    '/admin/payments': ['super_admin', 'admin'],
+    '/admin/settings': ['super_admin', 'admin'],
 
     // Super Admin + Admin + Manager
     '/admin/dashboard': ['super_admin', 'admin', 'manager', 'support'],
     '/admin/stats': ['super_admin', 'admin', 'manager'],
     '/admin/matrix': ['super_admin', 'admin', 'manager'],
+    '/admin/campaigns': ['super_admin', 'admin', 'manager'],
     '/admin/prizes': ['super_admin', 'admin', 'manager'],
     '/admin/game-settings': ['super_admin', 'admin', 'manager'],
     '/admin/bonus': ['super_admin', 'admin', 'manager'],
@@ -38,10 +40,8 @@ const PAGE_ACCESS = {
     '/admin/merch-store': ['super_admin', 'admin', 'manager', 'support'],
     '/admin/users': ['super_admin', 'admin', 'manager', 'support'],
     '/admin/advertisers': ['super_admin', 'admin', 'manager'],
-    '/admin/settings': ['super_admin', 'admin'],
     '/admin/house-cards': ['super_admin', 'admin', 'manager'],
     '/admin/cancellations': ['super_admin', 'admin', 'manager'],
-    '/admin/payments': ['super_admin', 'admin'],
 }
 
 export default function AdminLayout({ children }) {
@@ -53,7 +53,7 @@ export default function AdminLayout({ children }) {
     const [financialPermissions, setFinancialPermissions] = useState([])
     const [loading, setLoading] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(true)
-    const [expandedGroups, setExpandedGroups] = useState(['finances', 'overview'])
+    const [expandedGroups, setExpandedGroups] = useState([])
     const [accessDenied, setAccessDenied] = useState(false)
 
     useEffect(() => {
@@ -168,13 +168,14 @@ export default function AdminLayout({ children }) {
 
     const navGroups = [
         {
-            key: 'overview',
-            label: 'Overview',
+            key: 'analytics',
+            label: 'Analytics',
             icon: '📊',
             items: [
                 { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
                 { href: '/admin/stats', label: 'Stats', icon: '📉' },
-                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
+                { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📋' },
+                { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },
         {
@@ -191,48 +192,39 @@ export default function AdminLayout({ children }) {
         },
         {
             key: 'games',
-            label: 'Games & Prizes',
+            label: 'Games',
             icon: '🎮',
             items: [
-                { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📊' },
-                { href: '/admin/game-settings', label: 'Game BB Settings', icon: '🎰' },
+                { href: '/admin/game-settings', label: 'Game Token Settings', icon: '🪙' },
+                { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
                 { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
                 { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
                 { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
                 { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
-                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
             ]
         },
         {
-            key: 'users',
-            label: 'Users',
-            icon: '👥',
+            key: 'advertisers',
+            label: 'Advertisers',
+            icon: '📢',
             items: [
-                { href: '/admin/users', label: 'User Management', icon: '👤' },
-                { href: '/admin/advertisers', label: 'Advertisers', icon: '📢' },
-            ]
-        },
-        {
-            key: 'settings',
-            label: 'Settings',
-            icon: '⚙️',
-            items: [
-                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
-                { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
-                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
+                { href: '/admin/advertisers', label: 'Advertiser List', icon: '📋' },
                 { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
                 { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
             ]
         },
         {
-            key: 'admin',
-            label: 'Administration',
-            icon: '🔐',
-            superAdminOnly: true,
+            key: 'system',
+            label: 'System',
+            icon: '⚙️',
             items: [
+                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
+                { href: '/admin/users', label: 'User Management', icon: '👤' },
+                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
+                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
+                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
                 { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
                 { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', superAdminOnly: true },
-                { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },
     ]

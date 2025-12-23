@@ -66,8 +66,18 @@ export default function AdminSettingsPage() {
         ip_log_retention_days: '365'
     })
     const [uploading, setUploading] = useState(false)
-    const [showSlotGuide, setShowSlotGuide] = useState(false)
     const { theme, themes, updateTheme, currentTheme } = useTheme()
+
+    // Collapsible sections state
+    const [expandedSections, setExpandedSections] = useState([])
+
+    const toggleSection = (section) => {
+        setExpandedSections(prev =>
+            prev.includes(section)
+                ? prev.filter(s => s !== section)
+                : [...prev, section]
+        )
+    }
 
     // Calculate lose chance and win rate automatically
     const jackpotChance = parseInt(settings.slot_jackpot_chance || 0)
@@ -82,7 +92,6 @@ export default function AdminSettingsPage() {
         if (!config) return 'normal'
         const numValue = parseInt(value || 0)
         if (numValue < config.min || numValue > config.max) {
-            // Way outside range
             if (numValue < config.min * 0.5 || numValue > config.max * 1.5) {
                 return 'danger'
             }
@@ -314,6 +323,25 @@ export default function AdminSettingsPage() {
         )
     }
 
+    // Section Header Component
+    const SectionHeader = ({ id, icon, title, subtitle, isExpanded }) => (
+        <button
+            onClick={() => toggleSection(id)}
+            className={`w-full flex items-center justify-between p-2 text-left hover:bg-${currentTheme.border}/30 transition-colors rounded`}
+        >
+            <div className="flex items-center gap-2">
+                <span>{icon}</span>
+                <div>
+                    <h2 className={`text-xs font-bold text-${currentTheme.text}`}>{title}</h2>
+                    {subtitle && <p className={`text-${currentTheme.textMuted} text-[10px]`}>{subtitle}</p>}
+                </div>
+            </div>
+            <span className={`text-${currentTheme.textMuted} transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                ▼
+            </span>
+        </button>
+    )
+
     if (loading) {
         return (
             <div className="p-4">
@@ -329,7 +357,7 @@ export default function AdminSettingsPage() {
         <div className="p-4">
             <div className="mb-3">
                 <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Platform Settings</h1>
-                <p className={`text-${currentTheme.textMuted} text-xs`}>Configure ad campaigns, matrix payouts, and more</p>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Click a section to expand. Configure settings, then save.</p>
             </div>
 
             {message && (
@@ -341,473 +369,501 @@ export default function AdminSettingsPage() {
                 </div>
             )}
 
-            <div className="space-y-2">
-                {/* Theme Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>🎨 Site Theme</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                <Tooltip text={TIPS.colorTheme}>Color Theme</Tooltip>
-                            </label>
-                            <select
-                                value={theme}
-                                onChange={(e) => updateTheme(e.target.value)}
-                                onKeyDown={(e) => {
-                                    const themeKeys = Object.keys(themes)
-                                    const currentIndex = themeKeys.indexOf(theme)
-                                    if (e.key === 'ArrowDown') {
-                                        e.preventDefault()
-                                        const nextIndex = (currentIndex + 1) % themeKeys.length
-                                        updateTheme(themeKeys[nextIndex])
-                                    } else if (e.key === 'ArrowUp') {
-                                        e.preventDefault()
-                                        const prevIndex = (currentIndex - 1 + themeKeys.length) % themeKeys.length
-                                        updateTheme(themeKeys[prevIndex])
-                                    }
-                                }}
-                                className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                            >
-                                {Object.entries(themes).map(([key, t]) => (
-                                    <option key={key} value={key}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>Preview:</p>
-                            <div className="flex gap-1">
-                                <div className={`w-6 h-6 rounded bg-${themes[theme]?.accent || 'amber-500'}`}></div>
-                                <div className={`w-6 h-6 rounded bg-${currentTheme.card} border border-${currentTheme.border}`}></div>
-                                <div className={`w-6 h-6 rounded bg-${currentTheme.bg}`}></div>
-                            </div>
-                            <p className={`text-${currentTheme.text} text-[10px] font-medium`}>{themes[theme]?.name}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Slot Machine Odds */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className={`text-xs font-bold text-${currentTheme.text}`}>🎰 Slot Machine Odds & Payouts</h2>
-                        {hasSlotChanges() && (
-                            <button
-                                onClick={() => setShowResetConfirm(true)}
-                                className={`text-[10px] px-2 py-0.5 bg-${currentTheme.border} hover:bg-${currentTheme.border}/80 text-${currentTheme.textMuted} hover:text-${currentTheme.text} rounded transition-colors`}
-                            >
-                                ↩️ Reset All to Defaults
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Quick Guide Box - Collapsible */}
-                    <div className={`bg-${currentTheme.border}/30 border border-${currentTheme.border} rounded mb-3`}>
-                        <button
-                            onClick={() => setShowSlotGuide(!showSlotGuide)}
-                            className={`w-full p-2 flex items-center justify-between text-left hover:bg-${currentTheme.border}/20 transition-colors rounded`}
-                        >
-                            <h3 className={`text-${currentTheme.text} font-bold text-[11px]`}>📖 How Slot Odds Work</h3>
-                            <span className={`text-${currentTheme.textMuted} text-xs`}>{showSlotGuide ? '▲ Hide' : '▼ Show'}</span>
-                        </button>
-                        {showSlotGuide && (
-                            <ul className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5 px-2 pb-2`}>
-                                <li>• Set the win % for each outcome (Jackpot, Triple, Pair)</li>
-                                <li>• Lose % auto-calculates from what's left</li>
-                                <li>• Higher win rates = more player engagement, but the <span className="text-red-400 font-medium">house pays out more tokens</span></li>
-                                <li>• Lower win rates = tokens stay scarce, but <span className="text-yellow-400 font-medium">players may lose interest</span></li>
-                                <li>• <span className={`text-${currentTheme.text} font-medium`}>Recommended:</span> Keep total win rate between 25-35% for a balanced economy</li>
-                                <li>• <span className="text-blue-400 font-medium">Tickets</span> = entries into weekly prize drawing. More tickets = better odds to win weekly prize.</li>
-                            </ul>
-                        )}
-                    </div>
-
-                    {/* Economy Health Indicator */}
-                    <div className={`mb-3 p-2 rounded border ${economyHealth.status === 'critical' ? 'bg-red-500/10 border-red-500/30' :
-                        economyHealth.status === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                            economyHealth.status === 'good' ? 'bg-green-500/10 border-green-500/30' :
-                                'bg-orange-500/10 border-orange-500/30'
-                        }`}>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">{economyHealth.icon}</span>
-                            <span className={`font-bold text-xs ${economyHealth.status === 'critical' ? 'text-red-400' :
-                                economyHealth.status === 'warning' ? 'text-yellow-400' :
-                                    economyHealth.status === 'good' ? 'text-green-400' :
-                                        'text-orange-400'
-                                }`}>
-                                Economy Health: {economyHealth.label}
-                            </span>
-                            <span className={`ml-auto text-${currentTheme.text} font-bold text-xs`}>
-                                {winRate}% Win Rate
-                            </span>
-                        </div>
-                        <p className={`text-[10px] ${economyHealth.status === 'critical' ? 'text-red-300' :
-                            economyHealth.status === 'warning' ? 'text-yellow-300' :
-                                economyHealth.status === 'good' ? 'text-green-300' :
-                                    'text-orange-300'
-                            }`}>
-                            {economyHealth.message}
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {/* Jackpot */}
-                        <div className={`bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded p-2`}>
-                            <div className="text-center mb-2">
-                                <div className="text-lg">🎰🎰🎰</div>
-                                <div className={`text-${currentTheme.text} font-bold text-xs`}>JACKPOT</div>
-                                <div className="text-yellow-400/70 text-[9px] italic">Rare - Big reward</div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <SlotInput settingKey="slot_jackpot_chance" label="How often? (%)" color="yellow-400" />
-                                <SlotInput settingKey="slot_jackpot_tokens" label="Win tokens 🪙" color="yellow-400" />
-                                <SlotInput settingKey="slot_jackpot_tickets" label="Win tickets 🎟️" color="yellow-400" />
-                            </div>
-                        </div>
-
-                        {/* Triple */}
-                        <div className={`bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded p-2`}>
-                            <div className="text-center mb-2">
-                                <div className="text-lg">🍒🍒🍒</div>
-                                <div className={`text-${currentTheme.text} font-bold text-xs`}>TRIPLE</div>
-                                <div className="text-purple-400/70 text-[9px] italic">Uncommon - Nice reward</div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <SlotInput settingKey="slot_triple_chance" label="How often? (%)" color="purple-400" />
-                                <SlotInput settingKey="slot_triple_tokens" label="Win tokens 🪙" color="purple-400" />
-                                <SlotInput settingKey="slot_triple_tickets" label="Win tickets 🎟️" color="purple-400" />
-                            </div>
-                        </div>
-
-                        {/* Pair */}
-                        <div className={`bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded p-2`}>
-                            <div className="text-center mb-2">
-                                <div className="text-lg">🍋🍋➖</div>
-                                <div className={`text-${currentTheme.text} font-bold text-xs`}>PAIR</div>
-                                <div className="text-blue-400/70 text-[9px] italic">Common - Small reward</div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <SlotInput settingKey="slot_pair_chance" label="How often? (%)" color="blue-400" />
-                                <SlotInput settingKey="slot_pair_tokens" label="Win tokens 🪙" color="blue-400" />
-                                <div>
-                                    <label className="text-blue-400 text-[10px]">Win tickets 🎟️</label>
-                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-blue-500/30 rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
-                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Pairs don't earn tickets</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Lose */}
-                        <div className={`bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded p-2`}>
-                            <div className="text-center mb-2">
-                                <div className="text-lg">🍒🍋🍇</div>
-                                <div className={`text-${currentTheme.text} font-bold text-xs`}>LOSE</div>
-                                <div className={`text-${currentTheme.textMuted} text-[9px] italic`}>No match - Lose tokens</div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <div>
-                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>How often? (%)</label>
-                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>{loseChance}% (auto)</div>
-                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Calculated from other %</div>
-                                </div>
-                                <SlotInput settingKey="slot_lose_tokens" label="Lose tokens 🪙" color="red-400" />
-                                <div>
-                                    <label className={`text-${currentTheme.textMuted} text-[10px]`}>Win tickets 🎟️</label>
-                                    <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
-                                    <div className={`text-[8px] text-${currentTheme.textMuted} text-center mt-0.5`}>Losses don't earn tickets</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className={`mt-2 p-1.5 bg-${currentTheme.border}/30 rounded`}>
-                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>
-                            <span className="font-medium">Entry Mode Bonus:</span> Pair +1, Triple +3, Jackpot +5 drawing entries (not configurable here)
-                        </p>
-                    </div>
-                </div>
-
-                {/* Email Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>📧 Email Settings</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div className={`p-2 bg-${currentTheme.border}/50 rounded`}>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>
-                                        <Tooltip text={TIPS.emailTestMode}>Email Test Mode</Tooltip>
-                                    </h3>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Only send to test address</p>
-                                </div>
-                                <button
-                                    onClick={() => handleChange('email_test_mode', settings.email_test_mode === 'true' ? 'false' : 'true')}
-                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.email_test_mode === 'true' ? `bg-${currentTheme.accent}` : 'bg-green-500'}`}
-                                >
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.email_test_mode === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
-                            {settings.email_test_mode === 'true' ? (
-                                <p className={`text-${currentTheme.accent} text-[10px] mt-1`}>🧪 Test Mode ON</p>
-                            ) : (
-                                <p className="text-green-400 text-[10px] mt-1">✅ Live Mode - Emails sent to all users</p>
-                            )}
-
-                            <div className="mt-2">
-                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                    <Tooltip text={TIPS.testRecipient}>Test Recipient</Tooltip>
-                                </label>
-                                <select
-                                    value={settings.test_email_recipient}
-                                    onChange={(e) => handleChange('test_email_recipient', e.target.value)}
-                                    className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                                >
-                                    <option value="bje1616@gmail.com">bje1616@gmail.com</option>
-                                    <option value="imaginethat.icu@gmail.com">imaginethat.icu@gmail.com</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
-                            <h3 className={`text-${currentTheme.text} font-medium text-[10px] mb-1`}>Email Types</h3>
-                            <div className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5`}>
-                                <p>• Welcome (new registrations)</p>
-                                <p>• Campaign activated</p>
-                                <p>• Campaign completed</p>
-                                <p>• Prize winner notification</p>
-                                <p>• Matrix completion</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Ad Campaign Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>💰 Ad Campaign Settings</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                <Tooltip text={TIPS.adPrice}>Ad Price ($)</Tooltip>
-                            </label>
-                            <div className="relative">
-                                <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
-                                <input
-                                    type="number"
-                                    value={settings.ad_price}
-                                    onChange={(e) => handleChange('ad_price', e.target.value)}
-                                    className={`w-full pl-5 pr-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                <Tooltip text={TIPS.guaranteedViews}>Guaranteed Views</Tooltip>
-                            </label>
-                            <input
-                                type="number"
-                                value={settings.guaranteed_views}
-                                onChange={(e) => handleChange('guaranteed_views', e.target.value)}
-                                className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Matrix Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>🔷 Matrix Settings</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                <Tooltip text={TIPS.matrixPayout}>Matrix Payout ($)</Tooltip>
-                            </label>
-                            <div className="relative">
-                                <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
-                                <input
-                                    type="number"
-                                    value={settings.matrix_payout}
-                                    onChange={(e) => handleChange('matrix_payout', e.target.value)}
-                                    className={`w-full pl-5 pr-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                                />
-                            </div>
-                        </div>
-
-                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
-                            <h3 className={`text-${currentTheme.text} font-medium text-[10px] mb-1`}>Matrix Structure</h3>
-                            <div className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5`}>
-                                <p>• Spot 1: The user (paid advertiser)</p>
-                                <p>• Spots 2-3: Direct referrals</p>
-                                <p>• Spots 4-7: Referrals of 2-3</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Card Back Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>🎴 Card Back Settings</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
-                                <Tooltip text={TIPS.companyLogo}>Company Logo</Tooltip>
-                            </label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleLogoUpload}
-                                disabled={uploading}
-                                className={`w-full px-2 py-1 text-[10px] bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent} file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-${currentTheme.accent} file:text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} file:text-[10px] file:font-medium hover:file:bg-${currentTheme.accentHover}`}
-                            />
-                            {uploading && <p className={`text-${currentTheme.accent} text-[10px] mt-1`}>Uploading...</p>}
-
-                            <div className={`mt-2 p-1.5 bg-${currentTheme.border}/50 rounded`}>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>
-                                            <Tooltip text={TIPS.showAdvertiserCards}>Show Advertiser Cards</Tooltip>
-                                        </h3>
-                                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>Random card on backs</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleChange('show_advertiser_cards', settings.show_advertiser_cards === 'true' ? 'false' : 'true')}
-                                        className={`relative w-9 h-4 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
-                                    >
-                                        <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center">
-                            <p className={`text-${currentTheme.textMuted} text-[10px] mb-1`}>Preview:</p>
-                            <div className="w-20 h-14 rounded border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center overflow-hidden">
-                                {settings.show_advertiser_cards === 'true' ? (
-                                    <div className="text-center">
-                                        <span className="text-sm">🎴</span>
-                                        <p className="text-white text-[8px]">Advertiser</p>
-                                    </div>
-                                ) : settings.card_back_logo_url ? (
-                                    <img src={settings.card_back_logo_url} alt="Logo" className="max-w-full max-h-full object-contain p-1" />
-                                ) : (
-                                    <span className="text-lg text-white">?</span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Data Retention Settings */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>🗑️ Data Retention</h2>
-                    <p className={`text-${currentTheme.textMuted} text-[10px] mb-2`}>Auto-cleanup runs every Sunday at 9 AM. Logs older than retention days are deleted.</p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Audit Log */}
-                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <div>
-                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>📋 Audit Logs</h3>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Admin action history</p>
-                                </div>
-                                <button
-                                    onClick={() => handleChange('audit_log_auto_cleanup', settings.audit_log_auto_cleanup === 'true' ? 'false' : 'true')}
-                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.audit_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
-                                >
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.audit_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
-                            {settings.audit_log_auto_cleanup === 'true' ? (
-                                <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
-                            ) : (
-                                <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
-                            )}
-                            <div>
-                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
-                                <input
-                                    type="number"
-                                    value={settings.audit_log_retention_days}
-                                    onChange={(e) => handleChange('audit_log_retention_days', e.target.value)}
-                                    className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
-                                />
-                            </div>
-                        </div>
-
-                        {/* IP Logs */}
-                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <div>
-                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>🌍 IP / Geography Logs</h3>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>User login locations</p>
-                                </div>
-                                <button
-                                    onClick={() => handleChange('ip_log_auto_cleanup', settings.ip_log_auto_cleanup === 'true' ? 'false' : 'true')}
-                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.ip_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
-                                >
-                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.ip_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
-                            {settings.ip_log_auto_cleanup === 'true' ? (
-                                <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
-                            ) : (
-                                <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
-                            )}
-                            <div>
-                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
-                                <input
-                                    type="number"
-                                    value={settings.ip_log_retention_days}
-                                    onChange={(e) => handleChange('ip_log_retention_days', e.target.value)}
-                                    className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Payment Methods */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
-                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>💳 Payment Methods</h2>
-
-                    <div className="grid grid-cols-3 gap-1.5">
-                        <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
-                            <div className="flex items-center gap-1 mb-0.5">
-                                <span className="text-sm">💳</span>
-                                <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>Stripe</h3>
-                            </div>
-                            <span className="inline-block px-1 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded">Auto</span>
-                        </div>
-
-                        <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
-                            <div className="flex items-center gap-1 mb-0.5">
-                                <span className="text-sm">💵</span>
-                                <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>CashApp</h3>
-                            </div>
-                            <span className={`inline-block px-1 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-[10px] rounded`}>Manual</span>
-                        </div>
-
-                        <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
-                            <div className="flex items-center gap-1 mb-0.5">
-                                <span className="text-sm">📱</span>
-                                <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>Venmo</h3>
-                            </div>
-                            <span className={`inline-block px-1 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-[10px] rounded`}>Manual</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end">
+            {/* Save Button - Always Visible */}
+            <div className={`mb-3 p-2 bg-${currentTheme.card} border border-${currentTheme.border} rounded sticky top-0 z-10`}>
+                <div className="flex items-center justify-between">
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Make changes below, then save.</p>
                     <button
                         onClick={handleSaveAll}
                         disabled={saving}
-                        className={`px-3 py-1.5 text-xs bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
+                        className={`px-4 py-1.5 text-xs bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50`}
                     >
-                        {saving ? 'Saving...' : 'Save All Settings'}
+                        {saving ? 'Saving...' : '💾 Save All Settings'}
                     </button>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                {/* Theme Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="theme"
+                        icon="🎨"
+                        title="Site Theme"
+                        isExpanded={expandedSections.includes('theme')}
+                    />
+                    {expandedSections.includes('theme') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.colorTheme}>Color Theme</Tooltip>
+                                    </label>
+                                    <select
+                                        value={theme}
+                                        onChange={(e) => updateTheme(e.target.value)}
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                    >
+                                        {Object.entries(themes).map(([key, t]) => (
+                                            <option key={key} value={key}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Preview:</p>
+                                    <div className="flex gap-1">
+                                        <div className={`w-6 h-6 rounded bg-${themes[theme]?.accent || 'amber-500'}`}></div>
+                                        <div className={`w-6 h-6 rounded bg-${currentTheme.card} border border-${currentTheme.border}`}></div>
+                                        <div className={`w-6 h-6 rounded bg-${currentTheme.bg}`}></div>
+                                    </div>
+                                    <p className={`text-${currentTheme.text} text-[10px] font-medium`}>{themes[theme]?.name}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Slot Machine Odds */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="slots"
+                        icon="🎰"
+                        title="Slot Machine Odds & Payouts"
+                        subtitle={`Economy: ${economyHealth.icon} ${economyHealth.label} (${winRate}% win rate)`}
+                        isExpanded={expandedSections.includes('slots')}
+                    />
+                    {expandedSections.includes('slots') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="flex justify-end mt-2 mb-2">
+                                {hasSlotChanges() && (
+                                    <button
+                                        onClick={() => setShowResetConfirm(true)}
+                                        className={`text-[10px] px-2 py-0.5 bg-${currentTheme.border} hover:bg-${currentTheme.border}/80 text-${currentTheme.textMuted} hover:text-${currentTheme.text} rounded transition-colors`}
+                                    >
+                                        ↩️ Reset All to Defaults
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Economy Health Indicator */}
+                            <div className={`mb-3 p-2 rounded border ${economyHealth.status === 'critical' ? 'bg-red-500/10 border-red-500/30' :
+                                economyHealth.status === 'warning' ? 'bg-yellow-500/10 border-yellow-500/30' :
+                                    economyHealth.status === 'good' ? 'bg-green-500/10 border-green-500/30' :
+                                        'bg-orange-500/10 border-orange-500/30'
+                                }`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm">{economyHealth.icon}</span>
+                                    <span className={`font-bold text-xs ${economyHealth.status === 'critical' ? 'text-red-400' :
+                                        economyHealth.status === 'warning' ? 'text-yellow-400' :
+                                            economyHealth.status === 'good' ? 'text-green-400' :
+                                                'text-orange-400'
+                                        }`}>
+                                        Economy Health: {economyHealth.label}
+                                    </span>
+                                    <span className={`ml-auto text-${currentTheme.text} font-bold text-xs`}>
+                                        {winRate}% Win Rate
+                                    </span>
+                                </div>
+                                <p className={`text-[10px] ${economyHealth.status === 'critical' ? 'text-red-300' :
+                                    economyHealth.status === 'warning' ? 'text-yellow-300' :
+                                        economyHealth.status === 'good' ? 'text-green-300' :
+                                            'text-orange-300'
+                                    }`}>
+                                    {economyHealth.message}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {/* Jackpot */}
+                                <div className={`bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 rounded p-2`}>
+                                    <div className="text-center mb-2">
+                                        <div className="text-lg">🎰🎰🎰</div>
+                                        <div className={`text-${currentTheme.text} font-bold text-xs`}>JACKPOT</div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <SlotInput settingKey="slot_jackpot_chance" label="How often? (%)" color="yellow-400" />
+                                        <SlotInput settingKey="slot_jackpot_tokens" label="Win tokens 🪙" color="yellow-400" />
+                                        <SlotInput settingKey="slot_jackpot_tickets" label="Win tickets 🎟️" color="yellow-400" />
+                                    </div>
+                                </div>
+
+                                {/* Triple */}
+                                <div className={`bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded p-2`}>
+                                    <div className="text-center mb-2">
+                                        <div className="text-lg">🍒🍒🍒</div>
+                                        <div className={`text-${currentTheme.text} font-bold text-xs`}>TRIPLE</div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <SlotInput settingKey="slot_triple_chance" label="How often? (%)" color="purple-400" />
+                                        <SlotInput settingKey="slot_triple_tokens" label="Win tokens 🪙" color="purple-400" />
+                                        <SlotInput settingKey="slot_triple_tickets" label="Win tickets 🎟️" color="purple-400" />
+                                    </div>
+                                </div>
+
+                                {/* Pair */}
+                                <div className={`bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded p-2`}>
+                                    <div className="text-center mb-2">
+                                        <div className="text-lg">🍋🍋➖</div>
+                                        <div className={`text-${currentTheme.text} font-bold text-xs`}>PAIR</div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <SlotInput settingKey="slot_pair_chance" label="How often? (%)" color="blue-400" />
+                                        <SlotInput settingKey="slot_pair_tokens" label="Win tokens 🪙" color="blue-400" />
+                                        <div>
+                                            <label className="text-blue-400 text-[10px]">Win tickets 🎟️</label>
+                                            <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-blue-500/30 rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Lose */}
+                                <div className={`bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded p-2`}>
+                                    <div className="text-center mb-2">
+                                        <div className="text-lg">🍒🍋🍇</div>
+                                        <div className={`text-${currentTheme.text} font-bold text-xs`}>LOSE</div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div>
+                                            <label className={`text-${currentTheme.textMuted} text-[10px]`}>How often? (%)</label>
+                                            <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>{loseChance}% (auto)</div>
+                                        </div>
+                                        <SlotInput settingKey="slot_lose_tokens" label="Lose tokens 🪙" color="red-400" />
+                                        <div>
+                                            <label className={`text-${currentTheme.textMuted} text-[10px]`}>Win tickets 🎟️</label>
+                                            <div className={`w-full px-1.5 py-0.5 text-xs bg-${currentTheme.border}/50 border border-${currentTheme.border} rounded text-${currentTheme.textMuted} text-center`}>0 (fixed)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Email Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="email"
+                        icon="📧"
+                        title="Email Settings"
+                        subtitle={settings.email_test_mode === 'true' ? '🧪 Test Mode ON' : '✅ Live Mode'}
+                        isExpanded={expandedSections.includes('email')}
+                    />
+                    {expandedSections.includes('email') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div className={`p-2 bg-${currentTheme.border}/50 rounded`}>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className={`text-${currentTheme.text} font-medium text-xs`}>
+                                                <Tooltip text={TIPS.emailTestMode}>Email Test Mode</Tooltip>
+                                            </h3>
+                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>Only send to test address</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleChange('email_test_mode', settings.email_test_mode === 'true' ? 'false' : 'true')}
+                                            className={`relative w-9 h-4 rounded-full transition-colors ${settings.email_test_mode === 'true' ? `bg-${currentTheme.accent}` : 'bg-green-500'}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.email_test_mode === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                    </div>
+                                    {settings.email_test_mode === 'true' ? (
+                                        <p className={`text-${currentTheme.accent} text-[10px] mt-1`}>🧪 Test Mode ON</p>
+                                    ) : (
+                                        <p className="text-green-400 text-[10px] mt-1">✅ Live Mode - Emails sent to all users</p>
+                                    )}
+
+                                    <div className="mt-2">
+                                        <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                            <Tooltip text={TIPS.testRecipient}>Test Recipient</Tooltip>
+                                        </label>
+                                        <select
+                                            value={settings.test_email_recipient}
+                                            onChange={(e) => handleChange('test_email_recipient', e.target.value)}
+                                            className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                        >
+                                            <option value="bje1616@gmail.com">bje1616@gmail.com</option>
+                                            <option value="imaginethat.icu@gmail.com">imaginethat.icu@gmail.com</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-[10px] mb-1`}>Email Types</h3>
+                                    <div className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5`}>
+                                        <p>• Welcome (new registrations)</p>
+                                        <p>• Campaign activated</p>
+                                        <p>• Campaign completed</p>
+                                        <p>• Prize winner notification</p>
+                                        <p>• Matrix completion</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Ad Campaign Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="adcampaign"
+                        icon="💰"
+                        title="Ad Campaign Settings"
+                        subtitle={`$${settings.ad_price} per campaign, ${settings.guaranteed_views} views`}
+                        isExpanded={expandedSections.includes('adcampaign')}
+                    />
+                    {expandedSections.includes('adcampaign') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.adPrice}>Ad Price ($)</Tooltip>
+                                    </label>
+                                    <div className="relative">
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
+                                        <input
+                                            type="number"
+                                            value={settings.ad_price}
+                                            onChange={(e) => handleChange('ad_price', e.target.value)}
+                                            className={`w-full pl-5 pr-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.guaranteedViews}>Guaranteed Views</Tooltip>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={settings.guaranteed_views}
+                                        onChange={(e) => handleChange('guaranteed_views', e.target.value)}
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Matrix Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="matrix"
+                        icon="🔷"
+                        title="Matrix Settings"
+                        subtitle={`$${settings.matrix_payout} payout per completion`}
+                        isExpanded={expandedSections.includes('matrix')}
+                    />
+                    {expandedSections.includes('matrix') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.matrixPayout}>Matrix Payout ($)</Tooltip>
+                                    </label>
+                                    <div className="relative">
+                                        <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>$</span>
+                                        <input
+                                            type="number"
+                                            value={settings.matrix_payout}
+                                            onChange={(e) => handleChange('matrix_payout', e.target.value)}
+                                            className={`w-full pl-5 pr-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-[10px] mb-1`}>Matrix Structure</h3>
+                                    <div className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5`}>
+                                        <p>• Spot 1: The user (paid advertiser)</p>
+                                        <p>• Spots 2-3: Direct referrals</p>
+                                        <p>• Spots 4-7: Referrals of 2-3</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Card Back Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="cardback"
+                        icon="🎴"
+                        title="Card Back Settings"
+                        subtitle={settings.show_advertiser_cards === 'true' ? 'Advertiser cards shown' : 'Company logo shown'}
+                        isExpanded={expandedSections.includes('cardback')}
+                    />
+                    {expandedSections.includes('cardback') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.companyLogo}>Company Logo</Tooltip>
+                                    </label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleLogoUpload}
+                                        disabled={uploading}
+                                        className={`w-full px-2 py-1 text-[10px] bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent} file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-${currentTheme.accent} file:text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} file:text-[10px] file:font-medium hover:file:bg-${currentTheme.accentHover}`}
+                                    />
+                                    {uploading && <p className={`text-${currentTheme.accent} text-[10px] mt-1`}>Uploading...</p>}
+
+                                    <div className={`mt-2 p-1.5 bg-${currentTheme.border}/50 rounded`}>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>
+                                                    <Tooltip text={TIPS.showAdvertiserCards}>Show Advertiser Cards</Tooltip>
+                                                </h3>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Random card on backs</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleChange('show_advertiser_cards', settings.show_advertiser_cards === 'true' ? 'false' : 'true')}
+                                                className={`relative w-9 h-4 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
+                                            >
+                                                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-center justify-center">
+                                    <p className={`text-${currentTheme.textMuted} text-[10px] mb-1`}>Preview:</p>
+                                    <div className="w-20 h-14 rounded border-2 border-indigo-400 bg-indigo-600 flex items-center justify-center overflow-hidden">
+                                        {settings.show_advertiser_cards === 'true' ? (
+                                            <div className="text-center">
+                                                <span className="text-sm">🎴</span>
+                                                <p className="text-white text-[8px]">Advertiser</p>
+                                            </div>
+                                        ) : settings.card_back_logo_url ? (
+                                            <img src={settings.card_back_logo_url} alt="Logo" className="max-w-full max-h-full object-contain p-1" />
+                                        ) : (
+                                            <span className="text-lg text-white">?</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Data Retention Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="retention"
+                        icon="🗑️"
+                        title="Data Retention"
+                        subtitle={`Audit: ${settings.audit_log_auto_cleanup === 'true' ? settings.audit_log_retention_days + ' days' : 'Keep forever'}`}
+                        isExpanded={expandedSections.includes('retention')}
+                    />
+                    {expandedSections.includes('retention') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <p className={`text-${currentTheme.textMuted} text-[10px] mt-2 mb-2`}>Auto-cleanup runs every Sunday at 9 AM. Logs older than retention days are deleted.</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {/* Audit Log */}
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <h3 className={`text-${currentTheme.text} font-medium text-xs`}>📋 Audit Logs</h3>
+                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>Admin action history</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleChange('audit_log_auto_cleanup', settings.audit_log_auto_cleanup === 'true' ? 'false' : 'true')}
+                                            className={`relative w-9 h-4 rounded-full transition-colors ${settings.audit_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.audit_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                    </div>
+                                    {settings.audit_log_auto_cleanup === 'true' ? (
+                                        <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
+                                    ) : (
+                                        <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
+                                    )}
+                                    <div>
+                                        <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.audit_log_retention_days}
+                                            onChange={(e) => handleChange('audit_log_retention_days', e.target.value)}
+                                            className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* IP Logs */}
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <h3 className={`text-${currentTheme.text} font-medium text-xs`}>🌍 IP / Geography Logs</h3>
+                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>User login locations</p>
+                                        </div>
+                                        <button
+                                            onClick={() => handleChange('ip_log_auto_cleanup', settings.ip_log_auto_cleanup === 'true' ? 'false' : 'true')}
+                                            className={`relative w-9 h-4 rounded-full transition-colors ${settings.ip_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                        >
+                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.ip_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                        </button>
+                                    </div>
+                                    {settings.ip_log_auto_cleanup === 'true' ? (
+                                        <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
+                                    ) : (
+                                        <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
+                                    )}
+                                    <div>
+                                        <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
+                                        <input
+                                            type="number"
+                                            value={settings.ip_log_retention_days}
+                                            onChange={(e) => handleChange('ip_log_retention_days', e.target.value)}
+                                            className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Payment Methods */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="payments"
+                        icon="💳"
+                        title="Payment Methods"
+                        subtitle="Stripe (auto), CashApp & Venmo (manual)"
+                        isExpanded={expandedSections.includes('payments')}
+                    />
+                    {expandedSections.includes('payments') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-3 gap-1.5 mt-2">
+                                <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-sm">💳</span>
+                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>Stripe</h3>
+                                    </div>
+                                    <span className="inline-block px-1 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded">Auto</span>
+                                </div>
+
+                                <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-sm">💵</span>
+                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>CashApp</h3>
+                                    </div>
+                                    <span className={`inline-block px-1 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-[10px] rounded`}>Manual</span>
+                                </div>
+
+                                <div className={`bg-${currentTheme.border}/50 rounded p-1.5 border border-${currentTheme.border}`}>
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                        <span className="text-sm">📱</span>
+                                        <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>Venmo</h3>
+                                    </div>
+                                    <span className={`inline-block px-1 py-0.5 bg-${currentTheme.accent}/20 text-${currentTheme.accent} text-[10px] rounded`}>Manual</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
