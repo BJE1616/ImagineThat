@@ -77,6 +77,20 @@ export default function RegisterPage() {
 
                 if (userError) throw userError
 
+                // Log IP address for registration
+                try {
+                    await fetch('/api/log-ip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: authData.user.id,
+                            eventType: 'register'
+                        })
+                    })
+                } catch (ipError) {
+                    console.log('IP logging error:', ipError)
+                }
+
                 try {
                     await fetch('/api/send-email', {
                         method: 'POST',

@@ -43,6 +43,20 @@ export default function AdminLoginPage() {
                 throw new Error('Access denied. Admin privileges required.')
             }
 
+            // Log IP address
+            try {
+                await fetch('/api/log-ip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: authData.user.id,
+                        eventType: 'login'
+                    })
+                })
+            } catch (ipError) {
+                console.log('IP logging error:', ipError)
+            }
+
             router.push('/admin/dashboard')
         } catch (error) {
             setError(error.message)

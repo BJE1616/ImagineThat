@@ -16,6 +16,7 @@ const PAGE_ACCESS = {
     '/admin/team': ['super_admin'],
     '/admin/audit-log': ['super_admin'],
     '/admin/accounting': ['super_admin'],
+    '/admin/geography': ['super_admin'],
 
     // Super Admin + Admin
     '/admin/reports': ['super_admin', 'admin'],
@@ -229,6 +230,7 @@ export default function AdminLayout({ children }) {
             items: [
                 { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
                 { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', superAdminOnly: true },
+                { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },
     ]

@@ -51,6 +51,20 @@ export default function LoginPage() {
 
             if (signInError) throw signInError
 
+            // Log IP address
+            try {
+                await fetch('/api/log-ip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: data.user.id,
+                        eventType: 'login'
+                    })
+                })
+            } catch (ipError) {
+                console.log('IP logging error:', ipError)
+            }
+
             router.push('/dashboard')
 
         } catch (error) {
