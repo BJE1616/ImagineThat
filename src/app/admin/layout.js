@@ -17,6 +17,7 @@ const PAGE_ACCESS = {
     '/admin/audit-log': ['super_admin'],
     '/admin/accounting': ['super_admin'],
     '/admin/geography': ['super_admin'],
+    '/admin/campaigns': ['super_admin', 'admin', 'manager'],
 
     // Super Admin + Admin
     '/admin/reports': ['super_admin', 'admin'],
@@ -193,6 +194,7 @@ export default function AdminLayout({ children }) {
             label: 'Games & Prizes',
             icon: '🎮',
             items: [
+                { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📊' },
                 { href: '/admin/game-settings', label: 'Game BB Settings', icon: '🎰' },
                 { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
                 { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
