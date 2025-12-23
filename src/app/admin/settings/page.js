@@ -59,7 +59,11 @@ export default function AdminSettingsPage() {
         slot_triple_tokens: '25',
         slot_triple_tickets: '5',
         slot_pair_tokens: '5',
-        slot_lose_tokens: '1'
+        slot_lose_tokens: '1',
+        audit_log_auto_cleanup: 'false',
+        audit_log_retention_days: '365',
+        ip_log_auto_cleanup: 'true',
+        ip_log_retention_days: '365'
     })
     const [uploading, setUploading] = useState(false)
     const [showSlotGuide, setShowSlotGuide] = useState(false)
@@ -691,6 +695,74 @@ export default function AdminSettingsPage() {
                                 ) : (
                                     <span className="text-lg text-white">?</span>
                                 )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Data Retention Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>🗑️ Data Retention</h2>
+                    <p className={`text-${currentTheme.textMuted} text-[10px] mb-2`}>Auto-cleanup runs every Sunday at 9 AM. Logs older than retention days are deleted.</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Audit Log */}
+                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>📋 Audit Logs</h3>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Admin action history</p>
+                                </div>
+                                <button
+                                    onClick={() => handleChange('audit_log_auto_cleanup', settings.audit_log_auto_cleanup === 'true' ? 'false' : 'true')}
+                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.audit_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                >
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.audit_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+                            {settings.audit_log_auto_cleanup === 'true' ? (
+                                <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
+                            ) : (
+                                <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
+                            )}
+                            <div>
+                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
+                                <input
+                                    type="number"
+                                    value={settings.audit_log_retention_days}
+                                    onChange={(e) => handleChange('audit_log_retention_days', e.target.value)}
+                                    className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
+                                />
+                            </div>
+                        </div>
+
+                        {/* IP Logs */}
+                        <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-xs`}>🌍 IP / Geography Logs</h3>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>User login locations</p>
+                                </div>
+                                <button
+                                    onClick={() => handleChange('ip_log_auto_cleanup', settings.ip_log_auto_cleanup === 'true' ? 'false' : 'true')}
+                                    className={`relative w-9 h-4 rounded-full transition-colors ${settings.ip_log_auto_cleanup === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                >
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.ip_log_auto_cleanup === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+                            {settings.ip_log_auto_cleanup === 'true' ? (
+                                <p className="text-green-400 text-[10px] mb-2">✅ Auto-cleanup ON</p>
+                            ) : (
+                                <p className={`text-${currentTheme.accent} text-[10px] mb-2`}>⚠️ Logs kept forever</p>
+                            )}
+                            <div>
+                                <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>Retention (days)</label>
+                                <input
+                                    type="number"
+                                    value={settings.ip_log_retention_days}
+                                    onChange={(e) => handleChange('ip_log_retention_days', e.target.value)}
+                                    className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text}`}
+                                />
                             </div>
                         </div>
                     </div>
