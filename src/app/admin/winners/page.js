@@ -24,6 +24,16 @@ export default function AdminWinnersPage() {
     const [announcing, setAnnouncing] = useState(false)
     const [message, setMessage] = useState(null)
 
+    // ===== VERIFICATION STATE =====
+    const [verificationData, setVerificationData] = useState(null)
+    const [verificationLoading, setVerificationLoading] = useState(false)
+    const [verificationStep, setVerificationStep] = useState('pick')
+
+    // ===== PAYOUT STATE =====
+    const [payoutStatus, setPayoutStatus] = useState(null)
+    const [payoutNotes, setPayoutNotes] = useState('')
+    const [savingPayout, setSavingPayout] = useState(false)
+
     useEffect(() => {
         if (activeTab === 'match') {
             loadWeekData()
@@ -109,7 +119,6 @@ export default function AdminWinnersPage() {
             const weekStartStr = weekStart.toISOString().split('T')[0]
             setCurrentWeek(formatWeekRange(weekStart))
 
-            // Load prize for this week
             const { data: prizeData } = await supabase
                 .from('weekly_prizes')
                 .select('*')
@@ -119,7 +128,16 @@ export default function AdminWinnersPage() {
 
             setSlotsPrize(prizeData || null)
 
-            // Load all entries for this week
+            if (prizeData?.winner_user_id) {
+                setVerificationStep('confirmed')
+                await loadPayoutStatus(prizeData.id)
+                await loadVerificationData(prizeData.winner_user_id)
+            } else {
+                setVerificationStep('pick')
+                setSelectedWinner(null)
+                setVerificationData(null)
+            }
+
             const weekEnd = new Date(weekStart)
             weekEnd.setDate(weekEnd.getDate() + 6)
             const weekEndStr = weekEnd.toISOString().split('T')[0]
@@ -132,7 +150,6 @@ export default function AdminWinnersPage() {
                 .gt('drawing_entries', 0)
 
             if (entriesData && entriesData.length > 0) {
-                // Aggregate entries by user
                 const userEntries = {}
                 entriesData.forEach(e => {
                     if (!userEntries[e.user_id]) {
@@ -141,7 +158,6 @@ export default function AdminWinnersPage() {
                     userEntries[e.user_id] += e.drawing_entries || 0
                 })
 
-                // Get user details
                 const userIds = Object.keys(userEntries)
                 const { data: usersData } = await supabase
                     .from('users')
@@ -165,23 +181,146 @@ export default function AdminWinnersPage() {
         }
     }
 
-    const pickRandomWinner = () => {
+    // ===== VERIFICATION FUNCTIONS =====
+    const loadVerificationData = async (userId) => {
+        setVerificationLoading(true)
+        try {
+            const { data: userData } = await supabase
+                .from('users')
+                .select('id, username, email, first_name, last_name, created_at, preferred_payment_method, payment_handle')
+                .eq('id', userId)
+                .single()
+
+            const { data: balanceData } = await supabase
+                .from('bb_balances')
+                .select('balance, lifetime_earned')
+                .eq('user_id', userId)
+                .single()
+
+            const { data: spinsData } = await supabase
+                .from('user_daily_spins')
+                .select('free_spins_used, paid_spins')
+                .eq('user_id', userId)
+
+            const totalSpins = spinsData?.reduce((sum, day) =>
+                sum + (day.free_spins_used || 0) + (day.paid_spins || 0), 0) || 0
+
+            const { data: ipLogs } = await supabase
+                .from('user_ip_logs')
+                .select('ip_address, city, region, country, created_at')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            const userIps = [...new Set(ipLogs?.map(log => log.ip_address) || [])]
+            let fraudFlags = []
+
+            if (userIps.length > 0) {
+                const { data: sharedIpAccounts } = await supabase
+                    .from('user_ip_logs')
+                    .select('user_id, ip_address')
+                    .in('ip_address', userIps)
+                    .neq('user_id', userId)
+
+                if (sharedIpAccounts && sharedIpAccounts.length > 0) {
+                    const sharedUserIds = [...new Set(sharedIpAccounts.map(a => a.user_id))]
+
+                    const { data: sharedUsers } = await supabase
+                        .from('users')
+                        .select('id, username, email')
+                        .in('id', sharedUserIds)
+
+                    fraudFlags = sharedUsers?.map(u => ({
+                        type: 'shared_ip',
+                        message: `Shares IP with: ${u.username} (${u.email})`,
+                        severity: 'warning'
+                    })) || []
+                }
+            }
+
+            const accountAge = userData?.created_at
+                ? Math.floor((new Date() - new Date(userData.created_at)) / (1000 * 60 * 60 * 24))
+                : 0
+
+            if (accountAge < 7) {
+                fraudFlags.push({
+                    type: 'new_account',
+                    message: `Account is only ${accountAge} days old`,
+                    severity: 'warning'
+                })
+            }
+
+            const selectedEntry = slotsEntries.find(e => e.user_id === userId)
+            const avgEntriesPerSpin = selectedEntry && totalSpins > 0
+                ? (selectedEntry.entries / totalSpins)
+                : 0
+
+            if (avgEntriesPerSpin > 5) {
+                fraudFlags.push({
+                    type: 'high_entry_ratio',
+                    message: `Unusually high entries per spin ratio (${avgEntriesPerSpin.toFixed(1)})`,
+                    severity: 'info'
+                })
+            }
+
+            setVerificationData({
+                user: userData,
+                balance: balanceData?.balance || 0,
+                lifetimeEarned: balanceData?.lifetime_earned || 0,
+                totalSpins,
+                accountAge,
+                ipLogs: ipLogs || [],
+                uniqueLocations: [...new Set(ipLogs?.map(l => `${l.city}, ${l.country}`))],
+                fraudFlags
+            })
+
+        } catch (error) {
+            console.error('Error loading verification data:', error)
+            setMessage({ type: 'error', text: 'Failed to load verification data' })
+        } finally {
+            setVerificationLoading(false)
+        }
+    }
+
+    const loadPayoutStatus = async (prizeId) => {
+        try {
+            const { data } = await supabase
+                .from('prize_payouts')
+                .select('*')
+                .eq('prize_id', prizeId)
+                .single()
+
+            if (data) {
+                setPayoutStatus(data)
+                setPayoutNotes(data.notes || '')
+            } else {
+                setPayoutStatus(null)
+                setPayoutNotes('')
+            }
+        } catch (error) {
+            setPayoutStatus(null)
+            setPayoutNotes('')
+        }
+    }
+
+    const pickRandomWinner = async () => {
         if (slotsEntries.length === 0) return
 
-        // Weighted random selection based on entries
         const totalEntries = slotsEntries.reduce((sum, e) => sum + e.entries, 0)
         let random = Math.random() * totalEntries
 
+        let winner = slotsEntries[0]
         for (const entry of slotsEntries) {
             random -= entry.entries
             if (random <= 0) {
-                setSelectedWinner(entry)
-                return
+                winner = entry
+                break
             }
         }
 
-        // Fallback to first entry
-        setSelectedWinner(slotsEntries[0])
+        setSelectedWinner(winner)
+        setVerificationStep('verify')
+        await loadVerificationData(winner.user_id)
     }
 
     const confirmWinner = async () => {
@@ -189,7 +328,6 @@ export default function AdminWinnersPage() {
         setAnnouncing(true)
 
         try {
-            // Update the prize with winner info
             const { error } = await supabase
                 .from('weekly_prizes')
                 .update({
@@ -202,11 +340,22 @@ export default function AdminWinnersPage() {
 
             if (error) throw error
 
-            setMessage({ type: 'success', text: `🎉 Winner confirmed: ${selectedWinner.user.username}!` })
+            const { data: payoutData } = await supabase
+                .from('prize_payouts')
+                .insert([{
+                    prize_id: slotsPrize.id,
+                    user_id: selectedWinner.user_id,
+                    status: 'pending',
+                    notes: '',
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single()
 
-            // Reload data
+            setMessage({ type: 'success', text: `🎉 Winner confirmed: ${selectedWinner.user.username}!` })
+            setVerificationStep('confirmed')
+
             loadSlotsDrawing()
-            setSelectedWinner(null)
         } catch (error) {
             console.error('Error confirming winner:', error)
             setMessage({ type: 'error', text: 'Failed to confirm winner. Please try again.' })
@@ -217,6 +366,107 @@ export default function AdminWinnersPage() {
 
     const clearSelection = () => {
         setSelectedWinner(null)
+        setVerificationData(null)
+        setVerificationStep('pick')
+    }
+
+    const updatePayoutStatus = async (newStatus) => {
+        if (!slotsPrize || !payoutStatus) return
+        setSavingPayout(true)
+
+        try {
+            // Update prize_payouts record
+            const { error } = await supabase
+                .from('prize_payouts')
+                .update({
+                    status: newStatus,
+                    notes: payoutNotes,
+                    updated_at: new Date().toISOString(),
+                    ...(newStatus === 'paid' ? { paid_at: new Date().toISOString() } : {})
+                })
+                .eq('id', payoutStatus.id)
+
+            if (error) throw error
+
+            // If status is "verified", add to payout_queue
+            if (newStatus === 'verified') {
+                // Get user payment info
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('preferred_payment_method, payment_handle')
+                    .eq('id', verificationData.user.id)
+                    .single()
+
+                // Calculate prize amount
+                const prizeAmount = slotsPrize.prize_type === 'cash'
+                    ? slotsPrize.total_prize_pool
+                    : 0
+
+                if (prizeAmount > 0) {
+                    // Check if already in queue
+                    const { data: existingQueue } = await supabase
+                        .from('payout_queue')
+                        .select('id')
+                        .eq('reference_type', 'weekly_prize')
+                        .eq('reference_id', payoutStatus.id)
+                        .single()
+
+                    if (!existingQueue) {
+                        await supabase
+                            .from('payout_queue')
+                            .insert([{
+                                user_id: verificationData.user.id,
+                                amount: prizeAmount,
+                                reason: `Weekly Slots Prize - ${currentWeek}`,
+                                reference_type: 'weekly_prize',
+                                reference_id: payoutStatus.id,
+                                payment_method: userData?.preferred_payment_method || null,
+                                payment_handle: userData?.payment_handle || null,
+                                status: 'pending',
+                                queued_at: new Date().toISOString()
+                            }])
+
+                        setMessage({ type: 'success', text: `Status updated to verified. $${prizeAmount} added to Payout Queue!` })
+                    } else {
+                        setMessage({ type: 'success', text: `Status updated to: ${newStatus}` })
+                    }
+                } else {
+                    setMessage({ type: 'success', text: `Status updated to: ${newStatus} (non-cash prize - handle manually)` })
+                }
+            } else {
+                setMessage({ type: 'success', text: `Status updated to: ${newStatus}` })
+            }
+
+            setPayoutStatus(prev => ({ ...prev, status: newStatus }))
+        } catch (error) {
+            console.error('Error updating payout:', error)
+            setMessage({ type: 'error', text: 'Failed to update status' })
+        } finally {
+            setSavingPayout(false)
+        }
+    }
+
+    const savePayoutNotes = async () => {
+        if (!payoutStatus) return
+        setSavingPayout(true)
+
+        try {
+            const { error } = await supabase
+                .from('prize_payouts')
+                .update({
+                    notes: payoutNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', payoutStatus.id)
+
+            if (error) throw error
+            setMessage({ type: 'success', text: 'Notes saved' })
+        } catch (error) {
+            console.error('Error saving notes:', error)
+            setMessage({ type: 'error', text: 'Failed to save notes' })
+        } finally {
+            setSavingPayout(false)
+        }
     }
 
     // ===== MATCH GAME FUNCTIONS (continued) =====
@@ -291,6 +541,26 @@ export default function AdminWinnersPage() {
         return slotsPrize.prize_descriptions?.[0] || 'Special Prize'
     }
 
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
+            case 'contacted': return 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+            case 'verified': return 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+            case 'paid': return 'bg-green-500/20 text-green-400 border-green-500/50'
+            case 'shipped': return 'bg-green-500/20 text-green-400 border-green-500/50'
+            default: return `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+        }
+    }
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return 'N/A'
+        return new Date(dateStr).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        })
+    }
+
     // ===== RENDER =====
     return (
         <div className="p-4">
@@ -304,8 +574,8 @@ export default function AdminWinnersPage() {
                 <button
                     onClick={() => setActiveTab('slots')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'slots'
-                            ? 'bg-purple-500 text-white'
-                            : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
+                        ? 'bg-purple-500 text-white'
+                        : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                         }`}
                 >
                     🎰 Slots Drawing
@@ -313,8 +583,8 @@ export default function AdminWinnersPage() {
                 <button
                     onClick={() => setActiveTab('match')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'match'
-                            ? 'bg-green-500 text-white'
-                            : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
+                        ? 'bg-green-500 text-white'
+                        : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                         }`}
                 >
                     🎮 Match Game
@@ -348,8 +618,7 @@ export default function AdminWinnersPage() {
 
             {/* ===== MESSAGE ===== */}
             {message && (
-                <div className={`mb-3 p-2 rounded text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                    }`}>
+                <div className={`mb-3 p-2 rounded text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {message.text}
                 </div>
             )}
@@ -379,30 +648,103 @@ export default function AdminWinnersPage() {
                                         <p className={`text-${currentTheme.text} font-bold text-lg`}>{slotsEntries.length}</p>
                                     </div>
                                 </div>
-
-                                {slotsPrize?.winner_user_id && (
-                                    <div className="mt-3 p-2 bg-green-500/20 border border-green-500/50 rounded">
-                                        <p className="text-green-400 text-sm font-bold">✅ Winner Already Selected</p>
-                                        <p className={`text-${currentTheme.textMuted} text-xs`}>
-                                            Selected on {new Date(slotsPrize.winner_selected_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                )}
                             </div>
 
-                            {/* Winner Selection */}
-                            {!slotsPrize?.winner_user_id && slotsEntries.length > 0 && (
+                            {/* ===== STEP 1: PICK WINNER ===== */}
+                            {verificationStep === 'pick' && slotsEntries.length > 0 && (
                                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
-                                    <h3 className={`text-${currentTheme.text} font-bold text-sm mb-2`}>🎲 Select Winner</h3>
+                                    <h3 className={`text-${currentTheme.text} font-bold text-sm mb-2`}>🎲 Step 1: Select Winner</h3>
+                                    <button
+                                        onClick={pickRandomWinner}
+                                        className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-bold text-sm hover:from-purple-400 hover:to-purple-500"
+                                    >
+                                        🎲 Pick Random Winner
+                                    </button>
+                                </div>
+                            )}
 
-                                    {selectedWinner ? (
-                                        <div className="space-y-3">
-                                            <div className="p-3 bg-yellow-500/20 border border-yellow-500 rounded-lg text-center">
+                            {/* ===== STEP 2: VERIFICATION ===== */}
+                            {verificationStep === 'verify' && selectedWinner && (
+                                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                                    <h3 className={`text-${currentTheme.text} font-bold text-sm mb-3`}>🔍 Step 2: Verify Winner</h3>
+
+                                    {/* Selected Winner Header */}
+                                    <div className="p-3 bg-yellow-500/20 border border-yellow-500 rounded-lg mb-3">
+                                        <div className="flex items-center justify-between">
+                                            <div>
                                                 <p className="text-yellow-400 text-xs mb-1">Selected Winner:</p>
                                                 <p className={`text-${currentTheme.text} font-bold text-lg`}>{selectedWinner.user.username}</p>
                                                 <p className={`text-${currentTheme.textMuted} text-xs`}>{selectedWinner.user.email}</p>
-                                                <p className="text-purple-400 text-sm mt-1">🎟️ {selectedWinner.entries} entries</p>
                                             </div>
+                                            <div className="text-right">
+                                                <p className="text-purple-400 font-bold text-lg">🎟️ {selectedWinner.entries}</p>
+                                                <p className={`text-${currentTheme.textMuted} text-xs`}>entries</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {verificationLoading ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <span className={`ml-2 text-${currentTheme.textMuted} text-sm`}>Loading verification data...</span>
+                                        </div>
+                                    ) : verificationData && (
+                                        <>
+                                            {/* Fraud Flags */}
+                                            {verificationData.fraudFlags.length > 0 && (
+                                                <div className="mb-3 p-2 bg-red-500/20 border border-red-500/50 rounded-lg">
+                                                    <p className="text-red-400 font-bold text-xs mb-1">⚠️ Flags Detected:</p>
+                                                    {verificationData.fraudFlags.map((flag, i) => (
+                                                        <p key={i} className={`text-xs ${flag.severity === 'warning' ? 'text-yellow-400' : 'text-orange-400'}`}>
+                                                            • {flag.message}
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* No Flags */}
+                                            {verificationData.fraudFlags.length === 0 && (
+                                                <div className="mb-3 p-2 bg-green-500/20 border border-green-500/50 rounded-lg">
+                                                    <p className="text-green-400 font-bold text-xs">✅ No fraud flags detected</p>
+                                                </div>
+                                            )}
+
+                                            {/* Account Info Grid */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                                                <div className={`p-2 bg-${currentTheme.border}/30 rounded`}>
+                                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Account Age</p>
+                                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{verificationData.accountAge} days</p>
+                                                </div>
+                                                <div className={`p-2 bg-${currentTheme.border}/30 rounded`}>
+                                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Spins</p>
+                                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{verificationData.totalSpins}</p>
+                                                </div>
+                                                <div className={`p-2 bg-${currentTheme.border}/30 rounded`}>
+                                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Current Balance</p>
+                                                    <p className="text-yellow-400 font-bold text-sm">🪙 {verificationData.balance}</p>
+                                                </div>
+                                                <div className={`p-2 bg-${currentTheme.border}/30 rounded`}>
+                                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Lifetime Earned</p>
+                                                    <p className="text-green-400 font-bold text-sm">🪙 {verificationData.lifetimeEarned}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* IP History */}
+                                            <div className={`p-2 bg-${currentTheme.border}/30 rounded mb-3`}>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px] mb-1`}>Login Locations ({verificationData.uniqueLocations.length} unique)</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {verificationData.uniqueLocations.slice(0, 5).map((loc, i) => (
+                                                        <span key={i} className={`px-2 py-0.5 bg-${currentTheme.card} rounded text-${currentTheme.text} text-xs`}>
+                                                            📍 {loc}
+                                                        </span>
+                                                    ))}
+                                                    {verificationData.uniqueLocations.length > 5 && (
+                                                        <span className={`text-${currentTheme.textMuted} text-xs`}>+{verificationData.uniqueLocations.length - 5} more</span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={clearSelection}
@@ -424,14 +766,106 @@ export default function AdminWinnersPage() {
                                                     {announcing ? 'Confirming...' : '✅ Confirm Winner'}
                                                 </button>
                                             </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* ===== STEP 3: CONFIRMED - PAYOUT TRACKING ===== */}
+                            {verificationStep === 'confirmed' && slotsPrize?.winner_user_id && (
+                                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3 mb-3`}>
+                                    <h3 className={`text-${currentTheme.text} font-bold text-sm mb-3`}>✅ Winner Confirmed - Payout Tracking</h3>
+
+                                    {/* Winner Info */}
+                                    {verificationData && (
+                                        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-green-400 text-xs mb-1">🏆 Winner:</p>
+                                                    <p className={`text-${currentTheme.text} font-bold text-lg`}>{verificationData.user?.username}</p>
+                                                    <p className={`text-${currentTheme.textMuted} text-xs`}>{verificationData.user?.email}</p>
+                                                    {verificationData.user?.preferred_payment_method && (
+                                                        <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
+                                                            💳 {verificationData.user.preferred_payment_method}: {verificationData.user.payment_handle}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className={`text-${currentTheme.textMuted} text-xs`}>Confirmed</p>
+                                                    <p className={`text-${currentTheme.text} text-sm`}>{formatDate(slotsPrize.winner_selected_at)}</p>
+                                                </div>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <button
-                                            onClick={pickRandomWinner}
-                                            className="w-full py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-bold text-sm hover:from-purple-400 hover:to-purple-500"
-                                        >
-                                            🎲 Pick Random Winner
-                                        </button>
+                                    )}
+
+                                    {/* Payout Status */}
+                                    {payoutStatus && (
+                                        <>
+                                            <div className="mb-3">
+                                                <p className={`text-${currentTheme.textMuted} text-xs mb-2`}>Payout Status:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['pending', 'contacted', 'verified', 'paid'].map(status => (
+                                                        <button
+                                                            key={status}
+                                                            onClick={() => updatePayoutStatus(status)}
+                                                            disabled={savingPayout || payoutStatus.status === 'paid'}
+                                                            className={`px-3 py-1.5 rounded text-xs font-medium border transition-all ${payoutStatus.status === status
+                                                                ? getStatusColor(status)
+                                                                : `bg-${currentTheme.border}/30 text-${currentTheme.textMuted} border-${currentTheme.border} hover:bg-${currentTheme.border}`
+                                                                } ${payoutStatus.status === 'paid' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            {status === 'pending' && '⏳'}
+                                                            {status === 'contacted' && '📧'}
+                                                            {status === 'verified' && '✓ → Queue'}
+                                                            {status === 'paid' && '💰'}
+                                                            {' '}{status.charAt(0).toUpperCase() + status.slice(1)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {payoutStatus.status === 'verified' && (
+                                                    <p className="text-purple-400 text-xs mt-2">
+                                                        ✓ Added to Payout Queue - process payment there
+                                                    </p>
+                                                )}
+                                                {payoutStatus.status === 'paid' && (
+                                                    <p className="text-green-400 text-xs mt-2">
+                                                        ✓ Payment completed via Payout Queue
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            {/* Email Button */}
+                                            {verificationData?.user?.email && payoutStatus.status !== 'paid' && (
+                                                <button
+                                                    onClick={() => window.open(`mailto:${verificationData.user.email}`)}
+                                                    className="mb-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
+                                                >
+                                                    📧 Email Winner
+                                                </button>
+                                            )}
+
+                                            {/* Notes */}
+                                            <div className="mb-2">
+                                                <p className={`text-${currentTheme.textMuted} text-xs mb-1`}>Admin Notes:</p>
+                                                <textarea
+                                                    value={payoutNotes}
+                                                    onChange={(e) => setPayoutNotes(e.target.value)}
+                                                    placeholder="Add notes about this payout (shipping info, verification details, etc.)"
+                                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                                    rows={3}
+                                                    disabled={payoutStatus.status === 'paid'}
+                                                />
+                                                {payoutStatus.status !== 'paid' && (
+                                                    <button
+                                                        onClick={savePayoutNotes}
+                                                        disabled={savingPayout}
+                                                        className={`mt-2 px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
+                                                    >
+                                                        {savingPayout ? 'Saving...' : 'Save Notes'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -456,18 +890,19 @@ export default function AdminWinnersPage() {
                                             <tbody>
                                                 {slotsEntries.map((entry, index) => {
                                                     const chance = ((entry.entries / getTotalEntries()) * 100).toFixed(1)
+                                                    const isWinner = slotsPrize?.winner_user_id === entry.user_id
+                                                    const isSelected = selectedWinner?.user_id === entry.user_id
                                                     return (
                                                         <tr
                                                             key={entry.user_id}
-                                                            className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30 ${selectedWinner?.user_id === entry.user_id ? 'bg-yellow-500/20' : ''
+                                                            className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30 ${isWinner ? 'bg-green-500/20' : isSelected ? 'bg-yellow-500/20' : ''
                                                                 }`}
                                                         >
                                                             <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{index + 1}</td>
                                                             <td className={`py-2 px-3 text-${currentTheme.text} font-medium text-xs`}>
                                                                 {entry.user.username}
-                                                                {selectedWinner?.user_id === entry.user_id && (
-                                                                    <span className="ml-2 text-yellow-400">⭐</span>
-                                                                )}
+                                                                {isWinner && <span className="ml-2 text-green-400">🏆</span>}
+                                                                {isSelected && !isWinner && <span className="ml-2 text-yellow-400">⭐</span>}
                                                             </td>
                                                             <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
                                                             <td className="py-2 px-3 text-right">
@@ -490,95 +925,98 @@ export default function AdminWinnersPage() {
                         </>
                     )}
                 </>
-            )}
+            )
+            }
 
             {/* ===== MATCH GAME TAB ===== */}
-            {activeTab === 'match' && (
-                <>
-                    {loading ? (
-                        <div className="animate-pulse space-y-3">
-                            <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className={`border-b border-${currentTheme.border}`}>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Score</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Prize</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
-                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {leaderboard.length > 0 ? (
-                                                leaderboard.map((entry, index) => {
-                                                    const rank = index + 1
-                                                    const badge = getRankBadge(rank)
-                                                    const payment = payments[entry.id]
-                                                    const isPaid = payment?.status === 'paid'
-                                                    const prizeAmount = getPrizeAmount(rank)
-
-                                                    return (
-                                                        <tr key={entry.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30`}>
-                                                            <td className="py-2 px-3">
-                                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${badge.color}`}>
-                                                                    {rank <= 3 ? badge.emoji : rank}
-                                                                </div>
-                                                            </td>
-                                                            <td className={`py-2 px-3 text-${currentTheme.text} font-medium text-xs`}>{entry.user.username}</td>
-                                                            <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
-                                                            <td className={`py-2 px-3 text-${currentTheme.accent} font-bold text-sm`}>{entry.score}</td>
-                                                            <td className="py-2 px-3">
-                                                                {prizeAmount > 0 ? (
-                                                                    <span className="text-green-400 font-semibold text-xs">${prizeAmount}</span>
-                                                                ) : (
-                                                                    <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="py-2 px-3">
-                                                                {prizeAmount > 0 ? (
-                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
-                                                                        }`}>
-                                                                        {isPaid ? '✓ Paid' : 'Pending'}
-                                                                    </span>
-                                                                ) : '—'}
-                                                            </td>
-                                                            <td className="py-2 px-3">
-                                                                {prizeAmount > 0 && (
-                                                                    <button
-                                                                        onClick={() => togglePaymentStatus(entry, rank)}
-                                                                        disabled={saving === entry.id}
-                                                                        className={`px-2 py-1 rounded text-xs font-medium ${isPaid ? `bg-${currentTheme.border} text-${currentTheme.textMuted}` : 'bg-green-600 text-white'
-                                                                            }`}
-                                                                    >
-                                                                        {saving === entry.id ? '...' : isPaid ? 'Undo' : 'Mark Paid'}
-                                                                    </button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    )
-                                                })
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan="7" className={`py-8 text-center text-${currentTheme.textMuted}`}>
-                                                        <p className="text-sm">No games played this week</p>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+            {
+                activeTab === 'match' && (
+                    <>
+                        {loading ? (
+                            <div className="animate-pulse space-y-3">
+                                <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
                             </div>
-                        </>
-                    )}
-                </>
-            )}
-        </div>
+                        ) : (
+                            <>
+                                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className={`border-b border-${currentTheme.border}`}>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Score</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Prize</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
+                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {leaderboard.length > 0 ? (
+                                                    leaderboard.map((entry, index) => {
+                                                        const rank = index + 1
+                                                        const badge = getRankBadge(rank)
+                                                        const payment = payments[entry.id]
+                                                        const isPaid = payment?.status === 'paid'
+                                                        const prizeAmount = getPrizeAmount(rank)
+
+                                                        return (
+                                                            <tr key={entry.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30`}>
+                                                                <td className="py-2 px-3">
+                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${badge.color}`}>
+                                                                        {rank <= 3 ? badge.emoji : rank}
+                                                                    </div>
+                                                                </td>
+                                                                <td className={`py-2 px-3 text-${currentTheme.text} font-medium text-xs`}>{entry.user.username}</td>
+                                                                <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
+                                                                <td className={`py-2 px-3 text-${currentTheme.accent} font-bold text-sm`}>{entry.score}</td>
+                                                                <td className="py-2 px-3">
+                                                                    {prizeAmount > 0 ? (
+                                                                        <span className="text-green-400 font-semibold text-xs">${prizeAmount}</span>
+                                                                    ) : (
+                                                                        <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-2 px-3">
+                                                                    {prizeAmount > 0 ? (
+                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                                                            }`}>
+                                                                            {isPaid ? '✓ Paid' : 'Pending'}
+                                                                        </span>
+                                                                    ) : '—'}
+                                                                </td>
+                                                                <td className="py-2 px-3">
+                                                                    {prizeAmount > 0 && (
+                                                                        <button
+                                                                            onClick={() => togglePaymentStatus(entry, rank)}
+                                                                            disabled={saving === entry.id}
+                                                                            className={`px-2 py-1 rounded text-xs font-medium ${isPaid ? `bg-${currentTheme.border} text-${currentTheme.textMuted}` : 'bg-green-600 text-white'
+                                                                                }`}
+                                                                        >
+                                                                            {saving === entry.id ? '...' : isPaid ? 'Undo' : 'Mark Paid'}
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        )
+                                                    })
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan="7" className={`py-8 text-center text-${currentTheme.textMuted}`}>
+                                                            <p className="text-sm">No games played this week</p>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </>
+                )
+            }
+        </div >
     )
 }

@@ -73,7 +73,6 @@ export default function PayoutQueuePage() {
     }
 
     const loadCashPosition = async () => {
-        // Get starting balance from admin_settings
         const { data: settings } = await supabase
             .from('admin_settings')
             .select('setting_value')
@@ -82,7 +81,6 @@ export default function PayoutQueuePage() {
 
         const startingBalance = parseFloat(settings?.setting_value || '0')
 
-        // Get last verified balance
         const { data: lastVerified } = await supabase
             .from('admin_settings')
             .select('setting_value')
@@ -95,21 +93,18 @@ export default function PayoutQueuePage() {
             .eq('setting_key', 'cash_actual_balance')
             .single()
 
-        // Calculate income (ad campaigns)
         const { data: campaigns } = await supabase
             .from('ad_campaigns')
             .select('amount_paid')
 
         const incomeReceived = campaigns?.reduce((sum, c) => sum + (c.amount_paid || 0), 0) || 0
 
-        // Calculate expenses
         const { data: expenses } = await supabase
             .from('expenses')
             .select('amount')
 
         const expensesPaid = expenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0
 
-        // Calculate payouts sent
         const { data: payouts } = await supabase
             .from('payout_history')
             .select('amount')
@@ -190,6 +185,18 @@ export default function PayoutQueuePage() {
                     .eq('id', payout.reference_id)
             }
 
+            // Update prize_payouts status if it's a weekly prize
+            if (payout.reference_type === 'weekly_prize' && payout.reference_id) {
+                await supabase
+                    .from('prize_payouts')
+                    .update({
+                        status: 'paid',
+                        paid_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', payout.reference_id)
+            }
+
             // Delete from queue
             const { error: deleteError } = await supabase
                 .from('payout_queue')
@@ -197,8 +204,6 @@ export default function PayoutQueuePage() {
                 .eq('id', payout.id)
 
             if (deleteError) throw deleteError
-
-            // TODO: Send payout_initiated email here
 
             setMessage({ type: 'success', text: 'Payout marked as paid!' })
             setProcessingId(null)
@@ -219,7 +224,6 @@ export default function PayoutQueuePage() {
 
     const saveReconciliation = async () => {
         try {
-            // Save actual balance
             await supabase
                 .from('admin_settings')
                 .upsert({
@@ -227,7 +231,6 @@ export default function PayoutQueuePage() {
                     setting_value: cashPosition.actual_balance
                 }, { onConflict: 'setting_key' })
 
-            // Save last verified date
             await supabase
                 .from('admin_settings')
                 .upsert({
@@ -235,7 +238,6 @@ export default function PayoutQueuePage() {
                     setting_value: new Date().toISOString()
                 }, { onConflict: 'setting_key' })
 
-            // If there's a difference, save new starting balance to match
             const difference = parseFloat(cashPosition.actual_balance) - cashPosition.calculated_balance
             if (difference !== 0) {
                 const newStarting = cashPosition.starting_balance + difference
@@ -254,6 +256,17 @@ export default function PayoutQueuePage() {
         } catch (error) {
             setMessage({ type: 'error', text: 'Failed to save' })
         }
+    }
+
+    const getReasonBadge = (payout) => {
+        if (payout.reference_type === 'weekly_prize') {
+            return { bg: 'bg-purple-500/20', text: 'text-purple-400', icon: '🎰' }
+        } else if (payout.reference_type === 'matrix') {
+            return { bg: 'bg-blue-500/20', text: 'text-blue-400', icon: '🔷' }
+        } else if (payout.reference_type === 'match_game') {
+            return { bg: 'bg-green-500/20', text: 'text-green-400', icon: '🎮' }
+        }
+        return { bg: 'bg-slate-500/20', text: 'text-slate-400', icon: '💵' }
     }
 
     const formatDate = (dateString) => {
@@ -388,8 +401,8 @@ export default function PayoutQueuePage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-all ${activeTab === tab
-                                ? 'bg-yellow-500 text-slate-900'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            ? 'bg-yellow-500 text-slate-900'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                             }`}
                     >
                         {tab === 'queue' ? `Queue (${stats.pending_count})` : 'History'}
@@ -418,81 +431,88 @@ export default function PayoutQueuePage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {queue.map(payout => (
-                                    <tr key={payout.id} className="border-t border-slate-700">
-                                        <td className="py-2 px-3">
-                                            <p className="text-white font-medium">{payout.users?.username || 'Unknown'}</p>
-                                            <p className="text-slate-500 text-xs">{payout.users?.email}</p>
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-300">{payout.reason}</td>
-                                        <td className="py-2 px-3">
-                                            {(payout.payment_method || payout.users?.preferred_payment_method) ? (
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-slate-300 capitalize">
-                                                        {payout.payment_method || payout.users?.preferred_payment_method}:
-                                                    </span>
-                                                    <span className="text-yellow-400">
-                                                        {payout.payment_handle || payout.users?.payment_handle}
-                                                    </span>
+                                {queue.map(payout => {
+                                    const badge = getReasonBadge(payout)
+                                    return (
+                                        <tr key={payout.id} className="border-t border-slate-700">
+                                            <td className="py-2 px-3">
+                                                <p className="text-white font-medium">{payout.users?.username || 'Unknown'}</p>
+                                                <p className="text-slate-500 text-xs">{payout.users?.email}</p>
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${badge.bg} ${badge.text}`}>
+                                                    {badge.icon} {payout.reason}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                {(payout.payment_method || payout.users?.preferred_payment_method) ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-slate-300 capitalize">
+                                                            {payout.payment_method || payout.users?.preferred_payment_method}:
+                                                        </span>
+                                                        <span className="text-yellow-400">
+                                                            {payout.payment_handle || payout.users?.payment_handle}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => copyToClipboard(payout.payment_handle || payout.users?.payment_handle)}
+                                                            className="text-slate-500 hover:text-white ml-1"
+                                                            title="Copy"
+                                                        >
+                                                            📋
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-red-400 text-xs">No payment info</span>
+                                                )}
+                                            </td>
+                                            <td className="py-2 px-3 text-right text-green-400 font-semibold">
+                                                ${payout.amount.toFixed(2)}
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-400 text-xs">
+                                                {formatDate(payout.queued_at)}
+                                            </td>
+                                            <td className="py-2 px-3 text-right">
+                                                {processingId === payout.id ? (
+                                                    <div className="flex items-center gap-2 justify-end">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Conf #"
+                                                            value={payoutForm.confirmation_number}
+                                                            onChange={(e) => setPayoutForm({ ...payoutForm, confirmation_number: e.target.value })}
+                                                            className="w-20 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs"
+                                                        />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Notes"
+                                                            value={payoutForm.notes}
+                                                            onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
+                                                            className="w-24 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs"
+                                                        />
+                                                        <button
+                                                            onClick={() => markAsPaid(payout)}
+                                                            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400"
+                                                        >
+                                                            ✓ Paid
+                                                        </button>
+                                                        <button
+                                                            onClick={cancelProcessing}
+                                                            className="px-2 py-1 bg-slate-600 text-slate-300 rounded text-xs hover:bg-slate-500"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ) : (
                                                     <button
-                                                        onClick={() => copyToClipboard(payout.payment_handle || payout.users?.payment_handle)}
-                                                        className="text-slate-500 hover:text-white ml-1"
-                                                        title="Copy"
+                                                        onClick={() => startProcessing(payout)}
+                                                        className="px-3 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
                                                     >
-                                                        📋
+                                                        Process
                                                     </button>
-                                                </div>
-                                            ) : (
-                                                <span className="text-red-400 text-xs">No payment info</span>
-                                            )}
-                                        </td>
-                                        <td className="py-2 px-3 text-right text-green-400 font-semibold">
-                                            ${payout.amount.toFixed(2)}
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs">
-                                            {formatDate(payout.queued_at)}
-                                        </td>
-                                        <td className="py-2 px-3 text-right">
-                                            {processingId === payout.id ? (
-                                                <div className="flex items-center gap-2 justify-end">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Conf #"
-                                                        value={payoutForm.confirmation_number}
-                                                        onChange={(e) => setPayoutForm({ ...payoutForm, confirmation_number: e.target.value })}
-                                                        className="w-20 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Notes"
-                                                        value={payoutForm.notes}
-                                                        onChange={(e) => setPayoutForm({ ...payoutForm, notes: e.target.value })}
-                                                        className="w-24 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs"
-                                                    />
-                                                    <button
-                                                        onClick={() => markAsPaid(payout)}
-                                                        className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400"
-                                                    >
-                                                        ✓ Paid
-                                                    </button>
-                                                    <button
-                                                        onClick={cancelProcessing}
-                                                        className="px-2 py-1 bg-slate-600 text-slate-300 rounded text-xs hover:bg-slate-500"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => startProcessing(payout)}
-                                                    className="px-3 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
-                                                >
-                                                    Process
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     )}
@@ -520,31 +540,38 @@ export default function PayoutQueuePage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {history.map(payout => (
-                                    <tr key={payout.id} className="border-t border-slate-700">
-                                        <td className="py-2 px-3 text-slate-400 text-xs">
-                                            {formatDate(payout.paid_at)}<br />
-                                            <span className="text-slate-500">{formatTime(payout.paid_at)}</span>
-                                        </td>
-                                        <td className="py-2 px-3">
-                                            <p className="text-white">{payout.users?.username || 'Unknown'}</p>
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-300 text-xs">{payout.reason}</td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs capitalize">
-                                            {payout.payment_method}<br />
-                                            <span className="text-slate-500">{payout.payment_handle}</span>
-                                        </td>
-                                        <td className="py-2 px-3 text-right text-green-400 font-semibold">
-                                            ${payout.amount.toFixed(2)}
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-400 text-xs">
-                                            {payout.confirmation_number || '-'}
-                                        </td>
-                                        <td className="py-2 px-3 text-slate-500 text-xs max-w-32 truncate">
-                                            {payout.notes || '-'}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {history.map(payout => {
+                                    const badge = getReasonBadge(payout)
+                                    return (
+                                        <tr key={payout.id} className="border-t border-slate-700">
+                                            <td className="py-2 px-3 text-slate-400 text-xs">
+                                                {formatDate(payout.paid_at)}<br />
+                                                <span className="text-slate-500">{formatTime(payout.paid_at)}</span>
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <p className="text-white">{payout.users?.username || 'Unknown'}</p>
+                                            </td>
+                                            <td className="py-2 px-3">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${badge.bg} ${badge.text}`}>
+                                                    {badge.icon} {payout.reason}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-400 text-xs capitalize">
+                                                {payout.payment_method}<br />
+                                                <span className="text-slate-500">{payout.payment_handle}</span>
+                                            </td>
+                                            <td className="py-2 px-3 text-right text-green-400 font-semibold">
+                                                ${payout.amount.toFixed(2)}
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-400 text-xs">
+                                                {payout.confirmation_number || '-'}
+                                            </td>
+                                            <td className="py-2 px-3 text-slate-500 text-xs max-w-32 truncate">
+                                                {payout.notes || '-'}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     )}
@@ -553,6 +580,7 @@ export default function PayoutQueuePage() {
 
             <div className="mt-3 p-2 bg-slate-800/50 border border-slate-700 rounded-lg text-xs text-slate-400">
                 <p>💡 <strong>Workflow:</strong> Open Cash App/Venmo/Zelle → Send payment → Click Process → Enter confirmation # → Mark as Paid</p>
+                <p className="mt-1">🎰 <strong>Weekly Prize:</strong> Winners are added here when marked "Verified" on the Winners page. Marking paid here updates their status automatically.</p>
             </div>
         </div>
     )
