@@ -601,44 +601,80 @@ export default function SolitairePage() {
 
     const loadDisplayAds = async () => {
         try {
+            // Load house card settings
+            const { data: settings } = await supabase
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+
+            let frequency = 10
+            let fallbackEnabled = true
+            settings?.forEach(s => {
+                if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
+                if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+            })
+
             const { data: campaigns, error } = await supabase
                 .from('ad_campaigns')
                 .select('user_id, views_guaranteed, views_from_game, views_from_flips, views_from_card_back, bonus_views')
                 .eq('status', 'active')
 
-            if (error || !campaigns || campaigns.length === 0) return
+            let advertiserCards = []
 
-            const eligibleCampaigns = campaigns.filter(c => {
-                const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
-                return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
-            })
+            if (!error && campaigns && campaigns.length > 0) {
+                const eligibleCampaigns = campaigns.filter(c => {
+                    const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
+                    return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+                })
 
-            if (eligibleCampaigns.length === 0) return
+                if (eligibleCampaigns.length > 0) {
+                    const uniqueUserIds = [...new Set(eligibleCampaigns.map(c => c.user_id))]
+                    const shuffledUserIds = uniqueUserIds.sort(() => Math.random() - 0.5)
+                    const selectedUserIds = shuffledUserIds.slice(0, 8)
 
-            // Get unique user_ids and shuffle them
-            const uniqueUserIds = [...new Set(eligibleCampaigns.map(c => c.user_id))]
-            const shuffledUserIds = uniqueUserIds.sort(() => Math.random() - 0.5)
+                    const { data: cards } = await supabase
+                        .from('business_cards')
+                        .select('*')
+                        .in('user_id', selectedUserIds)
 
-            // Take up to 8 advertisers
-            const selectedUserIds = shuffledUserIds.slice(0, 8)
-
-            // Get business cards for these advertisers
-            const { data: cards } = await supabase
-                .from('business_cards')
-                .select('*')
-                .in('user_id', selectedUserIds)
-
-            if (cards && cards.length > 0) {
-                // Get one card per user
-                const uniqueCards = []
-                const seenUsers = new Set()
-                for (const card of cards) {
-                    if (!seenUsers.has(card.user_id)) {
-                        uniqueCards.push(card)
-                        seenUsers.add(card.user_id)
+                    if (cards && cards.length > 0) {
+                        const seenUsers = new Set()
+                        for (const card of cards) {
+                            if (!seenUsers.has(card.user_id)) {
+                                advertiserCards.push(card)
+                                seenUsers.add(card.user_id)
+                            }
+                        }
                     }
                 }
-                setDisplayAds(uniqueCards.slice(0, 8))
+            }
+
+            // Load house cards
+            const { data: houseCards } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('is_house_card', true)
+
+            // Build final ad list
+            let finalAds = []
+
+            if (advertiserCards.length > 0) {
+                finalAds = [...advertiserCards]
+
+                // Mix in house cards based on frequency setting
+                if (frequency > 0 && houseCards && houseCards.length > 0) {
+                    const houseCardsToAdd = Math.ceil(advertiserCards.length / frequency)
+                    for (let i = 0; i < houseCardsToAdd; i++) {
+                        finalAds.push(houseCards[Math.floor(Math.random() * houseCards.length)])
+                    }
+                }
+            } else if (fallbackEnabled && houseCards && houseCards.length > 0) {
+                // No advertisers - use house cards as fallback
+                finalAds = [...houseCards].sort(() => Math.random() - 0.5)
+            }
+
+            if (finalAds.length > 0) {
+                setDisplayAds(finalAds.slice(0, 8))
             }
         } catch (error) {
             console.log('Error loading display ads')

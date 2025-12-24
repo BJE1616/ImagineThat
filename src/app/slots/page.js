@@ -446,6 +446,21 @@ export default function SlotMachinePage() {
     // ===== LOAD CARDS =====
     const loadCards = async () => {
         try {
+            // Load house card settings
+            const { data: settings } = await supabase
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+
+            let frequency = 10
+            let fallbackEnabled = true
+            settings?.forEach(s => {
+                if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
+                if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+            })
+
+            // Load advertiser cards from active campaigns
+            let advertiserCards = []
             const { data: campaigns } = await supabase
                 .from('ad_campaigns')
                 .select('user_id')
@@ -458,28 +473,41 @@ export default function SlotMachinePage() {
                     .select('*')
                     .in('user_id', advertiserIds)
 
-                if (cardsData && cardsData.length > 0) {
-                    setCards(cardsData)
-                    setReels([
-                        cardsData[Math.floor(Math.random() * cardsData.length)],
-                        cardsData[Math.floor(Math.random() * cardsData.length)],
-                        cardsData[Math.floor(Math.random() * cardsData.length)]
-                    ])
-                    return
-                }
+                if (cardsData) advertiserCards = cardsData
             }
 
+            // Load house cards
             const { data: houseCards } = await supabase
                 .from('business_cards')
                 .select('*')
                 .eq('is_house_card', true)
 
-            if (houseCards && houseCards.length > 0) {
-                setCards(houseCards)
+            // Determine which cards to use
+            let finalCards = []
+
+            if (advertiserCards.length > 0) {
+                // Mix in house cards based on frequency setting
+                if (frequency > 0 && houseCards && houseCards.length > 0) {
+                    finalCards = [...advertiserCards]
+                    // Add house cards to create the right ratio
+                    const houseCardsToAdd = Math.ceil(advertiserCards.length / frequency)
+                    for (let i = 0; i < houseCardsToAdd; i++) {
+                        finalCards.push(houseCards[Math.floor(Math.random() * houseCards.length)])
+                    }
+                } else {
+                    finalCards = advertiserCards
+                }
+            } else if (fallbackEnabled && houseCards && houseCards.length > 0) {
+                // No advertisers - use house cards as fallback
+                finalCards = houseCards
+            }
+
+            if (finalCards.length > 0) {
+                setCards(finalCards)
                 setReels([
-                    houseCards[Math.floor(Math.random() * houseCards.length)],
-                    houseCards[Math.floor(Math.random() * houseCards.length)],
-                    houseCards[Math.floor(Math.random() * houseCards.length)]
+                    finalCards[Math.floor(Math.random() * finalCards.length)],
+                    finalCards[Math.floor(Math.random() * finalCards.length)],
+                    finalCards[Math.floor(Math.random() * finalCards.length)]
                 ])
             }
         } catch (error) {

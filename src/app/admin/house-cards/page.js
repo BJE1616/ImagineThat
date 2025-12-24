@@ -10,6 +10,11 @@ export default function AdminHouseCardsPage() {
     const [showTemplateForm, setShowTemplateForm] = useState(false)
     const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
 
+    // Settings
+    const [houseCardFrequency, setHouseCardFrequency] = useState('10')
+    const [fallbackEnabled, setFallbackEnabled] = useState(true)
+    const [savingSettings, setSavingSettings] = useState(false)
+
     const [templateData, setTemplateData] = useState({
         business_name: '',
         tagline: '',
@@ -66,7 +71,50 @@ export default function AdminHouseCardsPage() {
 
     useEffect(() => {
         loadHouseCards()
+        loadSettings()
     }, [])
+
+    const loadSettings = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+
+            if (error) throw error
+
+            data?.forEach(setting => {
+                if (setting.setting_key === 'house_card_frequency') {
+                    setHouseCardFrequency(setting.setting_value || '10')
+                } else if (setting.setting_key === 'house_card_fallback_enabled') {
+                    setFallbackEnabled(setting.setting_value === 'true')
+                }
+            })
+        } catch (error) {
+            console.error('Error loading settings:', error)
+        }
+    }
+
+    const saveSettings = async () => {
+        setSavingSettings(true)
+        try {
+            await supabase
+                .from('admin_settings')
+                .update({ setting_value: houseCardFrequency, updated_at: new Date().toISOString() })
+                .eq('setting_key', 'house_card_frequency')
+
+            await supabase
+                .from('admin_settings')
+                .update({ setting_value: fallbackEnabled ? 'true' : 'false', updated_at: new Date().toISOString() })
+                .eq('setting_key', 'house_card_fallback_enabled')
+
+        } catch (error) {
+            console.error('Error saving settings:', error)
+            alert('Error saving settings: ' + error.message)
+        } finally {
+            setSavingSettings(false)
+        }
+    }
 
     const loadHouseCards = async () => {
         try {
@@ -109,10 +157,7 @@ export default function AdminHouseCardsPage() {
                     .from('business-card-images')
                     .upload(fileName, file)
 
-                if (uploadError) {
-                    console.error(`Error uploading ${file.name}:`, uploadError)
-                    continue
-                }
+                if (uploadError) continue
 
                 const { data: urlData } = supabase.storage
                     .from('business-card-images')
@@ -120,7 +165,7 @@ export default function AdminHouseCardsPage() {
 
                 const originalName = file.name.split('.').slice(0, -1).join('.')
 
-                const { error: insertError } = await supabase
+                await supabase
                     .from('business_cards')
                     .insert([{
                         card_type: 'uploaded',
@@ -129,16 +174,11 @@ export default function AdminHouseCardsPage() {
                         image_url: urlData.publicUrl,
                         is_house_card: true
                     }])
-
-                if (insertError) {
-                    console.error(`Error creating card for ${file.name}:`, insertError)
-                }
             }
 
             await loadHouseCards()
             e.target.value = ''
         } catch (error) {
-            console.error('Batch upload error:', error)
             alert('Error during upload: ' + error.message)
         } finally {
             setUploading(false)
@@ -166,16 +206,10 @@ export default function AdminHouseCardsPage() {
 
             if (error) throw error
 
-            setTemplateData({
-                business_name: '',
-                tagline: '',
-                card_color: '#4F46E5',
-                text_color: '#FFFFFF'
-            })
+            setTemplateData({ business_name: '', tagline: '', card_color: '#4F46E5', text_color: '#FFFFFF' })
             setShowTemplateForm(false)
             await loadHouseCards()
         } catch (error) {
-            console.error('Error creating template card:', error)
             alert('Error: ' + error.message)
         } finally {
             setUploading(false)
@@ -186,265 +220,230 @@ export default function AdminHouseCardsPage() {
         if (!confirm('Delete this house card?')) return
 
         try {
-            const { error } = await supabase
-                .from('business_cards')
-                .delete()
-                .eq('id', cardId)
-
-            if (error) throw error
+            await supabase.from('business_cards').delete().eq('id', cardId)
 
             if (imageUrl && imageUrl.includes('business-card-images')) {
                 const fileName = imageUrl.split('/').pop()
-                await supabase.storage
-                    .from('business-card-images')
-                    .remove([fileName])
+                await supabase.storage.from('business-card-images').remove([fileName])
             }
 
             await loadHouseCards()
         } catch (error) {
-            console.error('Error deleting card:', error)
             alert('Error: ' + error.message)
         }
     }
 
     if (loading) {
         return (
-            <div className="p-4">
-                <div className="animate-pulse space-y-3">
-                    <div className="h-6 bg-slate-700 rounded w-48"></div>
-                    <div className="h-64 bg-slate-800 rounded"></div>
-                </div>
+            <div className="p-3">
+                <div className="animate-pulse h-64 bg-slate-800 rounded"></div>
             </div>
         )
     }
 
     return (
-        <div className="p-4">
-            <div className="mb-4">
-                <h1 className="text-lg font-bold text-white">House Cards</h1>
-                <p className="text-slate-400 text-xs">Default filler cards when not enough advertisers</p>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <p className="text-slate-400 text-xs">Total House Cards</p>
-                    <p className="text-xl font-bold text-amber-400">{houseCards.length}</p>
+        <div className="p-3">
+            {/* Header + Stats Row */}
+            <div className="flex items-center justify-between mb-3">
+                <div>
+                    <h1 className="text-lg font-bold text-white">House Cards</h1>
+                    <p className="text-slate-400 text-xs">Default filler cards when not enough advertisers</p>
                 </div>
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <p className="text-slate-400 text-xs">Uploaded Images</p>
-                    <p className="text-xl font-bold text-blue-400">
-                        {houseCards.filter(c => c.card_type === 'uploaded').length}
-                    </p>
-                </div>
-                <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                    <p className="text-slate-400 text-xs">Template Cards</p>
-                    <p className="text-xl font-bold text-green-400">
-                        {houseCards.filter(c => c.card_type === 'template').length}
-                    </p>
-                </div>
-            </div>
-
-            {/* Upload Section */}
-            <div className="bg-slate-800 border border-slate-700 rounded p-3 mb-4">
-                <h2 className="text-sm font-bold text-white mb-3">Add House Cards</h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Batch Upload */}
-                    <div className="bg-slate-700/50 rounded p-3">
-                        <h3 className="text-sm font-medium text-white mb-2">📤 Batch Upload</h3>
-                        <p className="text-slate-400 text-xs mb-2">Select multiple images. Max 2MB each.</p>
-                        <label className="block">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={handleBatchUpload}
-                                disabled={uploading}
-                                className="w-full px-2 py-1 text-xs bg-slate-600 border border-slate-500 rounded text-white file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-xs file:font-bold hover:file:bg-amber-400 cursor-pointer disabled:opacity-50"
-                            />
-                        </label>
-                        {uploadProgress.total > 0 && (
-                            <div className="mt-2">
-                                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                                    <span>Uploading...</span>
-                                    <span>{uploadProgress.current} / {uploadProgress.total}</span>
-                                </div>
-                                <div className="h-1.5 bg-slate-600 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-amber-500 rounded-full transition-all"
-                                        style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                                    ></div>
-                                </div>
-                            </div>
-                        )}
+                <div className="flex gap-2">
+                    <div className="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-center">
+                        <p className="text-xs text-slate-400">Total</p>
+                        <p className="text-lg font-bold text-amber-400">{houseCards.length}</p>
                     </div>
+                    <div className="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-center">
+                        <p className="text-xs text-slate-400">Uploaded</p>
+                        <p className="text-lg font-bold text-blue-400">{houseCards.filter(c => c.card_type === 'uploaded').length}</p>
+                    </div>
+                    <div className="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-center">
+                        <p className="text-xs text-slate-400">Templates</p>
+                        <p className="text-lg font-bold text-green-400">{houseCards.filter(c => c.card_type === 'template').length}</p>
+                    </div>
+                </div>
+            </div>
 
-                    {/* Template Creator */}
-                    <div className="bg-slate-700/50 rounded p-3">
-                        <h3 className="text-sm font-medium text-white mb-2">🎨 Create Template</h3>
-                        <p className="text-slate-400 text-xs mb-2">Design a text-based card with colors.</p>
+            {/* Settings + Upload Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                {/* Settings */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">Frequency:</span>
+                            <span className="text-slate-400 text-xs">1 in</span>
+                            <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={houseCardFrequency}
+                                onChange={(e) => setHouseCardFrequency(e.target.value)}
+                                className="w-12 px-1 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-white text-center"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">Fallback:</span>
+                            <button
+                                onClick={() => setFallbackEnabled(!fallbackEnabled)}
+                                className={`px-2 py-0.5 rounded text-xs font-medium ${fallbackEnabled ? 'bg-green-500/20 text-green-400' : 'bg-slate-600 text-slate-400'}`}
+                            >
+                                {fallbackEnabled ? 'ON' : 'OFF'}
+                            </button>
+                        </div>
                         <button
-                            onClick={() => setShowTemplateForm(!showTemplateForm)}
-                            className="px-3 py-1.5 text-xs bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400"
+                            onClick={saveSettings}
+                            disabled={savingSettings}
+                            className="px-2 py-0.5 text-xs bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400 disabled:opacity-50"
                         >
-                            {showTemplateForm ? 'Hide Form' : 'Create Template'}
+                            {savingSettings ? '...' : 'Save'}
                         </button>
                     </div>
                 </div>
 
-                {/* Template Form */}
-                {showTemplateForm && (
-                    <form onSubmit={handleTemplateSubmit} className="mt-3 p-3 bg-slate-700/30 rounded">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-2">
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Title / Business Name</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        maxLength={20}
-                                        value={templateData.business_name}
-                                        onChange={(e) => setTemplateData({ ...templateData, business_name: e.target.value })}
-                                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white"
-                                        placeholder="Your Ad Here!"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Tagline / Message</label>
-                                    <input
-                                        type="text"
-                                        maxLength={40}
-                                        value={templateData.tagline}
-                                        onChange={(e) => setTemplateData({ ...templateData, tagline: e.target.value })}
-                                        className="w-full px-2 py-1.5 text-sm bg-slate-700 border border-slate-600 rounded text-white"
-                                        placeholder="Click to advertise!"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Background Color</label>
-                                    <div className="flex flex-wrap gap-1">
-                                        {backgroundColors.map((color) => (
-                                            <button
-                                                key={color.value}
-                                                type="button"
-                                                onClick={() => setTemplateData({ ...templateData, card_color: color.value })}
-                                                className={`w-5 h-5 rounded border transition-all ${templateData.card_color === color.value
-                                                    ? 'border-white scale-110'
-                                                    : 'border-transparent hover:border-slate-400'
-                                                    }`}
-                                                style={{ backgroundColor: color.value }}
-                                                title={color.name}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Text Color</label>
-                                    <div className="flex flex-wrap gap-1">
-                                        {textColors.map((color) => (
-                                            <button
-                                                key={color.value}
-                                                type="button"
-                                                onClick={() => setTemplateData({ ...templateData, text_color: color.value })}
-                                                className={`w-5 h-5 rounded border transition-all ${templateData.text_color === color.value
-                                                    ? 'border-white scale-110'
-                                                    : 'border-transparent hover:border-slate-400'
-                                                    }`}
-                                                style={{ backgroundColor: color.value }}
-                                                title={color.name}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Preview</label>
-                                <div
-                                    className="w-full aspect-[4/3] rounded p-3 flex flex-col justify-between border border-slate-600"
-                                    style={{ backgroundColor: templateData.card_color }}
-                                >
-                                    <div className="text-center">
-                                        <h3 className="font-bold text-sm" style={{ color: templateData.text_color }}>
-                                            {templateData.business_name || 'Title'}
-                                        </h3>
-                                    </div>
-                                    <div className="text-center flex-1 flex items-center justify-center">
-                                        <p className="text-xs" style={{ color: templateData.text_color, opacity: 0.9 }}>
-                                            {templateData.tagline || 'Tagline here'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={uploading || !templateData.business_name}
-                                    className="w-full mt-2 py-1.5 text-sm bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {uploading ? 'Creating...' : 'Create House Card'}
-                                </button>
-                            </div>
+                {/* Batch Upload */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400">📤</span>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleBatchUpload}
+                            disabled={uploading}
+                            className="flex-1 text-xs bg-slate-700 border border-slate-600 rounded text-white file:mr-1 file:py-0.5 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900 file:text-xs file:font-bold cursor-pointer disabled:opacity-50"
+                        />
+                    </div>
+                    {uploadProgress.total > 0 && (
+                        <div className="mt-1 h-1 bg-slate-600 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500" style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}></div>
                         </div>
-                    </form>
-                )}
+                    )}
+                </div>
+
+                {/* Template Button */}
+                <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                    <button
+                        onClick={() => setShowTemplateForm(!showTemplateForm)}
+                        className="w-full px-3 py-1 text-xs bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400"
+                    >
+                        {showTemplateForm ? '✕ Hide Template Form' : '🎨 Create Template Card'}
+                    </button>
+                </div>
             </div>
 
+            {/* Template Form */}
+            {showTemplateForm && (
+                <form onSubmit={handleTemplateSubmit} className="bg-slate-800 border border-slate-700 rounded p-2 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                            <input
+                                type="text"
+                                required
+                                maxLength={20}
+                                value={templateData.business_name}
+                                onChange={(e) => setTemplateData({ ...templateData, business_name: e.target.value })}
+                                className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                                placeholder="Title / Business Name"
+                            />
+                            <input
+                                type="text"
+                                maxLength={40}
+                                value={templateData.tagline}
+                                onChange={(e) => setTemplateData({ ...templateData, tagline: e.target.value })}
+                                className="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+                                placeholder="Tagline / Message"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex flex-wrap gap-0.5">
+                                {backgroundColors.map((color) => (
+                                    <button
+                                        key={color.value}
+                                        type="button"
+                                        onClick={() => setTemplateData({ ...templateData, card_color: color.value })}
+                                        className={`w-4 h-4 rounded border ${templateData.card_color === color.value ? 'border-white scale-110' : 'border-transparent'}`}
+                                        style={{ backgroundColor: color.value }}
+                                        title={color.name}
+                                    />
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap gap-0.5">
+                                {textColors.map((color) => (
+                                    <button
+                                        key={color.value}
+                                        type="button"
+                                        onClick={() => setTemplateData({ ...templateData, text_color: color.value })}
+                                        className={`w-4 h-4 rounded border ${templateData.text_color === color.value ? 'border-white scale-110' : 'border-transparent'}`}
+                                        style={{ backgroundColor: color.value }}
+                                        title={color.name}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <div
+                                className="flex-1 aspect-[4/3] rounded p-2 flex flex-col justify-between border border-slate-600"
+                                style={{ backgroundColor: templateData.card_color }}
+                            >
+                                <h3 className="font-bold text-xs text-center" style={{ color: templateData.text_color }}>
+                                    {templateData.business_name || 'Title'}
+                                </h3>
+                                <p className="text-[10px] text-center" style={{ color: templateData.text_color, opacity: 0.9 }}>
+                                    {templateData.tagline || 'Tagline'}
+                                </p>
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={uploading || !templateData.business_name}
+                                className="px-3 text-xs bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400 disabled:opacity-50"
+                            >
+                                {uploading ? '...' : 'Create'}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            )}
+
             {/* House Cards Grid */}
-            <div className="bg-slate-800 border border-slate-700 rounded p-3">
-                <h2 className="text-sm font-bold text-white mb-3">
-                    Existing House Cards ({houseCards.length})
-                </h2>
+            <div className="bg-slate-800 border border-slate-700 rounded p-2">
+                <h2 className="text-xs font-bold text-white mb-2">Existing House Cards ({houseCards.length})</h2>
 
                 {houseCards.length === 0 ? (
-                    <div className="text-center py-8">
-                        <p className="text-slate-400 text-sm">No house cards yet.</p>
-                        <p className="text-slate-500 text-xs mt-1">Upload some images or create template cards above.</p>
+                    <div className="text-center py-4">
+                        <p className="text-slate-400 text-xs">No house cards yet. Upload images or create templates above.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1.5">
                         {houseCards.map((card) => (
                             <div key={card.id} className="relative group">
                                 <button
                                     onClick={() => handleDelete(card.id, card.image_url)}
-                                    className="absolute -top-1 -right-1 z-10 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                    className="absolute -top-1 -right-1 z-10 p-0.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                     title="Delete"
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
                                 </button>
 
                                 {card.card_type === 'uploaded' && card.image_url ? (
                                     <div className="bg-slate-700 border border-slate-600 rounded overflow-hidden aspect-[4/3]">
-                                        <img
-                                            src={card.image_url}
-                                            alt={card.title || 'House Card'}
-                                            className="w-full h-full object-contain"
-                                        />
+                                        <img src={card.image_url} alt={card.title || 'House Card'} className="w-full h-full object-contain" />
                                     </div>
                                 ) : (
                                     <div
-                                        className="rounded p-2 aspect-[4/3] flex flex-col justify-between border border-slate-600"
+                                        className="rounded p-1 aspect-[4/3] flex flex-col justify-between border border-slate-600"
                                         style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                     >
-                                        <div className="text-center">
-                                            <h3 className="font-bold text-[10px]" style={{ color: card.text_color || '#FFFFFF' }}>
-                                                {card.title || card.business_name}
-                                            </h3>
-                                        </div>
-                                        <div className="text-center flex-1 flex items-center justify-center">
-                                            <p className="text-[8px]" style={{ color: card.text_color || '#FFFFFF', opacity: 0.9 }}>
-                                                {card.tagline || card.message || ''}
-                                            </p>
-                                        </div>
+                                        <h3 className="font-bold text-[8px] text-center" style={{ color: card.text_color || '#FFFFFF' }}>
+                                            {card.title || card.business_name}
+                                        </h3>
+                                        <p className="text-[6px] text-center" style={{ color: card.text_color || '#FFFFFF', opacity: 0.9 }}>
+                                            {card.tagline || card.message || ''}
+                                        </p>
                                     </div>
                                 )}
-
-                                <div className="mt-0.5 text-center">
-                                    <span className="text-[10px] text-slate-400 truncate block">
-                                        {card.title || card.business_name || 'Untitled'}
-                                    </span>
-                                </div>
                             </div>
                         ))}
                     </div>

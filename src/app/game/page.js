@@ -325,6 +325,19 @@ export default function GamePage() {
             trackedGameViews.current = new Set()
             trackedFlipViews.current = new Set()
 
+            // Load house card settings
+            const { data: settings } = await supabase
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+
+            let frequency = 10
+            let fallbackEnabled = true
+            settings?.forEach(s => {
+                if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
+                if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+            })
+
             const { data: activeCampaigns, error: campaignError } = await supabase
                 .from('ad_campaigns')
                 .select('user_id')
@@ -334,7 +347,7 @@ export default function GamePage() {
 
             const activeAdvertiserIds = [...new Set(activeCampaigns?.map(c => c.user_id) || [])]
 
-            let cardsData = []
+            let advertiserCards = []
 
             if (activeAdvertiserIds.length > 0) {
                 let query = supabase
@@ -349,20 +362,38 @@ export default function GamePage() {
                 const { data, error } = await query
 
                 if (error) throw error
-                cardsData = data || []
+                advertiserCards = data || []
             }
 
-            if (cardsData.length < limit) {
-                const { data: houseCards, error } = await supabase
-                    .from('business_cards')
-                    .select('*')
-                    .eq('is_house_card', true)
+            // Load house cards
+            const { data: houseCards } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('is_house_card', true)
 
-                if (!error && houseCards && houseCards.length > 0) {
-                    const shuffledHouse = houseCards.sort(() => Math.random() - 0.5)
-                    while (cardsData.length < limit && shuffledHouse.length > 0) {
-                        cardsData.push(shuffledHouse.pop())
+            // Build final card pool
+            let cardsData = []
+
+            if (advertiserCards.length > 0) {
+                cardsData = [...advertiserCards]
+
+                // Mix in house cards based on frequency setting
+                if (frequency > 0 && houseCards && houseCards.length > 0) {
+                    const houseCardsToAdd = Math.ceil(advertiserCards.length / frequency)
+                    for (let i = 0; i < houseCardsToAdd; i++) {
+                        cardsData.push(houseCards[Math.floor(Math.random() * houseCards.length)])
                     }
+                }
+            } else if (fallbackEnabled && houseCards && houseCards.length > 0) {
+                // No advertisers - use house cards as fallback
+                cardsData = houseCards
+            }
+
+            // Fill remaining slots if needed
+            if (cardsData.length < limit && houseCards && houseCards.length > 0) {
+                const shuffledHouse = [...houseCards].sort(() => Math.random() - 0.5)
+                while (cardsData.length < limit && shuffledHouse.length > 0) {
+                    cardsData.push(shuffledHouse.pop())
                 }
             }
 
