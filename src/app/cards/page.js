@@ -14,16 +14,18 @@ export default function CardsPage() {
     const [showForm, setShowForm] = useState(false)
     const [cardType, setCardType] = useState('template')
     const [formData, setFormData] = useState({
-        business_name: '',
+        display_name: '',
+        full_business_name: '',
         tagline: '',
-        description: '',
         phone: '',
         email: '',
+        website_url: '',
         card_color: '#4F46E5',
         text_color: '#FFFFFF'
     })
     const [imageFile, setImageFile] = useState(null)
     const [imagePreview, setImagePreview] = useState(null)
+    const [imageRotation, setImageRotation] = useState(0)
     const [uploading, setUploading] = useState(false)
     const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
     const [userData, setUserData] = useState(null)
@@ -137,6 +139,28 @@ export default function CardsPage() {
         })
     }
 
+    const handleUrlChange = (e) => {
+        let value = e.target.value.trim()
+        setFormData({
+            ...formData,
+            website_url: value
+        })
+    }
+
+    const handleUrlBlur = (e) => {
+        let value = e.target.value.trim()
+        if (value && !value.match(/^https?:\/\//i)) {
+            // Auto-prepend https:// if they entered a domain without protocol
+            if (value.match(/^[a-zA-Z0-9]/) && value.includes('.')) {
+                value = 'https://' + value
+                setFormData({
+                    ...formData,
+                    website_url: value
+                })
+            }
+        }
+    }
+
     const handleImageChange = (e) => {
         const file = e.target.files[0]
         if (file) {
@@ -148,12 +172,23 @@ export default function CardsPage() {
             }
 
             setImageFile(file)
+            setImageRotation(0) // Reset rotation when new image selected
             const reader = new FileReader()
             reader.onloadend = () => {
                 setImagePreview(reader.result)
             }
             reader.readAsDataURL(file)
         }
+    }
+
+    const rotateImage = (direction) => {
+        setImageRotation(prev => {
+            if (direction === 'left') {
+                return prev === 0 ? 270 : prev - 90
+            } else {
+                return prev === 270 ? 0 : prev + 90
+            }
+        })
     }
 
     const uploadImage = async () => {
@@ -197,15 +232,19 @@ export default function CardsPage() {
                 .insert([{
                     user_id: user.id,
                     card_type: cardType,
-                    title: formData.business_name || 'Business Card',
-                    business_name: formData.business_name || 'Business Card',
+                    display_name: formData.display_name,
+                    full_business_name: formData.full_business_name || formData.display_name,
+                    title: formData.display_name,
+                    business_name: formData.full_business_name || formData.display_name,
                     tagline: formData.tagline || '',
-                    message: formData.description || formData.tagline || '',
+                    message: formData.tagline || '',
                     phone: formData.phone || '',
                     email: formData.email || '',
+                    website_url: formData.website_url || '',
                     card_color: formData.card_color,
                     text_color: formData.text_color,
-                    image_url: imageUrl || ''
+                    image_url: imageUrl || '',
+                    image_rotation: cardType === 'uploaded' ? imageRotation : 0
                 }])
                 .select()
 
@@ -219,25 +258,31 @@ export default function CardsPage() {
             } else {
                 alert('Business card created successfully!')
             }
-            setShowForm(false)
-            setCardType('template')
-            setFormData({
-                business_name: '',
-                tagline: '',
-                description: '',
-                phone: '',
-                email: '',
-                card_color: '#4F46E5',
-                text_color: '#FFFFFF'
-            })
-            setImageFile(null)
-            setImagePreview(null)
+            resetForm()
             await loadCards(user.id)
         } catch (error) {
             alert('Error creating card: ' + error.message)
         } finally {
             setUploading(false)
         }
+    }
+
+    const resetForm = () => {
+        setShowForm(false)
+        setCardType('template')
+        setFormData({
+            display_name: '',
+            full_business_name: '',
+            tagline: '',
+            phone: '',
+            email: '',
+            website_url: '',
+            card_color: '#4F46E5',
+            text_color: '#FFFFFF'
+        })
+        setImageFile(null)
+        setImagePreview(null)
+        setImageRotation(0)
     }
 
     const isCardInUse = (cardId) => {
@@ -269,7 +314,17 @@ export default function CardsPage() {
         }
     }
 
-    const maxCards = userData?.role === 'admin' ? 10 : 5
+    // Calculate dynamic font size based on text length
+    const getDynamicFontSize = (text, maxSize, minSize, maxLength) => {
+        if (!text) return maxSize
+        const length = text.length
+        if (length <= maxLength * 0.5) return maxSize
+        if (length >= maxLength) return minSize
+        const ratio = (length - maxLength * 0.5) / (maxLength * 0.5)
+        return maxSize - (ratio * (maxSize - minSize))
+    }
+
+    const maxCards = (userData?.is_admin || userData?.is_super_admin) ? 25 : 5
 
     if (loading) {
         return (
@@ -278,6 +333,103 @@ export default function CardsPage() {
                     <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
                     <p className={`text-${currentTheme.textMuted} font-medium`}>Loading...</p>
                 </div>
+            </div>
+        )
+    }
+
+    // Preview Components
+    const InGamePreview = () => (
+        <div className="text-center">
+            <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>In-Game View:</p>
+            <div
+                className={`w-24 h-16 rounded-lg flex items-center justify-center border border-${currentTheme.border} mx-auto`}
+                style={{ backgroundColor: formData.card_color }}
+            >
+                <p
+                    className="font-bold text-center px-1"
+                    style={{
+                        color: formData.text_color,
+                        fontSize: `${getDynamicFontSize(formData.display_name, 12, 8, 20)}px`
+                    }}
+                >
+                    {formData.display_name || 'Display Name'}
+                </p>
+            </div>
+            <p className={`text-[10px] text-${currentTheme.textMuted} mt-1`}>Players see this + 👁 icon</p>
+        </div>
+    )
+
+    const FullCardPreview = () => {
+        const displayName = formData.full_business_name || formData.display_name || 'Business Name'
+        const hasContactInfo = formData.phone || formData.email || formData.website_url
+
+        return (
+            <div className="text-center">
+                <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Full Card View (👁 click):</p>
+                {cardType === 'uploaded' && imagePreview ? (
+                    <div className={`w-48 h-36 rounded-lg border-2 border-${currentTheme.border} mx-auto overflow-hidden bg-${currentTheme.card}`}>
+                        <img
+                            src={imagePreview}
+                            alt="Preview"
+                            className="w-full h-full object-contain"
+                            style={{ transform: `rotate(${imageRotation}deg)` }}
+                        />
+                    </div>
+                ) : (
+                    <div
+                        className={`w-48 h-36 rounded-lg p-3 flex flex-col justify-between border-2 border-${currentTheme.border} mx-auto`}
+                        style={{ backgroundColor: formData.card_color }}
+                    >
+                        {/* Business Name - largest, bold, centered */}
+                        <div className="text-center">
+                            <h3
+                                className="font-bold"
+                                style={{
+                                    color: formData.text_color,
+                                    fontSize: `${getDynamicFontSize(displayName, 16, 11, 50)}px`
+                                }}
+                            >
+                                {displayName}
+                            </h3>
+                        </div>
+
+                        {/* Tagline - medium, centered */}
+                        {formData.tagline && (
+                            <div className="text-center flex-1 flex items-center justify-center">
+                                <p
+                                    className="opacity-90"
+                                    style={{
+                                        color: formData.text_color,
+                                        fontSize: `${getDynamicFontSize(formData.tagline, 12, 9, 100)}px`
+                                    }}
+                                >
+                                    {formData.tagline}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Contact info - smaller, centered */}
+                        {hasContactInfo && (
+                            <div className="text-center space-y-0.5">
+                                {formData.phone && (
+                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                        {formData.phone}
+                                    </p>
+                                )}
+                                {formData.email && (
+                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                        {formData.email}
+                                    </p>
+                                )}
+                                {formData.website_url && (
+                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                        {formData.website_url}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         )
     }
@@ -305,17 +457,14 @@ export default function CardsPage() {
                         <div className="flex justify-between items-center mb-6">
                             <h2 className={`text-xl font-bold text-${currentTheme.text}`}>Create New Card</h2>
                             <button
-                                onClick={() => {
-                                    setShowForm(false)
-                                    setImagePreview(null)
-                                    setImageFile(null)
-                                }}
+                                onClick={resetForm}
                                 className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
                             >
                                 ✕ Cancel
                             </button>
                         </div>
 
+                        {/* Card Type Toggle */}
                         <div className="flex gap-4 mb-6">
                             <button
                                 type="button"
@@ -339,206 +488,239 @@ export default function CardsPage() {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {cardType === 'uploaded' ? (
-                                <>
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                            Upload Business Card Image *
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageChange}
-                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
-                                            required
-                                        />
-                                        <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
-                                            Upload a photo or scan of your business card (max 2MB)
-                                        </p>
-                                    </div>
+                        {/* Main Form Layout - Side by side on desktop */}
+                        <div className="flex flex-col lg:flex-row gap-6">
+                            {/* Form Fields */}
+                            <form onSubmit={handleSubmit} className="flex-1 space-y-4">
+                                {/* Display Name - Required for both types */}
+                                <div>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                        Display Name * <span className={`text-xs text-${currentTheme.textMuted}`}>(20 chars - shown in games)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="display_name"
+                                        required
+                                        maxLength={20}
+                                        className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                        placeholder="Short name for games"
+                                        value={formData.display_name || ''}
+                                        onChange={handleChange}
+                                    />
+                                </div>
 
-                                    {imagePreview && (
-                                        <div className="mt-4">
-                                            <p className={`text-sm font-medium text-${currentTheme.textMuted} mb-2`}>Preview:</p>
-                                            <img
-                                                src={imagePreview}
-                                                alt="Preview"
-                                                className={`max-w-md rounded-lg border-2 border-${currentTheme.border}`}
-                                            />
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                            Business Name * <span className={`text-xs text-${currentTheme.textMuted}`}>(20 chars max)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="business_name"
-                                            required
-                                            maxLength={20}
-                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
-                                            placeholder="Your Business Name"
-                                            value={formData.business_name || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
+                                {/* Full Business Name - Optional for both types */}
+                                <div>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                        Full Business Name <span className={`text-xs text-${currentTheme.textMuted}`}>(50 chars - shown on full view)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="full_business_name"
+                                        maxLength={50}
+                                        className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                        placeholder="Your complete business name"
+                                        value={formData.full_business_name || ''}
+                                        onChange={handleChange}
+                                    />
+                                </div>
 
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                            Tagline / Message <span className={`text-xs text-${currentTheme.textMuted}`}>(40 chars max)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="tagline"
-                                            maxLength={40}
-                                            className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
-                                            placeholder="Your catchy tagline"
-                                            value={formData.tagline || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {cardType === 'uploaded' ? (
+                                    <>
+                                        {/* Image Upload */}
                                         <div>
                                             <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                                Phone
+                                                Upload Business Card Image *
                                             </label>
                                             <input
-                                                type="tel"
-                                                name="phone"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageChange}
                                                 className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
-                                                placeholder="(555)-555-5555"
-                                                value={formData.phone || ''}
-                                                onChange={handlePhoneChange}
-                                                maxLength={14}
+                                                required
                                             />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Upload a photo or scan of your business card (max 2MB)
+                                            </p>
                                         </div>
 
+                                        {/* Rotation Controls */}
+                                        {imagePreview && (
+                                            <div className="flex items-center gap-4">
+                                                <span className={`text-sm text-${currentTheme.textMuted}`}>Rotate Image:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => rotateImage('left')}
+                                                    className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.card} transition-colors`}
+                                                >
+                                                    ↺ 90° Left
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => rotateImage('right')}
+                                                    className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.card} transition-colors`}
+                                                >
+                                                    ↻ 90° Right
+                                                </button>
+                                                <span className={`text-xs text-${currentTheme.textMuted}`}>({imageRotation}°)</span>
+                                            </div>
+                                        )}
+
+                                        {/* Website URL for uploaded */}
                                         <div>
                                             <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                                Email
+                                                Website URL <span className={`text-xs text-${currentTheme.textMuted}`}>(optional)</span>
                                             </label>
                                             <input
-                                                type="email"
-                                                name="email"
+                                                type="url"
+                                                name="website_url"
                                                 className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
-                                                placeholder="your@email.com"
-                                                value={formData.email || ''}
+                                                placeholder="yourwebsite.com"
+                                                value={formData.website_url || ''}
+                                                onChange={handleUrlChange}
+                                                onBlur={handleUrlBlur}
+                                            />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Just enter your domain - we'll add https:// automatically
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Tagline */}
+                                        <div>
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Tagline / Message <span className={`text-xs text-${currentTheme.textMuted}`}>(100 chars)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="tagline"
+                                                maxLength={100}
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                placeholder="Your catchy tagline"
+                                                value={formData.tagline || ''}
                                                 onChange={handleChange}
                                             />
                                         </div>
-                                    </div>
 
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
-                                            Card Background Color
-                                        </label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {colorOptions.map((color) => (
-                                                <button
-                                                    key={color.value}
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, card_color: color.value })}
-                                                    className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
-                                                        ? `border-${currentTheme.accent} scale-110`
-                                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                                        }`}
-                                                    style={{ backgroundColor: color.value }}
-                                                    title={color.name}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
-                                            Text Color
-                                        </label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {textColorOptions.map((color) => (
-                                                <button
-                                                    key={color.value}
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, text_color: color.value })}
-                                                    className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
-                                                        ? `border-${currentTheme.accent} scale-110`
-                                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                                        }`}
-                                                    style={{ backgroundColor: color.value }}
-                                                    title={color.name}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
-                                            Preview
-                                        </label>
-                                        <p className={`text-xs text-${currentTheme.textMuted} mb-3`}>
-                                            📱 Your card appears small in the game. Phone & email show when players tap the 👁 icon.
-                                        </p>
-                                        <div className="flex gap-6 items-start flex-wrap">
+                                        {/* Phone & Email */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <p className={`text-xs text-${currentTheme.textMuted} mb-1`}>Full Preview:</p>
-                                                <div
-                                                    className={`w-full max-w-xs aspect-[4/3] rounded-lg p-4 flex flex-col justify-between border-2 border-${currentTheme.border}`}
-                                                    style={{ backgroundColor: formData.card_color }}
-                                                >
-                                                    <div className="text-center">
-                                                        <h3 className="font-bold text-sm sm:text-base" style={{ color: formData.text_color }}>
-                                                            {formData.business_name || 'Business Name'}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="text-center flex-1 flex items-center justify-center">
-                                                        <p className="text-xs sm:text-sm" style={{ color: formData.text_color, opacity: 0.8 }}>
-                                                            {formData.tagline || 'Your tagline here'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="text-center text-sm" style={{ color: formData.text_color }}>
-                                                        {formData.phone && <p>{formData.phone}</p>}
-                                                        {formData.email && <p>{formData.email}</p>}
-                                                    </div>
-                                                </div>
+                                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                    Phone
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                    placeholder="(555)-555-5555"
+                                                    value={formData.phone}
+                                                    onChange={handlePhoneChange}
+                                                    maxLength={14}
+                                                />
                                             </div>
+
                                             <div>
-                                                <p className={`text-xs text-${currentTheme.textMuted} mb-1`}>In-Game Size:</p>
-                                                <div
-                                                    className={`w-24 aspect-[4/3] rounded-md p-1 flex flex-col justify-between border border-${currentTheme.border}`}
-                                                    style={{ backgroundColor: formData.card_color }}
-                                                >
-                                                    <div className="text-center overflow-hidden">
-                                                        <h3 className="font-bold text-xs truncate" style={{ color: formData.text_color }}>
-                                                            {formData.business_name || 'Business Name'}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="text-center flex-1 flex items-center justify-center overflow-hidden">
-                                                        <p className="text-xs line-clamp-2" style={{ color: formData.text_color, opacity: 0.8 }}>
-                                                            {formData.tagline || 'Tagline'}
-                                                        </p>
-                                                    </div>
-                                                </div>
+                                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                    Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                    placeholder="your@email.com"
+                                                    value={formData.email}
+                                                    onChange={handleChange}
+                                                />
                                             </div>
                                         </div>
-                                    </div>
-                                </>
-                            )}
 
-                            <button
-                                type="submit"
-                                disabled={uploading}
-                                className={`w-full py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} rounded-lg hover:bg-${currentTheme.accentHover} disabled:bg-${currentTheme.border} disabled:text-${currentTheme.textMuted} font-bold transition-all`}
-                            >
-                                {uploading ? 'Creating...' : 'Create Business Card'}
-                            </button>
-                        </form>
+                                        {/* Website URL */}
+                                        <div>
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Website URL <span className={`text-xs text-${currentTheme.textMuted}`}>(optional)</span>
+                                            </label>
+                                            <input
+                                                type="url"
+                                                name="website_url"
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                placeholder="yourwebsite.com"
+                                                value={formData.website_url || ''}
+                                                onChange={handleUrlChange}
+                                                onBlur={handleUrlBlur}
+                                            />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Just enter your domain - we'll add https:// automatically
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Color Pickers - Both card types */}
+                                <div>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
+                                        Background Color <span className={`text-xs text-${currentTheme.textMuted}`}>(for in-game display)</span>
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {colorOptions.map((color) => (
+                                            <button
+                                                key={color.value}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, card_color: color.value })}
+                                                className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
+                                                    ? `border-${currentTheme.accent} scale-110`
+                                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                                    }`}
+                                                style={{ backgroundColor: color.value }}
+                                                title={color.name}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
+                                        Text Color
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {textColorOptions.map((color) => (
+                                            <button
+                                                key={color.value}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, text_color: color.value })}
+                                                className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
+                                                    ? `border-${currentTheme.accent} scale-110`
+                                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                                    }`}
+                                                style={{ backgroundColor: color.value }}
+                                                title={color.name}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={uploading}
+                                    className={`w-full py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} rounded-lg hover:bg-${currentTheme.accentHover} disabled:bg-${currentTheme.border} disabled:text-${currentTheme.textMuted} font-bold transition-all`}
+                                >
+                                    {uploading ? 'Creating...' : 'Create Business Card'}
+                                </button>
+                            </form>
+
+                            {/* Live Preview Panel */}
+                            <div className={`lg:w-72 p-4 bg-${currentTheme.border}/30 rounded-lg`}>
+                                <h3 className={`text-sm font-bold text-${currentTheme.text} mb-4 text-center`}>Live Preview</h3>
+                                <div className="space-y-6">
+                                    <InGamePreview />
+                                    <FullCardPreview />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
+                {/* Cards Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
@@ -592,27 +774,29 @@ export default function CardsPage() {
                                         src={card.image_url}
                                         alt="Business Card"
                                         className="w-full h-full object-contain"
+                                        style={{ transform: `rotate(${card.image_rotation || 0}deg)` }}
                                     />
                                 </div>
                             ) : (
                                 <div
-                                    className={`rounded-xl p-3 aspect-[4/3] flex flex-col justify-between border ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
+                                    className={`rounded-xl p-2 aspect-[4/3] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
                                         }`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >
-                                    <div>
-                                        <h3 className="font-bold text-lg" style={{ color: card.text_color || '#FFFFFF' }}>
-                                            {card.title || card.business_name}
+                                    <div className="text-center overflow-hidden">
+                                        <h3 className="font-bold text-sm sm:text-base md:text-lg leading-tight line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
+                                            {card.full_business_name || card.display_name || card.title || card.business_name}
                                         </h3>
                                         {(card.message || card.tagline) && (
-                                            <p className="text-sm mt-1" style={{ color: card.text_color || '#FFFFFF', opacity: 0.8 }}>
+                                            <p className="text-xs sm:text-sm mt-1 opacity-90 line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
                                                 {card.message || card.tagline}
                                             </p>
                                         )}
                                     </div>
-                                    <div className="text-sm" style={{ color: card.text_color || '#FFFFFF' }}>
-                                        <p>{card.phone}</p>
-                                        <p>{card.email}</p>
+                                    <div className="text-center text-xs sm:text-sm truncate" style={{ color: card.text_color || '#FFFFFF' }}>
+                                        {card.phone && <p className="truncate">{card.phone}</p>}
+                                        {card.email && <p className="truncate">{card.email}</p>}
+                                        {card.website_url && <p className="truncate">{card.website_url}</p>}
                                     </div>
                                 </div>
                             )}

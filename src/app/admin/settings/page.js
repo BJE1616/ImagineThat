@@ -21,9 +21,10 @@ const TIPS = {
     // Matrix
     matrixPayout: "Amount paid to users when they complete their matrix (fill all 7 spots). Funded by their referrals' ad purchases.",
 
-    // Card Back
+    // Card Display
     showAdvertiserCards: "When ON, random advertiser cards appear on card backs during games. When OFF, your company logo shows.",
-    companyLogo: "Your logo shown on card backs when 'Show Advertiser Cards' is OFF. Recommended: square image, 200x200px or larger."
+    companyLogo: "Your logo shown on card backs when 'Show Advertiser Cards' is OFF. Recommended: square image, 200x200px or larger.",
+    cardUrlClickable: "When ON, website URLs on business cards become clickable links. When OFF, URLs display as plain text."
 }
 
 // Default values and recommended ranges for slot settings
@@ -49,6 +50,7 @@ export default function AdminSettingsPage() {
         matrix_payout: '200',
         card_back_logo_url: '',
         show_advertiser_cards: 'false',
+        card_url_clickable: 'false',
         email_test_mode: 'true',
         test_email_recipient: 'bje1616@gmail.com',
         slot_jackpot_chance: '2',
@@ -690,7 +692,7 @@ export default function AdminSettingsPage() {
                     <SectionHeader
                         id="cardback"
                         icon="🎴"
-                        title="Card Back Settings"
+                        title="Card Display Settings"
                         subtitle={settings.show_advertiser_cards === 'true' ? 'Advertiser cards shown' : 'Company logo shown'}
                         isExpanded={expandedSections.includes('cardback')}
                     />
@@ -720,11 +722,34 @@ export default function AdminSettingsPage() {
                                             </div>
                                             <button
                                                 onClick={() => handleChange('show_advertiser_cards', settings.show_advertiser_cards === 'true' ? 'false' : 'true')}
-                                                className={`relative w-9 h-4 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? `bg-${currentTheme.accent}` : `bg-${currentTheme.border}`}`}
+                                                className={`relative w-9 h-4 rounded-full transition-colors ${settings.show_advertiser_cards === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
                                             >
                                                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.show_advertiser_cards === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
                                             </button>
                                         </div>
+                                    </div>
+
+                                    {/* Clickable URLs Toggle */}
+                                    <div className={`mt-2 p-1.5 bg-${currentTheme.border}/50 rounded`}>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className={`text-${currentTheme.text} font-medium text-[10px]`}>
+                                                    <Tooltip text={TIPS.cardUrlClickable}>Clickable URLs</Tooltip>
+                                                </h3>
+                                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Website links open in browser</p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleChange('card_url_clickable', settings.card_url_clickable === 'true' ? 'false' : 'true')}
+                                                className={`relative w-9 h-4 rounded-full transition-colors ${settings.card_url_clickable === 'true' ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                            >
+                                                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${settings.card_url_clickable === 'true' ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
+                                            </button>
+                                        </div>
+                                        {settings.card_url_clickable === 'true' ? (
+                                            <p className={`text-${currentTheme.accent} text-[10px] mt-1`}>🔗 URLs are clickable links</p>
+                                        ) : (
+                                            <p className={`text-${currentTheme.textMuted} text-[10px] mt-1`}>URLs display as plain text</p>
+                                        )}
                                     </div>
                                 </div>
 
