@@ -9,7 +9,7 @@ export default function IPGeographyPage() {
     const [loading, setLoading] = useState(true)
     const [currentUser, setCurrentUser] = useState(null)
     const [hasAccess, setHasAccess] = useState(false)
-    const [activeTab, setActiveTab] = useState('map') // 'map', 'list', 'fraud', 'stats'
+    const [activeTab, setActiveTab] = useState('map')
 
     // Data
     const [ipLogs, setIpLogs] = useState([])
@@ -24,10 +24,17 @@ export default function IPGeographyPage() {
     const [fraudAlerts, setFraudAlerts] = useState([])
     const [selectedUser, setSelectedUser] = useState(null)
 
-    // Map
-    const mapRef = useRef(null)
-    const mapInstanceRef = useRef(null)
-    const markersRef = useRef([])
+    // Sorting for User List
+    const [sortField, setSortField] = useState('lastLogin')
+    const [sortDir, setSortDir] = useState('desc')
+
+    // Time filters
+    const [statsTimeFilter, setStatsTimeFilter] = useState('all')
+    const [fraudTimeFilter, setFraudTimeFilter] = useState('all')
+
+    // Globe
+    const globeRef = useRef(null)
+    const globeInstanceRef = useRef(null)
 
     useEffect(() => {
         checkAccess()
@@ -41,7 +48,7 @@ export default function IPGeographyPage() {
 
     useEffect(() => {
         if (hasAccess && activeTab === 'map' && ipLogs.length > 0 && Object.keys(users).length > 0) {
-            initMap()
+            initGlobe()
         }
     }, [hasAccess, activeTab, ipLogs, users])
 
@@ -61,7 +68,6 @@ export default function IPGeographyPage() {
 
             setCurrentUser(userData)
 
-            // Check permission setting
             const { data: setting } = await supabase
                 .from('admin_settings')
                 .select('setting_value')
@@ -87,7 +93,6 @@ export default function IPGeographyPage() {
 
     const loadData = async () => {
         try {
-            // Load IP logs with location data
             const { data: logs, error } = await supabase
                 .from('user_ip_logs')
                 .select('*')
@@ -98,7 +103,6 @@ export default function IPGeographyPage() {
 
             setIpLogs(logs || [])
 
-            // Get unique user IDs
             const userIds = [...new Set(logs?.map(l => l.user_id) || [])]
 
             if (userIds.length > 0) {
@@ -114,10 +118,7 @@ export default function IPGeographyPage() {
                 setUsers(usersMap)
             }
 
-            // Calculate stats
             calculateStats(logs || [])
-
-            // Find fraud alerts (IPs with multiple users)
             findFraudAlerts(logs || [])
 
         } catch (error) {
@@ -129,7 +130,6 @@ export default function IPGeographyPage() {
         const uniqueUsers = new Set(logs.map(l => l.user_id)).size
         const uniqueIPs = new Set(logs.map(l => l.ip_address)).size
 
-        // Count by country
         const countryCount = {}
         logs.forEach(l => {
             if (l.country) {
@@ -141,7 +141,6 @@ export default function IPGeographyPage() {
             .slice(0, 10)
             .map(([name, count]) => ({ name, count }))
 
-        // Count by city
         const cityCount = {}
         logs.forEach(l => {
             if (l.city) {
@@ -164,7 +163,6 @@ export default function IPGeographyPage() {
     }
 
     const findFraudAlerts = (logs) => {
-        // Group by IP
         const ipUsers = {}
         logs.forEach(l => {
             if (!ipUsers[l.ip_address]) {
@@ -173,7 +171,6 @@ export default function IPGeographyPage() {
             ipUsers[l.ip_address].add(l.user_id)
         })
 
-        // Find IPs with multiple users
         const alerts = Object.entries(ipUsers)
             .filter(([ip, users]) => users.size > 1 && ip !== '::1' && ip !== '127.0.0.1')
             .map(([ip, userSet]) => ({
@@ -186,67 +183,112 @@ export default function IPGeographyPage() {
         setFraudAlerts(alerts)
     }
 
-    const initMap = async () => {
-        if (mapInstanceRef.current) {
-            mapInstanceRef.current.remove()
+    // Filter logs by time period
+    const filterLogsByTime = (logs, timeFilter) => {
+        const now = new Date()
+
+        if (timeFilter === 'today') {
+            const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000))
+            return logs.filter(log => new Date(log.created_at) >= oneDayAgo)
+        } else if (timeFilter === 'week') {
+            const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000))
+            return logs.filter(log => new Date(log.created_at) >= oneWeekAgo)
+        } else if (timeFilter === 'month') {
+            const oneMonthAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+            return logs.filter(log => new Date(log.created_at) >= oneMonthAgo)
+        }
+        return logs
+    }
+
+    // Get filtered stats
+    const getFilteredStats = () => {
+        const filteredLogs = filterLogsByTime(ipLogs, statsTimeFilter)
+
+        const countryCount = {}
+        filteredLogs.forEach(l => {
+            if (l.country) {
+                countryCount[l.country] = (countryCount[l.country] || 0) + 1
+            }
+        })
+        const countries = Object.entries(countryCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([name, count]) => ({ name, count }))
+
+        const cityCount = {}
+        filteredLogs.forEach(l => {
+            if (l.city) {
+                const key = `${l.city}, ${l.country_code || ''}`
+                cityCount[key] = (cityCount[key] || 0) + 1
+            }
+        })
+        const cities = Object.entries(cityCount)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([name, count]) => ({ name, count }))
+
+        return { countries, cities, totalLogins: filteredLogs.length }
+    }
+
+    // Get filtered fraud alerts
+    const getFilteredFraudAlerts = () => {
+        const filteredLogs = filterLogsByTime(ipLogs, fraudTimeFilter)
+
+        const ipUsers = {}
+        const ipLastSeen = {}
+
+        filteredLogs.forEach(l => {
+            if (!ipUsers[l.ip_address]) {
+                ipUsers[l.ip_address] = new Set()
+                ipLastSeen[l.ip_address] = l.created_at
+            }
+            ipUsers[l.ip_address].add(l.user_id)
+            if (new Date(l.created_at) > new Date(ipLastSeen[l.ip_address])) {
+                ipLastSeen[l.ip_address] = l.created_at
+            }
+        })
+
+        return Object.entries(ipUsers)
+            .filter(([ip, users]) => users.size > 1 && ip !== '::1' && ip !== '127.0.0.1')
+            .map(([ip, userSet]) => ({
+                ip,
+                userIds: Array.from(userSet),
+                count: userSet.size,
+                lastSeen: ipLastSeen[ip]
+            }))
+            .sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen))
+    }
+
+    const initGlobe = async () => {
+        if (globeInstanceRef.current) {
+            globeInstanceRef.current = null
+            if (globeRef.current) {
+                globeRef.current.innerHTML = ''
+            }
         }
 
-        // Dynamically load Leaflet
-        if (typeof window !== 'undefined' && !window.L) {
-            // Add CSS
-            const link = document.createElement('link')
-            link.rel = 'stylesheet'
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-            document.head.appendChild(link)
-
-            // Add JS
+        if (typeof window !== 'undefined' && !window.THREE) {
             await new Promise((resolve) => {
                 const script = document.createElement('script')
-                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+                script.src = 'https://unpkg.com/three@0.152.0/build/three.min.js'
                 script.onload = resolve
                 document.head.appendChild(script)
             })
+        }
 
-            // Add marker cluster CSS
-            const clusterCss = document.createElement('link')
-            clusterCss.rel = 'stylesheet'
-            clusterCss.href = 'https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css'
-            document.head.appendChild(clusterCss)
-
-            const clusterDefaultCss = document.createElement('link')
-            clusterDefaultCss.rel = 'stylesheet'
-            clusterDefaultCss.href = 'https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css'
-            document.head.appendChild(clusterDefaultCss)
-
-            // Add marker cluster JS
+        if (typeof window !== 'undefined' && !window.Globe) {
             await new Promise((resolve) => {
                 const script = document.createElement('script')
-                script.src = 'https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js'
+                script.src = 'https://unpkg.com/globe.gl@2.27.0/dist/globe.gl.min.js'
                 script.onload = resolve
                 document.head.appendChild(script)
             })
         }
 
-        // Wait a tick for Leaflet to be ready
         await new Promise(resolve => setTimeout(resolve, 100))
 
-        if (!mapRef.current || !window.L) return
+        if (!globeRef.current || !window.Globe) return
 
-        const L = window.L
-
-        // Create map
-        const map = L.map(mapRef.current).setView([39.8283, -98.5795], 4) // Center on USA
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map)
-
-        mapInstanceRef.current = map
-
-        // Create marker cluster group
-        const markers = L.markerClusterGroup()
-
-        // Group logs by location for aggregation
         const locationGroups = {}
         ipLogs.forEach(log => {
             if (log.latitude && log.longitude) {
@@ -266,44 +308,178 @@ export default function IPGeographyPage() {
             }
         })
 
-        // Add markers
-        Object.values(locationGroups).forEach(loc => {
+        const pins = Object.values(locationGroups).map(loc => {
             const userList = Array.from(loc.users).map(uid => {
                 const u = users[uid]
                 return u ? (u.username || u.email || 'Unknown') : 'Unknown'
-            }).join('<br>')
+            })
 
-            const popup = `
-                <div style="min-width: 150px;">
-                    <strong>${loc.city || 'Unknown'}, ${loc.country || ''}</strong><br>
-                    <hr style="margin: 5px 0;">
-                    <strong>Users (${loc.users.size}):</strong><br>
-                    ${userList}<br>
-                    <hr style="margin: 5px 0;">
-                    <small>Total logins: ${loc.logins}</small>
-                </div>
-            `
-
-            const marker = L.marker([loc.lat, loc.lng])
-                .bindPopup(popup)
-
-            markers.addLayer(marker)
+            return {
+                lat: loc.lat,
+                lng: loc.lng,
+                city: loc.city || 'Unknown',
+                country: loc.country || '',
+                users: userList,
+                userCount: loc.users.size,
+                logins: loc.logins,
+                size: Math.min(0.3 + (loc.logins * 0.05), 0.8),
+                altitude: 0
+            }
         })
 
-        map.addLayer(markers)
-
-        // Fit bounds if we have markers
-        if (Object.keys(locationGroups).length > 0) {
-            const bounds = markers.getBounds()
-            if (bounds.isValid()) {
-                map.fitBounds(bounds, { padding: [50, 50] })
+        const countryLabels = [...new Set(pins.map(p => p.country).filter(Boolean))].map(country => {
+            const pin = pins.find(p => p.country === country)
+            return {
+                lat: pin.lat,
+                lng: pin.lng,
+                text: country
             }
+        })
+
+        const globe = window.Globe()
+            .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+            .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
+            .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+            .polygonsData([])
+            .polygonCapColor(() => 'rgba(0,0,0,0)')
+            .polygonSideColor(() => 'rgba(0,0,0,0)')
+            .polygonStrokeColor(() => '#ffcc00')
+            .polygonAltitude(0.001)
+            .pointsData(pins)
+            .pointLat('lat')
+            .pointLng('lng')
+            .pointAltitude('altitude')
+            .pointRadius('size')
+            .pointColor(() => '#ef4444')
+            .pointLabel(d => `
+                <div style="background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; color: white; font-size: 12px; border: 1px solid #facc15;">
+                    <strong style="color: #facc15;">${d.city}, ${d.country}</strong><br/>
+                    <hr style="margin: 6px 0; border-color: #444;"/>
+                    <strong>Users (${d.userCount}):</strong><br/>
+                    ${d.users.join('<br/>')}
+                    <hr style="margin: 6px 0; border-color: #444;"/>
+                    <small>Total logins: ${d.logins}</small>
+                </div>
+            `)
+            .labelsData(countryLabels)
+            .labelLat('lat')
+            .labelLng('lng')
+            .labelText('text')
+            .labelSize(0.8)
+            .labelColor(() => '#ffffff')
+            .labelResolution(2)
+            .labelAltitude(0.01)
+            .width(globeRef.current.offsetWidth)
+            .height(500)
+            (globeRef.current)
+
+        globe.pointOfView({ lat: 39.8, lng: -98.5, altitude: 2 }, 1000)
+
+        fetch('https://raw.githubusercontent.com/vasturiano/globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson')
+            .then(res => res.json())
+            .then(countries => {
+                globe.polygonsData(countries.features)
+            })
+
+        const controls = globe.controls()
+        controls.autoRotate = true
+        controls.autoRotateSpeed = 0.5
+
+        controls.addEventListener('start', () => {
+            controls.autoRotate = false
+        })
+
+        globeInstanceRef.current = globe
+
+        const handleResize = () => {
+            if (globeRef.current && globeInstanceRef.current) {
+                globeInstanceRef.current.width(globeRef.current.offsetWidth)
+            }
+        }
+        window.addEventListener('resize', handleResize)
+    }
+
+    const getUserList = () => {
+        const userAgg = {}
+        ipLogs.forEach(log => {
+            if (!userAgg[log.user_id]) {
+                userAgg[log.user_id] = {
+                    userId: log.user_id,
+                    logins: 0,
+                    lastLogin: null,
+                    city: null,
+                    country: null,
+                    countryCode: null
+                }
+            }
+            userAgg[log.user_id].logins++
+            if (!userAgg[log.user_id].lastLogin || new Date(log.created_at) > new Date(userAgg[log.user_id].lastLogin)) {
+                userAgg[log.user_id].lastLogin = log.created_at
+                userAgg[log.user_id].city = log.city
+                userAgg[log.user_id].country = log.country
+                userAgg[log.user_id].countryCode = log.country_code
+            }
+        })
+
+        return Object.values(userAgg).sort((a, b) => {
+            let aVal, bVal
+            if (sortField === 'lastLogin') {
+                aVal = new Date(a.lastLogin || 0)
+                bVal = new Date(b.lastLogin || 0)
+            } else if (sortField === 'logins') {
+                aVal = a.logins
+                bVal = b.logins
+            } else if (sortField === 'user') {
+                aVal = (users[a.userId]?.username || users[a.userId]?.email || '').toLowerCase()
+                bVal = (users[b.userId]?.username || users[b.userId]?.email || '').toLowerCase()
+            } else if (sortField === 'location') {
+                aVal = (a.city || '').toLowerCase()
+                bVal = (b.city || '').toLowerCase()
+            }
+
+            if (sortDir === 'asc') {
+                return aVal > bVal ? 1 : -1
+            } else {
+                return aVal < bVal ? 1 : -1
+            }
+        })
+    }
+
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+        } else {
+            setSortField(field)
+            setSortDir('desc')
         }
     }
 
-    const getUserLogins = (userId) => {
-        return ipLogs.filter(l => l.user_id === userId)
+    const SortIcon = ({ field }) => {
+        if (sortField !== field) return <span className="ml-1 text-gray-500">↕</span>
+        return <span className="ml-1 text-yellow-400">{sortDir === 'asc' ? '↑' : '↓'}</span>
     }
+
+    const TimeFilterButtons = ({ value, onChange }) => (
+        <div className="flex gap-2 mb-4">
+            {[
+                { key: 'today', label: 'Today' },
+                { key: 'week', label: 'This Week' },
+                { key: 'month', label: 'This Month' },
+                { key: 'all', label: 'All Time' }
+            ].map(filter => (
+                <button
+                    key={filter.key}
+                    onClick={() => onChange(filter.key)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${value === filter.key
+                            ? 'bg-yellow-500 text-black'
+                            : `bg-${currentTheme.card} text-${currentTheme.textMuted} border border-${currentTheme.border} hover:bg-${currentTheme.border}`
+                        }`}
+                >
+                    {filter.label}
+                </button>
+            ))}
+        </div>
+    )
 
     const formatDate = (dateStr) => {
         if (!dateStr) return '-'
@@ -327,31 +503,6 @@ export default function IPGeographyPage() {
         return String.fromCodePoint(...codePoints)
     }
 
-    // Aggregate users for list view
-    const getUserList = () => {
-        const userAgg = {}
-        ipLogs.forEach(log => {
-            if (!userAgg[log.user_id]) {
-                userAgg[log.user_id] = {
-                    userId: log.user_id,
-                    logins: 0,
-                    lastLogin: null,
-                    city: null,
-                    country: null,
-                    countryCode: null
-                }
-            }
-            userAgg[log.user_id].logins++
-            if (!userAgg[log.user_id].lastLogin || new Date(log.created_at) > new Date(userAgg[log.user_id].lastLogin)) {
-                userAgg[log.user_id].lastLogin = log.created_at
-                userAgg[log.user_id].city = log.city
-                userAgg[log.user_id].country = log.country
-                userAgg[log.user_id].countryCode = log.country_code
-            }
-        })
-        return Object.values(userAgg).sort((a, b) => new Date(b.lastLogin) - new Date(a.lastLogin))
-    }
-
     if (loading) {
         return (
             <div className="p-4">
@@ -371,12 +522,13 @@ export default function IPGeographyPage() {
         )
     }
 
+    const filteredFraudAlerts = getFilteredFraudAlerts()
+
     return (
         <div className="p-4">
-            {/* Header */}
             <div className="mb-4">
                 <h1 className={`text-lg font-bold text-${currentTheme.text}`}>🌍 User Geography</h1>
-                <p className={`text-${currentTheme.textMuted} text-xs`}>Track where your users are coming from</p>
+                <p className={`text-${currentTheme.textMuted} text-xs`}>Registered users and their login locations</p>
             </div>
 
             {/* Quick Stats */}
@@ -412,15 +564,14 @@ export default function IPGeographyPage() {
                             : `bg-${currentTheme.card} text-${currentTheme.textMuted} hover:bg-${currentTheme.border}`
                             }`}
                     >
-                        {tab === 'map' && '🗺️ Map'}
-                        {tab === 'list' && '📋 User List'}
+                        {tab === 'map' && '🌐 Registered Users'}
+                        {tab === 'list' && `📋 User List (${getUserList().length})`}
                         {tab === 'stats' && '📊 Stats'}
                         {tab === 'fraud' && `🚨 Fraud ${fraudAlerts.length > 0 ? `(${fraudAlerts.length})` : ''}`}
                     </button>
                 ))}
             </div>
 
-            {/* Map Tab */}
             {activeTab === 'map' && (
                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
                     {ipLogs.filter(l => l.latitude).length === 0 ? (
@@ -429,23 +580,22 @@ export default function IPGeographyPage() {
                             <p className={`text-${currentTheme.textMuted} text-sm mt-2`}>Locations will appear as users log in from real IPs (not localhost).</p>
                         </div>
                     ) : (
-                        <div ref={mapRef} style={{ height: '500px', width: '100%' }}></div>
+                        <div ref={globeRef} style={{ height: '500px', width: '100%' }}></div>
                     )}
                 </div>
             )}
 
-            {/* User List Tab */}
             {activeTab === 'list' && (
                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className={`bg-${currentTheme.border}/50 text-${currentTheme.textMuted}`}>
-                                    <th className="text-left py-2 px-3">User</th>
+                                    <th className="text-left py-2 px-3 cursor-pointer hover:text-white" onClick={() => handleSort('user')}>User<SortIcon field="user" /></th>
                                     <th className="text-left py-2 px-3">Email</th>
-                                    <th className="text-left py-2 px-3">Location</th>
-                                    <th className="text-left py-2 px-3">Logins</th>
-                                    <th className="text-left py-2 px-3">Last Login</th>
+                                    <th className="text-left py-2 px-3 cursor-pointer hover:text-white" onClick={() => handleSort('location')}>Location<SortIcon field="location" /></th>
+                                    <th className="text-left py-2 px-3 cursor-pointer hover:text-white" onClick={() => handleSort('logins')}>Logins<SortIcon field="logins" /></th>
+                                    <th className="text-left py-2 px-3 cursor-pointer hover:text-white" onClick={() => handleSort('lastLogin')}>Last Login<SortIcon field="lastLogin" /></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -489,101 +639,107 @@ export default function IPGeographyPage() {
                 </div>
             )}
 
-            {/* Stats Tab */}
             {activeTab === 'stats' && (
-                <div className="grid md:grid-cols-2 gap-4">
-                    {/* Top Countries */}
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
-                        <h3 className={`text-${currentTheme.text} font-bold mb-3`}>🌍 Top Countries</h3>
-                        {stats.countries.length === 0 ? (
-                            <p className={`text-${currentTheme.textMuted} text-sm`}>No data yet</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {stats.countries.map((c, i) => (
-                                    <div key={c.name} className="flex items-center justify-between">
-                                        <span className={`text-${currentTheme.text}`}>
-                                            {i + 1}. {c.name}
-                                        </span>
-                                        <span className={`text-${currentTheme.textMuted} text-sm`}>
-                                            {c.count} logins
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Top Cities */}
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
-                        <h3 className={`text-${currentTheme.text} font-bold mb-3`}>🏙️ Top Cities</h3>
-                        {stats.cities.length === 0 ? (
-                            <p className={`text-${currentTheme.textMuted} text-sm`}>No data yet</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {stats.cities.map((c, i) => (
-                                    <div key={c.name} className="flex items-center justify-between">
-                                        <span className={`text-${currentTheme.text}`}>
-                                            {i + 1}. {c.name}
-                                        </span>
-                                        <span className={`text-${currentTheme.textMuted} text-sm`}>
-                                            {c.count} logins
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Fraud Tab */}
-            {activeTab === 'fraud' && (
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
-                    {fraudAlerts.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <p className="text-4xl mb-2">✅</p>
-                            <p className={`text-${currentTheme.text} font-medium`}>No fraud alerts</p>
-                            <p className={`text-${currentTheme.textMuted} text-sm mt-1`}>No IPs with multiple user accounts detected</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className={`bg-${currentTheme.border}/50 text-${currentTheme.textMuted}`}>
-                                        <th className="text-left py-2 px-3">IP Address</th>
-                                        <th className="text-left py-2 px-3"># Accounts</th>
-                                        <th className="text-left py-2 px-3">Users</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {fraudAlerts.map(alert => (
-                                        <tr key={alert.ip} className={`border-t border-${currentTheme.border}/50`}>
-                                            <td className={`py-2 px-3 text-${currentTheme.text} font-mono`}>
-                                                {alert.ip}
-                                            </td>
-                                            <td className="py-2 px-3">
-                                                <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-bold">
-                                                    {alert.count} accounts
-                                                </span>
-                                            </td>
-                                            <td className={`py-2 px-3 text-${currentTheme.textMuted}`}>
-                                                {alert.userIds.map(uid => {
-                                                    const u = users[uid]
-                                                    return u?.username || u?.email || uid
-                                                }).join(', ')}
-                                            </td>
-                                        </tr>
+                <>
+                    <TimeFilterButtons value={statsTimeFilter} onChange={setStatsTimeFilter} />
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
+                            <h3 className={`text-${currentTheme.text} font-bold mb-3`}>🌍 Top Countries</h3>
+                            {getFilteredStats().countries.length === 0 ? (
+                                <p className={`text-${currentTheme.textMuted} text-sm`}>No data for this period</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {getFilteredStats().countries.map((c, i) => (
+                                        <div key={c.name} className="flex items-center justify-between">
+                                            <span className={`text-${currentTheme.text}`}>
+                                                {i + 1}. {c.name}
+                                            </span>
+                                            <span className={`text-${currentTheme.textMuted} text-sm`}>
+                                                {c.count} logins
+                                            </span>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
+                            <h3 className={`text-${currentTheme.text} font-bold mb-3`}>🏙️ Top Cities</h3>
+                            {getFilteredStats().cities.length === 0 ? (
+                                <p className={`text-${currentTheme.textMuted} text-sm`}>No data for this period</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {getFilteredStats().cities.map((c, i) => (
+                                        <div key={c.name} className="flex items-center justify-between">
+                                            <span className={`text-${currentTheme.text}`}>
+                                                {i + 1}. {c.name}
+                                            </span>
+                                            <span className={`text-${currentTheme.textMuted} text-sm`}>
+                                                {c.count} logins
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
             )}
 
-            {/* Info */}
+            {activeTab === 'fraud' && (
+                <>
+                    <TimeFilterButtons value={fraudTimeFilter} onChange={setFraudTimeFilter} />
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
+                        {filteredFraudAlerts.length === 0 ? (
+                            <div className="p-8 text-center">
+                                <p className="text-4xl mb-2">✅</p>
+                                <p className={`text-${currentTheme.text} font-medium`}>No fraud alerts</p>
+                                <p className={`text-${currentTheme.textMuted} text-sm mt-1`}>No IPs with multiple user accounts detected for this period</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className={`bg-${currentTheme.border}/50 text-${currentTheme.textMuted}`}>
+                                            <th className="text-left py-2 px-3">IP Address</th>
+                                            <th className="text-left py-2 px-3"># Accounts</th>
+                                            <th className="text-left py-2 px-3">Users</th>
+                                            <th className="text-left py-2 px-3">Last Seen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredFraudAlerts.map(alert => (
+                                            <tr key={alert.ip} className={`border-t border-${currentTheme.border}/50`}>
+                                                <td className={`py-2 px-3 text-${currentTheme.text} font-mono`}>
+                                                    {alert.ip}
+                                                </td>
+                                                <td className="py-2 px-3">
+                                                    <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-bold">
+                                                        {alert.count} accounts
+                                                    </span>
+                                                </td>
+                                                <td className={`py-2 px-3 text-${currentTheme.textMuted}`}>
+                                                    {alert.userIds.map(uid => {
+                                                        const u = users[uid]
+                                                        return u?.username || u?.email || uid
+                                                    }).join(', ')}
+                                                </td>
+                                                <td className={`py-2 px-3 text-${currentTheme.textMuted}`}>
+                                                    {formatDate(alert.lastSeen)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+
             <div className={`mt-4 text-${currentTheme.textMuted} text-xs`}>
                 <p>📍 Location data is captured on login/registration. Localhost IPs (::1, 127.0.0.1) don't have location data.</p>
+                <p className="mt-1">🌐 Drag to rotate the globe. Hover over red markers to see user details.</p>
             </div>
         </div>
     )
