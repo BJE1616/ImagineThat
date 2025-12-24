@@ -99,6 +99,7 @@ export default function SolitairePage() {
     const [winSponsor, setWinSponsor] = useState(null)
     const [displayAds, setDisplayAds] = useState([])
     const [viewingAd, setViewingAd] = useState(null)
+    const [urlClickable, setUrlClickable] = useState(false)
     const trackedCardBackView = useRef(false)
     const trackedDisplayAdViews = useRef(new Set())
     const [sessionId, setSessionId] = useState(null)
@@ -605,13 +606,14 @@ export default function SolitairePage() {
             const { data: settings } = await supabase
                 .from('admin_settings')
                 .select('setting_key, setting_value')
-                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled', 'card_url_clickable'])
 
             let frequency = 10
             let fallbackEnabled = true
             settings?.forEach(s => {
                 if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
                 if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+                if (s.setting_key === 'card_url_clickable') setUrlClickable(s.setting_value === 'true')
             })
 
             const { data: campaigns, error } = await supabase
@@ -1418,7 +1420,7 @@ export default function SolitairePage() {
                     style={{ backgroundColor: cardBackAdvertiser.card_color || '#4F46E5' }}
                 >
                     <span className="text-center font-bold text-[8px] sm:text-[10px]" style={{ color: cardBackAdvertiser.text_color || '#FFFFFF' }}>
-                        {cardBackAdvertiser.title}
+                        {cardBackAdvertiser.display_name || cardBackAdvertiser.title}
                     </span>
                 </div>
             )
@@ -1659,7 +1661,23 @@ export default function SolitairePage() {
                     >
                         {viewingAd.card_type === 'uploaded' && viewingAd.image_url ? (
                             <div className="bg-gray-800">
-                                <img src={viewingAd.image_url} alt="Card" className="w-full h-auto" />
+                                <img
+                                    src={viewingAd.image_url}
+                                    alt="Card"
+                                    className="w-full h-auto"
+                                    style={{ transform: `rotate(${viewingAd.image_rotation || 0}deg)` }}
+                                />
+                                {viewingAd.website_url && (
+                                    <div className="p-3 text-center">
+                                        {urlClickable ? (
+                                            <a href={viewingAd.website_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-sm">
+                                                🔗 {viewingAd.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className="text-gray-400 text-sm">🔗 {viewingAd.website_url}</p>
+                                        )}
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => setViewingAd(null)}
                                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium"
@@ -1671,19 +1689,28 @@ export default function SolitairePage() {
                             <div className="p-6" style={{ backgroundColor: viewingAd.card_color || '#4F46E5' }}>
                                 <div className="text-center mb-4">
                                     <h2 className="font-bold text-xl" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
-                                        {viewingAd.title}
+                                        {viewingAd.full_business_name || viewingAd.display_name || viewingAd.title}
                                     </h2>
                                 </div>
-                                {viewingAd.message && (
+                                {(viewingAd.tagline || viewingAd.message) && (
                                     <div className="text-center mb-4">
                                         <p className="text-sm" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
-                                            {viewingAd.message}
+                                            {viewingAd.tagline || viewingAd.message}
                                         </p>
                                     </div>
                                 )}
                                 <div className="text-center space-y-1" style={{ color: viewingAd.text_color || '#FFFFFF' }}>
                                     {viewingAd.phone && <p className="text-sm">📞 {viewingAd.phone}</p>}
                                     {viewingAd.email && <p className="text-sm">✉️ {viewingAd.email}</p>}
+                                    {viewingAd.website_url && (
+                                        urlClickable ? (
+                                            <a href={viewingAd.website_url} target="_blank" rel="noopener noreferrer" className="text-sm underline hover:opacity-80 block">
+                                                🔗 {viewingAd.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className="text-sm">🔗 {viewingAd.website_url}</p>
+                                        )
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setViewingAd(null)}
@@ -1948,7 +1975,7 @@ export default function SolitairePage() {
                                 {/* Desktop: up to 8 ads, centered */}
                                 <div className="hidden md:flex flex-wrap justify-center gap-2">
                                     {displayAds.slice(0, 8).map((ad, index) => (
-                                        <div key={ad.id || index} className="w-24">
+                                        <div key={`${ad.id}-${index}`} className="w-24">
                                             <DisplayAdSmall ad={ad} />
                                         </div>
                                     ))}
@@ -2161,7 +2188,7 @@ export default function SolitairePage() {
                                 <p className="text-green-300 text-xs text-center mb-3">Our Sponsors</p>
                                 <div className="flex flex-wrap justify-center gap-2">
                                     {displayAds.slice(0, 8).map((ad, index) => (
-                                        <div key={ad.id || index} className="w-24">
+                                        <div key={`${ad.id}-${index}`} className="w-24">
                                             <DisplayAdSmall ad={ad} />
                                         </div>
                                     ))}
