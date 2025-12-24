@@ -45,6 +45,8 @@ export default function SlotMachinePage() {
     const [celebration, setCelebration] = useState(null)
     const [message, setMessage] = useState(null)
     const [viewedAdvertisersToday, setViewedAdvertisersToday] = useState(new Set())
+    const [viewingCard, setViewingCard] = useState(null)
+    const [urlClickable, setUrlClickable] = useState(false)
 
     // ===== LEADERBOARD STATE =====
     const [leaderboard, setLeaderboard] = useState([])
@@ -60,6 +62,8 @@ export default function SlotMachinePage() {
 
     // ===== UI STATE =====
     const [showRecentWinners, setShowRecentWinners] = useState(false)
+    const [showDailyLeaderboard, setShowDailyLeaderboard] = useState(false)
+    const [showYesterdayWinners, setShowYesterdayWinners] = useState(false)
 
     // ===== ODDS SETTINGS (from admin_settings) =====
     const [odds, setOdds] = useState(DEFAULT_ODDS)
@@ -450,13 +454,14 @@ export default function SlotMachinePage() {
             const { data: settings } = await supabase
                 .from('admin_settings')
                 .select('setting_key, setting_value')
-                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled'])
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled', 'card_url_clickable'])
 
             let frequency = 10
             let fallbackEnabled = true
             settings?.forEach(s => {
                 if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
                 if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+                if (s.setting_key === 'card_url_clickable') setUrlClickable(s.setting_value === 'true')
             })
 
             // Load advertiser cards from active campaigns
@@ -865,6 +870,81 @@ export default function SlotMachinePage() {
     // ===== RENDER =====
     return (
         <div className={`min-h-screen bg-${currentTheme.bg} py-2 px-2`}>
+            {/* ===== CARD VIEWING MODAL ===== */}
+            {viewingCard && (
+                <div
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingCard(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-xl shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {viewingCard.card_type === 'uploaded' && viewingCard.image_url ? (
+                            <div className={`bg-${currentTheme.card}`}>
+                                <img
+                                    src={viewingCard.image_url}
+                                    alt="Card"
+                                    className="w-full h-auto"
+                                    style={{ transform: `rotate(${viewingCard.image_rotation || 0}deg)` }}
+                                />
+                                {viewingCard.website_url && (
+                                    <div className="p-3 text-center">
+                                        {urlClickable ? (
+                                            <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className={`text-${currentTheme.accent} hover:underline text-sm`}>
+                                                🔗 {viewingCard.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className={`text-${currentTheme.textMuted} text-sm`}>🔗 {viewingCard.website_url}</p>
+                                        )}
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setViewingCard(null)}
+                                    className={`w-full py-2 bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.text} font-medium`}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="p-6" style={{ backgroundColor: viewingCard.card_color || '#4F46E5' }}>
+                                <div className="text-center mb-4">
+                                    <h2 className="font-bold text-xl" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                        {viewingCard.full_business_name || viewingCard.display_name || viewingCard.title}
+                                    </h2>
+                                </div>
+                                {(viewingCard.tagline || viewingCard.message) && (
+                                    <div className="text-center mb-4">
+                                        <p className="text-sm" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                            {viewingCard.tagline || viewingCard.message}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="text-center space-y-1" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
+                                    {viewingCard.phone && <p className="text-sm">📞 {viewingCard.phone}</p>}
+                                    {viewingCard.email && <p className="text-sm">✉️ {viewingCard.email}</p>}
+                                    {viewingCard.website_url && (
+                                        urlClickable ? (
+                                            <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className="text-sm underline hover:opacity-80 block">
+                                                🔗 {viewingCard.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className="text-sm">🔗 {viewingCard.website_url}</p>
+                                        )
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => setViewingCard(null)}
+                                    className="mt-4 w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white font-medium"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* ===== REWARD CLAIM MODAL ===== */}
             {showRewardModal && unclaimedReward && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
@@ -1066,13 +1146,22 @@ export default function SlotMachinePage() {
                                             style={{ aspectRatio: '3.5 / 2' }}
                                         >
                                             {card ? (
-                                                card.card_type === 'uploaded' && card.image_url ? (
-                                                    <img src={card.image_url} alt="Card" className={`w-full h-full object-contain bg-slate-100 ${spinning ? 'blur-sm' : ''}`} />
-                                                ) : (
-                                                    <div className={`w-full h-full flex items-center justify-center p-1 ${spinning ? 'blur-sm' : ''}`} style={{ backgroundColor: card.card_color || '#4F46E5' }}>
-                                                        <p className="text-[8px] font-bold text-center leading-tight break-words" style={{ color: card.text_color || '#FFF' }}>{card.title}</p>
-                                                    </div>
-                                                )
+                                                <div className={`w-full h-full flex items-center justify-center p-1 relative ${spinning ? 'blur-sm' : ''}`} style={{ backgroundColor: card.card_color || '#4F46E5' }}>
+                                                    <p className="text-[8px] font-bold text-center leading-tight break-words" style={{ color: card.text_color || '#FFF' }}>
+                                                        {card.display_name || card.title}
+                                                    </p>
+                                                    {!spinning && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                setViewingCard(card)
+                                                            }}
+                                                            className="absolute bottom-0.5 right-0.5 bg-white/80 hover:bg-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] shadow"
+                                                        >
+                                                            👁
+                                                        </button>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center bg-slate-200"><span className="text-lg">🎴</span></div>
                                             )}
@@ -1165,35 +1254,45 @@ export default function SlotMachinePage() {
                 {/* ===== DAILY LEADERBOARD ===== */}
                 {leaderboard.length > 0 && (
                     <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
-                        <h2 className={`text-${currentTheme.text} font-bold text-xs mb-1`}>🏆 Today's Top Spinners</h2>
-                        <div className="space-y-1">
-                            {leaderboard.slice(0, 3).map((entry, i) => (
-                                <div key={i} className={`flex items-center justify-between text-[10px] rounded px-2 py-1 ${entry.user_id === user?.id ? 'bg-yellow-500/20' : `bg-${currentTheme.border}/30`}`}>
-                                    <span className={`text-${currentTheme.text}`}>{getRankEmoji(entry.rank)} {entry.user_id === user?.id ? 'You' : maskUsername(entry.username)}</span>
-                                    <span className="text-blue-400 font-medium">{entry.total_spins} spins</span>
-                                </div>
-                            ))}
-                        </div>
-                        {userRank && userRank > 3 && <p className={`text-[10px] text-${currentTheme.textMuted} text-center mt-1`}>Your rank: #{userRank}</p>}
+                        <button onClick={() => setShowDailyLeaderboard(!showDailyLeaderboard)} className="w-full flex items-center justify-between text-xs">
+                            <span className={`text-${currentTheme.text} font-bold`}>🏆 Today's Top Spinners</span>
+                            <span className={`text-${currentTheme.textMuted}`}>{showDailyLeaderboard ? '▲' : '▼'}</span>
+                        </button>
+                        {showDailyLeaderboard && (
+                            <div className="space-y-1 mt-1">
+                                {leaderboard.slice(0, 3).map((entry, i) => (
+                                    <div key={i} className={`flex items-center justify-between text-[10px] rounded px-2 py-1 ${entry.user_id === user?.id ? 'bg-yellow-500/20' : `bg-${currentTheme.border}/30`}`}>
+                                        <span className={`text-${currentTheme.text}`}>{getRankEmoji(entry.rank)} {entry.user_id === user?.id ? 'You' : maskUsername(entry.username)}</span>
+                                        <span className="text-blue-400 font-medium">{entry.total_spins} spins</span>
+                                    </div>
+                                ))}
+                                {userRank && userRank > 3 && <p className={`text-[10px] text-${currentTheme.textMuted} text-center mt-1`}>Your rank: #{userRank}</p>}
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* ===== YESTERDAY'S WINNERS ===== */}
                 {yesterdayWinners.length > 0 && (
                     <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
-                        <h2 className={`text-${currentTheme.text} font-bold text-xs mb-1`}>🌟 Yesterday's Winners</h2>
-                        <div className="space-y-1">
-                            {yesterdayWinners.map((winner, i) => (
-                                <div key={i} className={`flex items-center justify-between text-[10px] rounded px-2 py-1 bg-${currentTheme.border}/30`}>
-                                    <span className={`text-${currentTheme.text}`}>
-                                        {getRankEmoji(winner.place)} {maskUsername(winner.username)}
-                                    </span>
-                                    <span className="text-yellow-400 font-medium">
-                                        {winner.total_spins} spins (+{winner.bonus_tokens_awarded}🪙 +{winner.bonus_entries_awarded}🎟️)
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
+                        <button onClick={() => setShowYesterdayWinners(!showYesterdayWinners)} className="w-full flex items-center justify-between text-xs">
+                            <span className={`text-${currentTheme.text} font-bold`}>🌟 Yesterday's Winners</span>
+                            <span className={`text-${currentTheme.textMuted}`}>{showYesterdayWinners ? '▲' : '▼'}</span>
+                        </button>
+                        {showYesterdayWinners && (
+                            <div className="space-y-1 mt-1">
+                                {yesterdayWinners.map((winner, i) => (
+                                    <div key={i} className={`flex items-center justify-between text-[10px] rounded px-2 py-1 bg-${currentTheme.border}/30`}>
+                                        <span className={`text-${currentTheme.text}`}>
+                                            {getRankEmoji(winner.place)} {maskUsername(winner.username)}
+                                        </span>
+                                        <span className="text-yellow-400 font-medium">
+                                            {winner.total_spins} spins (+{winner.bonus_tokens_awarded}🪙 +{winner.bonus_entries_awarded}🎟️)
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 

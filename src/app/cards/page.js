@@ -149,8 +149,22 @@ export default function CardsPage() {
 
     const handleUrlBlur = (e) => {
         let value = e.target.value.trim()
-        if (value && !value.match(/^https?:\/\//i)) {
-            // Auto-prepend https:// if they entered a domain without protocol
+
+        // If empty, do nothing
+        if (!value) return
+
+        // Check if it looks like an email (contains @ before any /)
+        if (value.includes('@') && !value.includes('://')) {
+            alert('That looks like an email address. Please enter a website URL instead.')
+            setFormData({
+                ...formData,
+                website_url: ''
+            })
+            return
+        }
+
+        // Auto-prepend https:// if they entered a domain without protocol
+        if (!value.match(/^https?:\/\//i)) {
             if (value.match(/^[a-zA-Z0-9]/) && value.includes('.')) {
                 value = 'https://' + value
                 setFormData({

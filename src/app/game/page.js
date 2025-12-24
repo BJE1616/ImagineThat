@@ -57,7 +57,7 @@ export default function GamePage() {
             const { data, error } = await supabase
                 .from('admin_settings')
                 .select('*')
-                .in('setting_key', ['card_back_logo_url', 'show_advertiser_cards'])
+                .in('setting_key', ['card_back_logo_url', 'show_advertiser_cards', 'card_url_clickable'])
 
             if (data) {
                 const settings = {}
@@ -650,7 +650,18 @@ export default function GamePage() {
                     >
                         {viewingCard.card_type === 'uploaded' && viewingCard.image_url ? (
                             <div className={`bg-${currentTheme.card}`}>
-                                <img src={viewingCard.image_url} alt="Card" className="w-full h-auto" />
+                                <img src={viewingCard.image_url} alt="Card" className="w-full h-auto" style={{ transform: `rotate(${viewingCard.image_rotation || 0}deg)` }} />
+                                {viewingCard.website_url && (
+                                    <div className="p-3 text-center">
+                                        {cardBackSetting?.card_url_clickable === 'true' ? (
+                                            <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className={`text-${currentTheme.accent} hover:underline text-sm`}>
+                                                🔗 {viewingCard.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className={`text-${currentTheme.textMuted} text-sm`}>🔗 {viewingCard.website_url}</p>
+                                        )}
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => setViewingCard(null)}
                                     className={`w-full py-2 bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.text} font-medium`}
@@ -662,19 +673,28 @@ export default function GamePage() {
                             <div className="p-6" style={{ backgroundColor: viewingCard.card_color || '#4F46E5' }}>
                                 <div className="text-center mb-4">
                                     <h2 className="font-bold text-xl" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
-                                        {viewingCard.title}
+                                        {viewingCard.full_business_name || viewingCard.display_name || viewingCard.title}
                                     </h2>
                                 </div>
-                                {viewingCard.message && (
+                                {(viewingCard.tagline || viewingCard.message) && (
                                     <div className="text-center mb-4">
                                         <p className="text-sm" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
-                                            {viewingCard.message}
+                                            {viewingCard.tagline || viewingCard.message}
                                         </p>
                                     </div>
                                 )}
                                 <div className="text-center space-y-1" style={{ color: viewingCard.text_color || '#FFFFFF' }}>
                                     {viewingCard.phone && <p className="text-sm">📞 {viewingCard.phone}</p>}
                                     {viewingCard.email && <p className="text-sm">✉️ {viewingCard.email}</p>}
+                                    {viewingCard.website_url && (
+                                        cardBackSetting?.card_url_clickable === 'true' ? (
+                                            <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className="text-sm underline hover:opacity-80 block">
+                                                🔗 {viewingCard.website_url}
+                                            </a>
+                                        ) : (
+                                            <p className="text-sm">🔗 {viewingCard.website_url}</p>
+                                        )
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setViewingCard(null)}
@@ -927,7 +947,8 @@ export default function GamePage() {
                                                     <img
                                                         src={cardBackAdvertiser.image_url}
                                                         alt="Advertiser card"
-                                                        className="w-full h-full object-cover"
+                                                        className="w-full h-full object-contain"
+                                                        style={{ transform: `rotate(${cardBackAdvertiser.image_rotation || 0}deg)` }}
                                                     />
                                                 </div>
                                             ) : (
@@ -957,7 +978,7 @@ export default function GamePage() {
                                     ) : (
                                         card.card_type === 'uploaded' && card.image_url ? (
                                             <div className={`w-full h-full rounded-md sm:rounded-lg shadow-lg overflow-hidden relative border border-${currentTheme.border}`}>
-                                                <img src={card.image_url} alt="Card" className="w-full h-full object-contain" />
+                                                <img src={card.image_url} alt="Card" className="w-full h-full object-contain" style={{ transform: `rotate(${card.image_rotation || 0}deg)` }} />
                                                 {matchedPairs.includes(card.pairId) && (
                                                     <button
                                                         onClick={(e) => {
@@ -976,7 +997,7 @@ export default function GamePage() {
                                                 className={`w-full h-full rounded-md sm:rounded-lg flex items-center justify-center border border-${currentTheme.border} shadow-lg overflow-hidden relative`}
                                                 style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                             >
-                                                <h3 className="font-bold text-xs sm:text-sm text-center px-1" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>
+                                                <h3 className="font-bold text-xs sm:text-sm text-center px-1" style={{ color: card.text_color || '#FFFFFF' }}>{card.display_name || card.title}</h3>
                                                 {matchedPairs.includes(card.pairId) && (
                                                     <button
                                                         onClick={(e) => {
