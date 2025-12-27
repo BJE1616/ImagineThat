@@ -82,8 +82,8 @@ function ActionButtons({ onApply, onSaveLater, onCancel, applying, disabled, war
                 onClick={onApply}
                 disabled={applying || disabled}
                 className={`flex-1 px-4 py-2 rounded text-sm font-medium ${warning
-                        ? 'bg-orange-500 hover:bg-orange-400 text-white'
-                        : 'bg-green-500 hover:bg-green-400 disabled:bg-slate-600 text-white'
+                    ? 'bg-orange-500 hover:bg-orange-400 text-white'
+                    : 'bg-green-500 hover:bg-green-400 disabled:bg-slate-600 text-white'
                     }`}
             >
                 {applying ? 'Applying...' : warning ? '⚠️ Apply (Affects Users)' : '✅ Apply Changes'}
@@ -107,6 +107,7 @@ export default function HealthDashboardPage() {
     const [fixPanelData, setFixPanelData] = useState({ activeTab: 'awards' })
     const [applying, setApplying] = useState(false)
     const [actionQueue, setActionQueue] = useState([])
+    const [currentUser, setCurrentUser] = useState(null)
 
     const [financial, setFinancial] = useState({
         grossRevenue: 0, processingFees: 0, netRevenue: 0, recurringExpenses: 0,
@@ -128,6 +129,22 @@ export default function HealthDashboardPage() {
     })
     const [issues, setIssues] = useState([])
 
+    // Load current user for audit logging
+    useEffect(() => {
+        const loadCurrentUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('id, email, role')
+                    .eq('id', user.id)
+                    .single()
+                setCurrentUser(userData)
+            }
+        }
+        loadCurrentUser()
+    }, [])
+
     // Load/save action queue
     useEffect(() => {
         const saved = localStorage.getItem('healthActionQueue')
@@ -139,6 +156,26 @@ export default function HealthDashboardPage() {
     }, [actionQueue])
 
     useEffect(() => { loadAllData() }, [dateRange])
+
+    // ===== AUDIT LOGGING FUNCTION =====
+    const logAuditAction = async (action, tableName, recordId, oldValue, newValue, description) => {
+        if (!currentUser) return
+
+        try {
+            await supabase.from('admin_audit_log').insert([{
+                user_id: currentUser.id,
+                user_email: currentUser.email,
+                action,
+                table_name: tableName,
+                record_id: recordId,
+                old_value: oldValue,
+                new_value: newValue,
+                description
+            }])
+        } catch (error) {
+            console.error('Error logging audit:', error)
+        }
+    }
 
     const getDateFilter = () => {
         const now = new Date()
@@ -360,8 +397,54 @@ export default function HealthDashboardPage() {
         const configs = configsToApply || fixPanelData.configs
         try {
             for (const config of configs) {
-                await supabase.from('daily_leaderboard_config').update({ first_tokens: config.new_first, second_tokens: config.new_second, third_tokens: config.new_third, updated_at: new Date().toISOString() }).eq('id', config.id)
+                // Get old values for audit log
+                const oldConfig = dailyConfig.find(c => c.id === config.id)
+                const oldValues = {
+                    first_tokens: oldConfig?.first_tokens,
+                    second_tokens: oldConfig?.second_tokens,
+                    third_tokens: oldConfig?.third_tokens
+                }
+                const newValues = {
+                    first_tokens: config.new_first,
+                    second_tokens: config.new_second,
+                    third_tokens: config.new_third
+                }
+
+                // Only update and log if values actually changed
+                if (oldValues.first_tokens !== newValues.first_tokens ||
+                    oldValues.second_tokens !== newValues.second_tokens ||
+                    oldValues.third_tokens !== newValues.third_tokens) {
+
+                    await supabase.from('daily_leaderboard_config').update({
+                        first_tokens: config.new_first,
+                        second_tokens: config.new_second,
+                        third_tokens: config.new_third,
+                        updated_at: new Date().toISOString()
+                    }).eq('id', config.id)
+
+                    // Log to audit
+                    await logAuditAction(
+                        'daily_awards_change',
+                        'daily_leaderboard_config',
+                        config.id,
+                        oldValues,
+                        newValues,
+                        `Health Dashboard: Changed ${config.game_key} awards from ${oldValues.first_tokens}/${oldValues.second_tokens}/${oldValues.third_tokens} to ${newValues.first_tokens}/${newValues.second_tokens}/${newValues.third_tokens}`
+                    )
+                }
             }
+
+            // Log summary action
+            const impact = calculateDailyTokenImpact()
+            await logAuditAction(
+                'health_fix_applied',
+                'daily_leaderboard_config',
+                null,
+                { healthScore: healthScores.overall, trueAvailable: financial.trueAvailable },
+                { healthScore: impact?.newScore, trueAvailable: impact?.newTrueAvailable, monthlySavings: impact?.savings },
+                `Health Dashboard: Applied daily token reduction. Savings: ${formatCurrency(impact?.savings || 0)}/month`
+            )
+
             await loadAllData()
             setFixPanelOpen(null)
             setFixPanelData({ activeTab: 'awards', showCustomize: false })
@@ -376,7 +459,26 @@ export default function HealthDashboardPage() {
     const applyTokenValueChange = async () => {
         setApplying(true)
         try {
-            await supabase.from('economy_settings').update({ setting_value: fixPanelData.newTokenValue, updated_at: new Date().toISOString() }).eq('setting_key', 'token_value')
+            const oldValue = tokenEconomy.tokenValue
+            const newValue = fixPanelData.newTokenValue
+            const oldLiability = tokenEconomy.circulationValue
+            const newLiability = tokenEconomy.totalCirculation * newValue
+
+            await supabase.from('economy_settings').update({
+                setting_value: newValue,
+                updated_at: new Date().toISOString()
+            }).eq('setting_key', 'token_value')
+
+            // Log to audit
+            await logAuditAction(
+                'token_value_change',
+                'economy_settings',
+                'token_value',
+                { token_value: oldValue, liability: oldLiability },
+                { token_value: newValue, liability: newLiability },
+                `Health Dashboard: Changed token value from ${formatCurrency(oldValue)} to ${formatCurrency(newValue)}. Liability reduced by ${formatCurrency(oldLiability - newLiability)}`
+            )
+
             await loadAllData()
             setFixPanelOpen(null)
         } catch (error) {

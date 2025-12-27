@@ -7,14 +7,13 @@ import Link from 'next/link'
 import { useTheme } from '@/lib/ThemeContext'
 
 // Create context for admin role
-export const AdminRoleContext = createContext({ role: null, permissions: [], hasHealthAccess: false })
+export const AdminRoleContext = createContext({ role: null, permissions: [], hasHealthAccess: false, hasAuditLogAccess: false })
 export const useAdminRole = () => useContext(AdminRoleContext)
 
 // Page access by role (static rules)
 const PAGE_ACCESS = {
     // Super Admin only
     '/admin/team': ['super_admin'],
-    '/admin/audit-log': ['super_admin'],
     '/admin/accounting': ['super_admin'],
     '/admin/geography': ['super_admin'],
 
@@ -53,6 +52,7 @@ export default function AdminLayout({ children }) {
     const [userRole, setUserRole] = useState(null)
     const [financialPermissions, setFinancialPermissions] = useState([])
     const [hasHealthAccess, setHasHealthAccess] = useState(false)
+    const [hasAuditLogAccess, setHasAuditLogAccess] = useState(false)
     const [loading, setLoading] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const [expandedGroups, setExpandedGroups] = useState([])
@@ -67,7 +67,7 @@ export default function AdminLayout({ children }) {
         if (userRole && pathname !== '/admin/login') {
             checkPageAccess()
         }
-    }, [pathname, userRole, hasHealthAccess])
+    }, [pathname, userRole, hasHealthAccess, hasAuditLogAccess])
 
     const checkAdmin = async () => {
         try {
@@ -105,10 +105,15 @@ export default function AdminLayout({ children }) {
 
             setFinancialPermissions(permissions?.filter(p => p[role]).map(p => p.metric_key) || [])
 
-            // Check health dashboard access specifically
+            // Check health dashboard access
             const healthPerm = permissions?.find(p => p.metric_key === 'health_dashboard_access')
             const canAccessHealth = role === 'super_admin' || (healthPerm && healthPerm[role] === true)
             setHasHealthAccess(canAccessHealth)
+
+            // Check audit log access
+            const auditPerm = permissions?.find(p => p.metric_key === 'audit_log_access')
+            const canAccessAuditLog = role === 'super_admin' || (auditPerm && auditPerm[role] === true)
+            setHasAuditLogAccess(canAccessAuditLog)
 
         } catch (error) {
             console.error('Admin check error:', error)
@@ -122,6 +127,12 @@ export default function AdminLayout({ children }) {
         // Special handling for health dashboard - uses permission table
         if (pathname === '/admin/health') {
             setAccessDenied(!hasHealthAccess)
+            return
+        }
+
+        // Special handling for audit log - uses permission table
+        if (pathname === '/admin/audit-log') {
+            setAccessDenied(!hasAuditLogAccess)
             return
         }
 
@@ -157,6 +168,11 @@ export default function AdminLayout({ children }) {
         // Special handling for health dashboard
         if (href === '/admin/health') {
             return hasHealthAccess
+        }
+
+        // Special handling for audit log
+        if (href === '/admin/audit-log') {
+            return hasAuditLogAccess
         }
 
         const allowedRoles = PAGE_ACCESS[href]
@@ -250,7 +266,7 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
                 { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
                 { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
-                { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', superAdminOnly: true },
+                { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
             ]
         },
     ]
@@ -271,7 +287,7 @@ export default function AdminLayout({ children }) {
     const roleBadge = getRoleBadge()
 
     return (
-        <AdminRoleContext.Provider value={{ role: userRole, permissions: financialPermissions, hasHealthAccess }}>
+        <AdminRoleContext.Provider value={{ role: userRole, permissions: financialPermissions, hasHealthAccess, hasAuditLogAccess }}>
             <div className={`min-h-screen bg-${currentTheme.bg} flex`}>
                 <aside className={`${sidebarOpen ? 'w-52' : 'w-14'} bg-${currentTheme.card} border-r border-${currentTheme.border} transition-all duration-300 flex flex-col`}>
                     <div className={`p-2 border-b border-${currentTheme.border}`}>
@@ -319,9 +335,12 @@ export default function AdminLayout({ children }) {
                                 // Check superAdminOnly flag
                                 if (item.superAdminOnly && userRole !== 'super_admin') return false
 
-                                // Check permission-based access (like health dashboard)
+                                // Check permission-based access (like health dashboard and audit log)
                                 if (item.permissionKey === 'health_dashboard_access') {
                                     return hasHealthAccess
+                                }
+                                if (item.permissionKey === 'audit_log_access') {
+                                    return hasAuditLogAccess
                                 }
 
                                 return canAccessPage(item.href)
