@@ -108,6 +108,8 @@ export default function HealthDashboardPage() {
     const [applying, setApplying] = useState(false)
     const [actionQueue, setActionQueue] = useState([])
     const [currentUser, setCurrentUser] = useState(null)
+    const [recentChanges, setRecentChanges] = useState([])
+    const [showHistory, setShowHistory] = useState(false)
 
     const [financial, setFinancial] = useState({
         grossRevenue: 0, processingFees: 0, netRevenue: 0, recurringExpenses: 0,
@@ -157,6 +159,43 @@ export default function HealthDashboardPage() {
 
     useEffect(() => { loadAllData() }, [dateRange])
 
+    useEffect(() => { loadRecentChanges() }, [])
+
+    // ===== RECENT CHANGES FUNCTIONS =====
+    const loadRecentChanges = async () => {
+        try {
+            const { data } = await supabase
+                .from('admin_audit_log')
+                .select('*')
+                .in('action', ['daily_awards_change', 'token_value_change', 'health_fix_applied'])
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            setRecentChanges(data || [])
+        } catch (error) {
+            console.error('Error loading recent changes:', error)
+        }
+    }
+
+    const formatChangeDate = (dateStr) => {
+        const date = new Date(dateStr)
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    }
+
+    const getChangeIcon = (action) => {
+        switch (action) {
+            case 'daily_awards_change': return '🎮'
+            case 'token_value_change': return '🪙'
+            case 'health_fix_applied': return '🏥'
+            default: return '📝'
+        }
+    }
+
     // ===== AUDIT LOGGING FUNCTION =====
     const logAuditAction = async (action, tableName, recordId, oldValue, newValue, description) => {
         if (!currentUser) return
@@ -172,6 +211,8 @@ export default function HealthDashboardPage() {
                 new_value: newValue,
                 description
             }])
+            // Reload recent changes after logging
+            await loadRecentChanges()
         } catch (error) {
             console.error('Error logging audit:', error)
         }
@@ -397,7 +438,6 @@ export default function HealthDashboardPage() {
         const configs = configsToApply || fixPanelData.configs
         try {
             for (const config of configs) {
-                // Get old values for audit log
                 const oldConfig = dailyConfig.find(c => c.id === config.id)
                 const oldValues = {
                     first_tokens: oldConfig?.first_tokens,
@@ -410,7 +450,6 @@ export default function HealthDashboardPage() {
                     third_tokens: config.new_third
                 }
 
-                // Only update and log if values actually changed
                 if (oldValues.first_tokens !== newValues.first_tokens ||
                     oldValues.second_tokens !== newValues.second_tokens ||
                     oldValues.third_tokens !== newValues.third_tokens) {
@@ -422,7 +461,6 @@ export default function HealthDashboardPage() {
                         updated_at: new Date().toISOString()
                     }).eq('id', config.id)
 
-                    // Log to audit
                     await logAuditAction(
                         'daily_awards_change',
                         'daily_leaderboard_config',
@@ -434,7 +472,6 @@ export default function HealthDashboardPage() {
                 }
             }
 
-            // Log summary action
             const impact = calculateDailyTokenImpact()
             await logAuditAction(
                 'health_fix_applied',
@@ -469,7 +506,6 @@ export default function HealthDashboardPage() {
                 updated_at: new Date().toISOString()
             }).eq('setting_key', 'token_value')
 
-            // Log to audit
             await logAuditAction(
                 'token_value_change',
                 'economy_settings',
@@ -627,16 +663,13 @@ export default function HealthDashboardPage() {
                         const tokenLiab = tokenEconomy.circulationValue
                         const cashPrizes = weeklyPrizes.filter(p => p.prize_type === 'cash').reduce((s, p) => s + (p.total_prize_pool || 0), 0)
 
-                        // Calculate what % reduction in daily awards fixes the deficit
-                        const neededSavings = deficit * 1.1 // 10% buffer
+                        const neededSavings = deficit * 1.1
                         const awardReductionPct = Math.min(90, Math.ceil((neededSavings / monthlyDailyCost) * 100))
                         const awardSavings = monthlyDailyCost * (awardReductionPct / 100)
 
-                        // Calculate token value reduction needed
                         const valueReductionPct = Math.min(50, Math.ceil((neededSavings / tokenLiab) * 100))
                         const valueSavings = tokenLiab * (valueReductionPct / 100)
 
-                        // Decide recommendation
                         let recommendation = 'awards'
                         let recPct = awardReductionPct
                         let recSavings = awardSavings
@@ -673,12 +706,10 @@ export default function HealthDashboardPage() {
                             reasoning.push(`This is a significant change - consider if revenue can be increased instead`)
                         }
 
-                        // Calculate new values
                         const newDailyTokens = Math.round(financial.dailyTokensAwarded * (1 - recPct / 100))
                         const newMonthlyDailyCost = newDailyTokens * tokenEconomy.tokenValue * 30
                         const newTrueAvailable = financial.trueAvailable + (monthlyDailyCost - newMonthlyDailyCost)
 
-                        // Calculate new score
                         let newScore = healthScores.overall
                         if (newTrueAvailable >= 0) {
                             const newObligations = financial.totalObligations - financial.dailyTokenCost + (newDailyTokens * tokenEconomy.tokenValue * financial.days)
@@ -687,7 +718,6 @@ export default function HealthDashboardPage() {
                             newScore = Math.round((newFinScore * 30 + 100 * 25 + 100 * 20 + healthScores.expenseControl * 15 + 100 * 10) / 100)
                         }
 
-                        // Per-game breakdown
                         const multiplier = 1 - (recPct / 100)
                         const gameChanges = dailyConfig.filter(c => c.is_enabled).map(c => ({
                             name: c.game_key.replace(/_/g, ' '),
@@ -697,7 +727,6 @@ export default function HealthDashboardPage() {
 
                         return (
                             <div className="mb-4">
-                                {/* Recommendation Header */}
                                 <div className="bg-green-500/10 border-2 border-green-500 rounded-lg p-3 sm:p-4 mb-4 overflow-hidden">
                                     <div className="flex items-start gap-2 sm:gap-3">
                                         <span className="text-xl sm:text-2xl flex-shrink-0">🎯</span>
@@ -711,7 +740,6 @@ export default function HealthDashboardPage() {
                                         </div>
                                     </div>
 
-                                    {/* Specific Changes */}
                                     {recommendation === 'awards' && gameChanges.length > 0 && (
                                         <div className="mt-3 bg-slate-800/50 rounded p-3">
                                             <p className="text-slate-400 text-xs mb-2 font-medium">Specific changes:</p>
@@ -729,7 +757,6 @@ export default function HealthDashboardPage() {
                                     )}
                                 </div>
 
-                                {/* Why This Choice */}
                                 <div className="bg-slate-700/30 rounded-lg p-3 mb-3">
                                     <h5 className="text-blue-400 font-medium text-sm mb-2">💡 WHY THIS CHOICE:</h5>
                                     <ul className="space-y-1">
@@ -741,7 +768,6 @@ export default function HealthDashboardPage() {
                                     </ul>
                                 </div>
 
-                                {/* Why Not Others */}
                                 {rejected.length > 0 && (
                                     <div className="bg-slate-700/30 rounded-lg p-3 mb-3">
                                         <h5 className="text-slate-400 font-medium text-sm mb-2">🚫 WHY NOT OTHER OPTIONS:</h5>
@@ -756,7 +782,6 @@ export default function HealthDashboardPage() {
                                     </div>
                                 )}
 
-                                {/* Expected Result */}
                                 <div className={`rounded-lg p-3 mb-4 ${newTrueAvailable >= 0 ? 'bg-green-500/10 border border-green-500' : 'bg-yellow-500/10 border border-yellow-500'}`}>
                                     <h5 className="text-white font-medium text-sm mb-2">📊 EXPECTED RESULT:</h5>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -784,11 +809,9 @@ export default function HealthDashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Action Buttons */}
                                 <div className="flex flex-col sm:flex-row gap-2">
                                     <button
                                         onClick={() => {
-                                            // Apply the recommendation directly
                                             const mult = 1 - (recPct / 100)
                                             const newConfigs = dailyConfig.map(c => ({
                                                 ...c,
@@ -833,7 +856,6 @@ export default function HealthDashboardPage() {
                         )
                     })()}
 
-                    {/* CUSTOMIZATION MODE - Only show if user clicked Customize */}
                     {fixPanelData.showCustomize && (
                         <>
                             <div className="bg-blue-500/10 border border-blue-500/30 rounded p-2 mb-4">
@@ -843,7 +865,6 @@ export default function HealthDashboardPage() {
                                 </p>
                             </div>
 
-                            {/* Tabs */}
                             <div className="flex gap-1 mb-4 border-b border-slate-700">
                                 {['awards', 'tokenValue', 'prizes', 'combo'].map(tab => (
                                     <button key={tab} onClick={() => setFixPanelData(prev => ({ ...prev, activeTab: tab }))}
@@ -856,7 +877,6 @@ export default function HealthDashboardPage() {
                                 ))}
                             </div>
 
-                            {/* Tab: Daily Awards */}
                             {fixPanelData.activeTab === 'awards' && (
                                 <div>
                                     <div className="bg-blue-500/10 border border-blue-500/30 rounded p-3 mb-4">
@@ -927,7 +947,6 @@ export default function HealthDashboardPage() {
                                 </div>
                             )}
 
-                            {/* Tab: Token Value */}
                             {fixPanelData.activeTab === 'tokenValue' && (
                                 <div>
                                     <div className="bg-purple-500/10 border border-purple-500/30 rounded p-3 mb-4">
@@ -1006,7 +1025,6 @@ export default function HealthDashboardPage() {
                                 </div>
                             )}
 
-                            {/* Tab: Prizes */}
                             {fixPanelData.activeTab === 'prizes' && (
                                 <div>
                                     <div className="bg-green-500/10 border border-green-500/30 rounded p-3 mb-4">
@@ -1036,7 +1054,6 @@ export default function HealthDashboardPage() {
                                 </div>
                             )}
 
-                            {/* Tab: Combination */}
                             {fixPanelData.activeTab === 'combo' && (
                                 <div>
                                     <div className="bg-orange-500/10 border border-orange-500/30 rounded p-3 mb-4">
@@ -1206,6 +1223,57 @@ export default function HealthDashboardPage() {
                         ))}
                     </div>
                 </div>
+            </div>
+
+            {/* Recent Changes History */}
+            <div className="mt-3 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="w-full p-3 flex items-center justify-between hover:bg-slate-700/50"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">📜</span>
+                        <div className="text-left">
+                            <h3 className="text-white font-bold text-sm">Recent Changes</h3>
+                            <p className="text-slate-400 text-xs">History of adjustments made from this dashboard</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-slate-400 text-sm">{recentChanges.length} entries</span>
+                        <span className={`text-slate-400 text-xs transition-transform ${showHistory ? 'rotate-180' : ''}`}>▼</span>
+                    </div>
+                </button>
+                {showHistory && (
+                    <div className="p-3 border-t border-slate-700">
+                        {recentChanges.length === 0 ? (
+                            <p className="text-slate-400 text-sm text-center py-4">No changes recorded yet</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {recentChanges.map((change) => (
+                                    <div key={change.id} className="bg-slate-700/30 rounded p-2 flex items-start gap-2">
+                                        <span className="text-lg">{getChangeIcon(change.action)}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-white text-sm font-medium truncate">
+                                                    {change.description || change.action.replace(/_/g, ' ')}
+                                                </p>
+                                                <span className="text-slate-500 text-xs whitespace-nowrap">
+                                                    {formatChangeDate(change.created_at)}
+                                                </span>
+                                            </div>
+                                            <p className="text-slate-400 text-xs truncate">{change.user_email}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        <div className="mt-3 text-center">
+                            <Link href="/admin/audit-log" className="text-yellow-400 hover:text-yellow-300 text-xs">
+                                View Full Audit Log →
+                            </Link>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     )
