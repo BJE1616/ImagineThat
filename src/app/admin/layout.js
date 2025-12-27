@@ -7,10 +7,10 @@ import Link from 'next/link'
 import { useTheme } from '@/lib/ThemeContext'
 
 // Create context for admin role
-export const AdminRoleContext = createContext({ role: null, permissions: [] })
+export const AdminRoleContext = createContext({ role: null, permissions: [], hasHealthAccess: false })
 export const useAdminRole = () => useContext(AdminRoleContext)
 
-// Page access by role
+// Page access by role (static rules)
 const PAGE_ACCESS = {
     // Super Admin only
     '/admin/team': ['super_admin'],
@@ -52,6 +52,7 @@ export default function AdminLayout({ children }) {
     const [isAdmin, setIsAdmin] = useState(false)
     const [userRole, setUserRole] = useState(null)
     const [financialPermissions, setFinancialPermissions] = useState([])
+    const [hasHealthAccess, setHasHealthAccess] = useState(false)
     const [loading, setLoading] = useState(true)
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const [expandedGroups, setExpandedGroups] = useState([])
@@ -66,7 +67,7 @@ export default function AdminLayout({ children }) {
         if (userRole && pathname !== '/admin/login') {
             checkPageAccess()
         }
-    }, [pathname, userRole])
+    }, [pathname, userRole, hasHealthAccess])
 
     const checkAdmin = async () => {
         try {
@@ -94,17 +95,21 @@ export default function AdminLayout({ children }) {
             }
 
             setIsAdmin(true)
-            setUserRole(userData.role || 'support')
+            const role = userData.role || 'support'
+            setUserRole(role)
 
             // Load financial permissions for this role
-            if (userData.role) {
-                const { data: permissions } = await supabase
-                    .from('admin_financial_permissions')
-                    .select('metric_key')
-                    .eq(userData.role, true)
+            const { data: permissions } = await supabase
+                .from('admin_financial_permissions')
+                .select('metric_key, ' + role)
 
-                setFinancialPermissions(permissions?.map(p => p.metric_key) || [])
-            }
+            setFinancialPermissions(permissions?.filter(p => p[role]).map(p => p.metric_key) || [])
+
+            // Check health dashboard access specifically
+            const healthPerm = permissions?.find(p => p.metric_key === 'health_dashboard_access')
+            const canAccessHealth = role === 'super_admin' || (healthPerm && healthPerm[role] === true)
+            setHasHealthAccess(canAccessHealth)
+
         } catch (error) {
             console.error('Admin check error:', error)
             router.push('/admin/login')
@@ -114,6 +119,12 @@ export default function AdminLayout({ children }) {
     }
 
     const checkPageAccess = () => {
+        // Special handling for health dashboard - uses permission table
+        if (pathname === '/admin/health') {
+            setAccessDenied(!hasHealthAccess)
+            return
+        }
+
         const allowedRoles = PAGE_ACCESS[pathname]
 
         // If page not in list, allow all admin roles
@@ -143,6 +154,11 @@ export default function AdminLayout({ children }) {
     }
 
     const canAccessPage = (href) => {
+        // Special handling for health dashboard
+        if (href === '/admin/health') {
+            return hasHealthAccess
+        }
+
         const allowedRoles = PAGE_ACCESS[href]
         if (!allowedRoles) return true
         return allowedRoles.includes(userRole)
@@ -184,6 +200,7 @@ export default function AdminLayout({ children }) {
             label: 'Finances',
             icon: '💰',
             items: [
+                { href: '/admin/health', label: 'Health Dashboard', icon: '🏥', permissionKey: 'health_dashboard_access' },
                 { href: '/admin/accounting', label: 'Accounting', icon: '📒', superAdminOnly: true },
                 { href: '/admin/payout-queue', label: 'Payout Queue', icon: '💸' },
                 { href: '/admin/partner-withdrawals', label: 'Partner Withdrawals', icon: '🤝' },
@@ -254,7 +271,7 @@ export default function AdminLayout({ children }) {
     const roleBadge = getRoleBadge()
 
     return (
-        <AdminRoleContext.Provider value={{ role: userRole, permissions: financialPermissions }}>
+        <AdminRoleContext.Provider value={{ role: userRole, permissions: financialPermissions, hasHealthAccess }}>
             <div className={`min-h-screen bg-${currentTheme.bg} flex`}>
                 <aside className={`${sidebarOpen ? 'w-52' : 'w-14'} bg-${currentTheme.card} border-r border-${currentTheme.border} transition-all duration-300 flex flex-col`}>
                     <div className={`p-2 border-b border-${currentTheme.border}`}>
@@ -299,7 +316,14 @@ export default function AdminLayout({ children }) {
 
                             // Filter items based on access
                             const accessibleItems = group.items.filter(item => {
+                                // Check superAdminOnly flag
                                 if (item.superAdminOnly && userRole !== 'super_admin') return false
+
+                                // Check permission-based access (like health dashboard)
+                                if (item.permissionKey === 'health_dashboard_access') {
+                                    return hasHealthAccess
+                                }
+
                                 return canAccessPage(item.href)
                             })
 
@@ -339,7 +363,7 @@ export default function AdminLayout({ children }) {
                                                     >
                                                         <span>{item.icon}</span>
                                                         <span>{item.label}</span>
-                                                        {item.superAdminOnly && (
+                                                        {(item.superAdminOnly || item.permissionKey) && (
                                                             <span className="text-yellow-400 text-[8px]">🔒</span>
                                                         )}
                                                     </Link>
