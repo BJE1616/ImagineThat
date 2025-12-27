@@ -347,10 +347,11 @@ export default function PromoCardsPage() {
         <div className="p-6">
             {/* Header */}
             <div className="mb-6">
-                <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>🎴 ImagineThat Promo Cards</h1>
+                <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>🎴 IT Company Promo Cards</h1>
                 <p className={`text-${currentTheme.textMuted} mt-1`}>
                     Create promotional cards for direct communication with players. These are YOUR cards (not advertiser content).
                 </p>
+                <p className={`text-${currentTheme.accent} text-sm font-bold mt-2`}>* This is for IT Company Promo Cards — Not Advertiser Cards *</p>
             </div>
 
             {/* Message */}
