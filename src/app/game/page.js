@@ -27,6 +27,7 @@ export default function GamePage() {
     const [cardBackAdvertiser, setCardBackAdvertiser] = useState(null)
     const [elapsedTime, setElapsedTime] = useState(0)
     const [viewingCard, setViewingCard] = useState(null)
+    const [viewingPromoPopup, setViewingPromoPopup] = useState(null)
     const trackedGameViews = useRef(new Set())
     const trackedFlipViews = useRef(new Set())
     const [sessionId, setSessionId] = useState(null)
@@ -601,6 +602,45 @@ export default function GamePage() {
         }
     }
 
+    // Log promo card view
+    const logPromoCardView = async (card, viewType) => {
+        if (!card?.is_house_card) return
+        try {
+            await supabase
+                .from('promo_card_views')
+                .insert([{
+                    promo_card_id: card.id,
+                    user_id: user?.id || null,
+                    view_type: viewType,
+                    game_type: 'memory'
+                }])
+        } catch (error) {
+            console.error('Error logging promo view:', error)
+        }
+    }
+
+    // Handle eyeball click - check for popup
+    const handleEyeballClick = async (card) => {
+        if (card.is_house_card) {
+            await logPromoCardView(card, 'eyeball_click')
+            if (card.has_popup && card.popup_title && card.popup_message) {
+                setViewingPromoPopup(card)
+                return
+            }
+        } else {
+            trackCardClick(card.user_id)
+        }
+        setViewingCard(card)
+    }
+
+    // Handle CTA click in popup
+    const handleCtaClick = async (card, url) => {
+        await logPromoCardView(card, 'cta_click')
+        // Add https:// if no protocol specified
+        const fullUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`
+        window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    }
+
     const isCardFlipped = (card) => {
         return flippedCards.some(c => c.uniqueId === card.uniqueId) || matchedPairs.includes(card.pairId)
     }
@@ -704,6 +744,65 @@ export default function GamePage() {
                                 </button>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* Promo Popup Modal */}
+            {viewingPromoPopup && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingPromoPopup(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: viewingPromoPopup.popup_bg_color || '#4F46E5' }}
+                    >
+                        {viewingPromoPopup.popup_image_url && (
+                            <img
+                                src={viewingPromoPopup.popup_image_url}
+                                alt="Promo"
+                                className="w-full h-40 object-cover"
+                            />
+                        )}
+                        <div className="p-5">
+                            <h2
+                                className="font-bold text-xl text-center mb-3"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF' }}
+                            >
+                                {viewingPromoPopup.popup_title}
+                            </h2>
+                            <p
+                                className="text-center mb-4 whitespace-pre-wrap"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF', opacity: 0.9 }}
+                            >
+                                {viewingPromoPopup.popup_message}
+                            </p>
+                            {viewingPromoPopup.popup_cta_text && viewingPromoPopup.popup_cta_url && (
+                                <div className="text-center mb-3">
+                                    <button
+                                        onClick={() => handleCtaClick(viewingPromoPopup, viewingPromoPopup.popup_cta_url)}
+                                        className="px-6 py-2.5 rounded-lg font-bold text-sm transition-transform hover:scale-105 active:scale-95"
+                                        style={{
+                                            backgroundColor: viewingPromoPopup.popup_text_color || '#FFFFFF',
+                                            color: viewingPromoPopup.popup_bg_color?.startsWith('linear') ? '#4F46E5' : (viewingPromoPopup.popup_bg_color || '#4F46E5')
+                                        }}
+                                    >
+                                        {viewingPromoPopup.popup_cta_text}
+                                    </button>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setViewingPromoPopup(null)}
+                                className="w-full py-2 rounded-lg font-medium text-sm transition-all hover:opacity-80"
+                                style={{
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    color: viewingPromoPopup.popup_text_color || '#FFFFFF'
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -983,8 +1082,7 @@ export default function GamePage() {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setViewingCard(card)
-                                                            trackCardClick(card.user_id)
+                                                            handleEyeballClick(card)
                                                         }}
                                                         className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
                                                     >
@@ -1002,8 +1100,7 @@ export default function GamePage() {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            setViewingCard(card)
-                                                            trackCardClick(card.user_id)
+                                                            handleEyeballClick(card)
                                                         }}
                                                         className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
                                                     >

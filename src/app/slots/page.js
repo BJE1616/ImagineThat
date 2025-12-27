@@ -48,6 +48,9 @@ export default function SlotMachinePage() {
     const [viewingCard, setViewingCard] = useState(null)
     const [urlClickable, setUrlClickable] = useState(false)
 
+    // ===== PROMO POPUP STATE =====
+    const [viewingPromoPopup, setViewingPromoPopup] = useState(null)
+
     // ===== LEADERBOARD STATE =====
     const [leaderboard, setLeaderboard] = useState([])
     const [yesterdayWinners, setYesterdayWinners] = useState([])
@@ -481,7 +484,7 @@ export default function SlotMachinePage() {
                 if (cardsData) advertiserCards = cardsData
             }
 
-            // Load house cards
+            // Load house cards (promo cards)
             const { data: houseCards } = await supabase
                 .from('business_cards')
                 .select('*')
@@ -546,6 +549,48 @@ export default function SlotMachinePage() {
         } catch (error) {
             console.error('Error loading winners:', error)
         }
+    }
+
+    // ===== LOG PROMO CARD VIEW =====
+    const logPromoCardView = async (card, viewType) => {
+        if (!card?.is_house_card) return
+        try {
+            await supabase
+                .from('promo_card_views')
+                .insert([{
+                    promo_card_id: card.id,
+                    user_id: user?.id || null,
+                    view_type: viewType,
+                    game_type: 'slots'
+                }])
+        } catch (error) {
+            console.error('Error logging promo view:', error)
+        }
+    }
+
+    // ===== HANDLE EYEBALL CLICK =====
+    const handleEyeballClick = async (card) => {
+        // Log the click for promo cards
+        if (card.is_house_card) {
+            await logPromoCardView(card, 'eyeball_click')
+
+            // If has popup, show popup instead of regular card view
+            if (card.has_popup && card.popup_title && card.popup_message) {
+                setViewingPromoPopup(card)
+                return
+            }
+        }
+
+        // Regular card view
+        setViewingCard(card)
+    }
+
+    // ===== HANDLE CTA CLICK =====
+    const handleCtaClick = async (card, url) => {
+        await logPromoCardView(card, 'cta_click')
+        // Add https:// if no protocol specified
+        const fullUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`
+        window.open(fullUrl, '_blank', 'noopener,noreferrer')
     }
 
     // ===== CHECK IF CAN SPIN =====
@@ -642,6 +687,13 @@ export default function SlotMachinePage() {
         }
 
         setReels(finalReels)
+
+        // Log promo card views for cards displayed
+        for (const card of finalReels) {
+            if (card?.is_house_card) {
+                await logPromoCardView(card, 'game_display')
+            }
+        }
 
         let entriesEarned = 0
 
@@ -805,7 +857,7 @@ export default function SlotMachinePage() {
             }
 
             for (const card of finalReels) {
-                if (card?.user_id) {
+                if (card?.user_id && !card.is_house_card) {
                     const isFirstView = !viewedAdvertisersToday.has(card.user_id)
 
                     const { data: campaign } = await supabase
@@ -870,6 +922,73 @@ export default function SlotMachinePage() {
     // ===== RENDER =====
     return (
         <div className={`min-h-screen bg-${currentTheme.bg} py-2 px-2`}>
+            {/* ===== PROMO POPUP MODAL ===== */}
+            {viewingPromoPopup && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingPromoPopup(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: viewingPromoPopup.popup_bg_color || '#4F46E5' }}
+                    >
+                        {/* Popup Image */}
+                        {viewingPromoPopup.popup_image_url && (
+                            <img
+                                src={viewingPromoPopup.popup_image_url}
+                                alt="Promo"
+                                className="w-full h-40 object-cover"
+                            />
+                        )}
+
+                        {/* Popup Content */}
+                        <div className="p-5">
+                            <h2
+                                className="font-bold text-xl text-center mb-3"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF' }}
+                            >
+                                {viewingPromoPopup.popup_title}
+                            </h2>
+                            <p
+                                className="text-center mb-4 whitespace-pre-wrap"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF', opacity: 0.9 }}
+                            >
+                                {viewingPromoPopup.popup_message}
+                            </p>
+
+                            {/* CTA Button */}
+                            {viewingPromoPopup.popup_cta_text && viewingPromoPopup.popup_cta_url && (
+                                <div className="text-center mb-3">
+                                    <button
+                                        onClick={() => handleCtaClick(viewingPromoPopup, viewingPromoPopup.popup_cta_url)}
+                                        className="px-6 py-2.5 rounded-lg font-bold text-sm transition-transform hover:scale-105 active:scale-95"
+                                        style={{
+                                            backgroundColor: viewingPromoPopup.popup_text_color || '#FFFFFF',
+                                            color: viewingPromoPopup.popup_bg_color || '#4F46E5'
+                                        }}
+                                    >
+                                        {viewingPromoPopup.popup_cta_text}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Close Button */}
+                            <button
+                                onClick={() => setViewingPromoPopup(null)}
+                                className="w-full py-2 rounded-lg font-medium text-sm transition-all hover:opacity-80"
+                                style={{
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    color: viewingPromoPopup.popup_text_color || '#FFFFFF'
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ===== CARD VIEWING MODAL ===== */}
             {viewingCard && (
                 <div
@@ -1154,7 +1273,7 @@ export default function SlotMachinePage() {
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
-                                                                setViewingCard(card)
+                                                                handleEyeballClick(card)
                                                             }}
                                                             className="absolute bottom-0.5 right-0.5 bg-white/80 hover:bg-white rounded-full w-4 h-4 flex items-center justify-center text-[8px] shadow"
                                                         >

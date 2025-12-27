@@ -99,6 +99,7 @@ export default function SolitairePage() {
     const [winSponsor, setWinSponsor] = useState(null)
     const [displayAds, setDisplayAds] = useState([])
     const [viewingAd, setViewingAd] = useState(null)
+    const [viewingPromoPopup, setViewingPromoPopup] = useState(null)
     const [urlClickable, setUrlClickable] = useState(false)
     const trackedCardBackView = useRef(false)
     const trackedDisplayAdViews = useRef(new Set())
@@ -792,6 +793,45 @@ export default function SolitairePage() {
         } catch (error) {
             console.log('Error tracking sponsor click')
         }
+    }
+
+    // Log promo card view
+    const logPromoCardView = async (card, viewType) => {
+        if (!card?.is_house_card) return
+        try {
+            await supabase
+                .from('promo_card_views')
+                .insert([{
+                    promo_card_id: card.id,
+                    user_id: user?.id || null,
+                    view_type: viewType,
+                    game_type: 'solitaire'
+                }])
+        } catch (error) {
+            console.error('Error logging promo view:', error)
+        }
+    }
+
+    // Handle eyeball click - check for popup
+    const handleEyeballClick = async (ad) => {
+        if (ad.is_house_card) {
+            await logPromoCardView(ad, 'eyeball_click')
+            if (ad.has_popup && ad.popup_title && ad.popup_message) {
+                setViewingPromoPopup(ad)
+                return
+            }
+        } else {
+            trackSponsorClick(ad.user_id)
+        }
+        setViewingAd(ad)
+    }
+
+    // Handle CTA click in popup
+    const handleCtaClick = async (card, url) => {
+        await logPromoCardView(card, 'cta_click')
+        // Add https:// if no protocol specified
+        const fullUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`
+        window.open(fullUrl, '_blank', 'noopener,noreferrer')
     }
 
     const loadLeaderboard = async () => {
@@ -1493,8 +1533,7 @@ export default function SolitairePage() {
 
         const handleExpand = (e) => {
             e.stopPropagation()
-            trackSponsorClick(ad.user_id)
-            setViewingAd(ad)
+            handleEyeballClick(ad)
         }
 
         if (ad.card_type === 'uploaded' && ad.image_url) {
@@ -1629,6 +1668,66 @@ export default function SolitairePage() {
                         >
                             Done
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Promo Popup Modal */}
+            {viewingPromoPopup && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setViewingPromoPopup(null)}
+                >
+                    <div
+                        className="max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: viewingPromoPopup.popup_bg_color || '#4F46E5' }}
+                    >
+                        {viewingPromoPopup.popup_image_url && (
+                            <img
+                                src={viewingPromoPopup.popup_image_url}
+                                alt="Promo"
+                                className="w-full h-40 object-cover"
+                            />
+                        )}
+                        <div className="p-5">
+                            <h2
+                                className="font-bold text-xl text-center mb-3"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF' }}
+                            >
+                                {viewingPromoPopup.popup_title}
+                            </h2>
+                            <p
+                                className="text-center mb-4 whitespace-pre-wrap"
+                                style={{ color: viewingPromoPopup.popup_text_color || '#FFFFFF', opacity: 0.9 }}
+                            >
+                                {viewingPromoPopup.popup_message}
+                            </p>
+                            {viewingPromoPopup.popup_cta_text && viewingPromoPopup.popup_cta_url && (
+                                <div className="text-center mb-3">
+                                    <button
+                                        onClick={() => handleCtaClick(viewingPromoPopup, viewingPromoPopup.popup_cta_url)}
+                                        className="px-6 py-2.5 rounded-lg font-bold text-sm transition-transform hover:scale-105 active:scale-95"
+                                        style={{
+                                            backgroundColor: viewingPromoPopup.popup_text_color || '#FFFFFF',
+                                            color: viewingPromoPopup.popup_bg_color || '#4F46E5'
+                                        }}
+                                    >
+                                        {viewingPromoPopup.popup_cta_text}
+                                    </button>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setViewingPromoPopup(null)}
+                                className="w-full py-2 rounded-lg font-medium text-sm transition-all hover:opacity-80"
+                                style={{
+                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    color: viewingPromoPopup.popup_text_color || '#FFFFFF'
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

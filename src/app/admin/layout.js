@@ -40,8 +40,9 @@ const PAGE_ACCESS = {
     '/admin/merch-store': ['super_admin', 'admin', 'manager', 'support'],
     '/admin/users': ['super_admin', 'admin', 'manager', 'support'],
     '/admin/advertisers': ['super_admin', 'admin', 'manager'],
-    '/admin/house-cards': ['super_admin', 'admin', 'manager'],
     '/admin/cancellations': ['super_admin', 'admin', 'manager'],
+    '/admin/promo-cards': ['super_admin', 'admin', 'manager'],
+    '/admin/promo-stats': ['super_admin', 'admin', 'manager'],
 }
 
 export default function AdminLayout({ children }) {
@@ -204,12 +205,20 @@ export default function AdminLayout({ children }) {
             ]
         },
         {
+            key: 'promotions',
+            label: 'Promotions',
+            icon: '📣',
+            items: [
+                { href: '/admin/promo-cards', label: 'Promo Cards', icon: '🎴' },
+                { href: '/admin/promo-stats', label: 'Promo Stats', icon: '📊' },
+            ]
+        },
+        {
             key: 'advertisers',
             label: 'Advertisers',
             icon: '📢',
             items: [
                 { href: '/admin/advertisers', label: 'Advertiser List', icon: '📋' },
-                { href: '/admin/house-cards', label: 'House Cards', icon: '🏠' },
                 { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
             ]
         },
