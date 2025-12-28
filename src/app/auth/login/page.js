@@ -30,6 +30,7 @@ export default function LoginPage() {
         try {
             let email = formData.emailOrUsername.trim()
 
+            // If not an email, look up by username
             if (!email.includes('@')) {
                 const { data: userData, error: userError } = await supabase
                     .from('users')
@@ -44,6 +45,7 @@ export default function LoginPage() {
                 email = userData.email
             }
 
+            // Sign in
             const { data, error: signInError } = await supabase.auth.signInWithPassword({
                 email: email,
                 password: formData.password,
@@ -65,7 +67,20 @@ export default function LoginPage() {
                 console.log('IP logging error:', ipError)
             }
 
-            router.push('/dashboard')
+            // Check if user is admin
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('is_admin, is_super_admin')
+                .eq('id', data.user.id)
+                .single()
+
+            if (!userError && userData && (userData.is_admin || userData.is_super_admin)) {
+                // Admin user - redirect to admin dashboard
+                router.push('/admin/dashboard')
+            } else {
+                // Regular user - redirect to user dashboard
+                router.push('/dashboard')
+            }
 
         } catch (error) {
             setError(error.message)
@@ -122,6 +137,15 @@ export default function LoginPage() {
                                 onChange={handleChange}
                             />
                         </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                        <a
+                            href="/auth/forgot-password"
+                            className={`text-sm text-${currentTheme.accent} hover:text-${currentTheme.accentHover}`}
+                        >
+                            Forgot password?
+                        </a>
                     </div>
 
                     <button
