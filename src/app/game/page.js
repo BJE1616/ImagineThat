@@ -33,11 +33,17 @@ export default function GamePage() {
     const [sessionId, setSessionId] = useState(null)
     const trackedCardBackView = useRef(false)
 
+    // Display ads state
+    const [displayAds, setDisplayAds] = useState([])
+    const [urlClickable, setUrlClickable] = useState(false)
+    const trackedDisplayAdViews = useRef(new Set())
+
     useEffect(() => {
         checkUser()
         loadWeeklyPrize()
         loadCardBackSetting()
         loadCardBackAdvertiser()
+        loadDisplayAds()
     }, [])
 
     const checkUser = async () => {
@@ -138,6 +144,132 @@ export default function GamePage() {
         } catch (error) {
             console.log('Error loading card back advertiser')
         }
+    }
+
+    // Load display ads for sponsor section
+    const loadDisplayAds = async () => {
+        try {
+            // Load house card settings
+            const { data: settings } = await supabase
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['house_card_frequency', 'house_card_fallback_enabled', 'card_url_clickable'])
+
+            let frequency = 10
+            let fallbackEnabled = true
+            settings?.forEach(s => {
+                if (s.setting_key === 'house_card_frequency') frequency = parseInt(s.setting_value) || 0
+                if (s.setting_key === 'house_card_fallback_enabled') fallbackEnabled = s.setting_value === 'true'
+                if (s.setting_key === 'card_url_clickable') setUrlClickable(s.setting_value === 'true')
+            })
+
+            const { data: campaigns, error } = await supabase
+                .from('ad_campaigns')
+                .select('user_id, views_guaranteed, views_from_game, views_from_flips, views_from_card_back, bonus_views')
+                .eq('status', 'active')
+
+            let advertiserCards = []
+
+            if (!error && campaigns && campaigns.length > 0) {
+                const eligibleCampaigns = campaigns.filter(c => {
+                    const totalViews = (c.views_from_game || 0) + (c.views_from_flips || 0) + (c.views_from_card_back || 0)
+                    return totalViews < (c.views_guaranteed || 0) || (c.bonus_views || 0) > 0
+                })
+
+                if (eligibleCampaigns.length > 0) {
+                    const uniqueUserIds = [...new Set(eligibleCampaigns.map(c => c.user_id))]
+                    const shuffledUserIds = uniqueUserIds.sort(() => Math.random() - 0.5)
+                    const selectedUserIds = shuffledUserIds.slice(0, 8)
+
+                    const { data: cards } = await supabase
+                        .from('business_cards')
+                        .select('*')
+                        .in('user_id', selectedUserIds)
+
+                    if (cards && cards.length > 0) {
+                        const seenUsers = new Set()
+                        for (const card of cards) {
+                            if (!seenUsers.has(card.user_id)) {
+                                advertiserCards.push(card)
+                                seenUsers.add(card.user_id)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Load house cards
+            const { data: houseCards } = await supabase
+                .from('business_cards')
+                .select('*')
+                .eq('is_house_card', true)
+
+            // Build final ad list
+            let finalAds = []
+
+            if (advertiserCards.length > 0) {
+                finalAds = [...advertiserCards]
+
+                // Mix in house cards based on frequency setting
+                if (frequency > 0 && houseCards && houseCards.length > 0) {
+                    const houseCardsToAdd = Math.ceil(advertiserCards.length / frequency)
+                    for (let i = 0; i < houseCardsToAdd; i++) {
+                        finalAds.push(houseCards[Math.floor(Math.random() * houseCards.length)])
+                    }
+                }
+            } else if (fallbackEnabled && houseCards && houseCards.length > 0) {
+                // No advertisers - use house cards as fallback
+                finalAds = [...houseCards].sort(() => Math.random() - 0.5)
+            }
+
+            if (finalAds.length > 0) {
+                setDisplayAds(finalAds.slice(0, 8))
+            }
+        } catch (error) {
+            console.log('Error loading display ads')
+        }
+    }
+
+    // Track display ad views when ads are loaded
+    useEffect(() => {
+        if (displayAds.length > 0) {
+            displayAds.forEach(ad => {
+                trackDisplayAdView(ad.user_id)
+            })
+        }
+    }, [displayAds])
+
+    const trackDisplayAdView = async (cardUserId) => {
+        if (!cardUserId || trackedDisplayAdViews.current.has(cardUserId)) return
+        trackedDisplayAdViews.current.add(cardUserId)
+
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_game')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_game: (campaigns[0].views_from_game || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaigns[0].id)
+            }
+        } catch (error) {
+            console.log('Error tracking display ad view')
+        }
+    }
+
+    const refreshAds = async () => {
+        trackedCardBackView.current = false
+        trackedDisplayAdViews.current = new Set()
+        await loadCardBackAdvertiser()
+        await loadDisplayAds()
     }
 
     const loadWeeklyPrize = async () => {
@@ -496,7 +628,8 @@ export default function GamePage() {
         await loadCards(mode)
     }
 
-    const playAgain = () => {
+    const playAgain = async () => {
+        await refreshAds()
         setGameStarted(false)
         setGameComplete(false)
         setMoves(0)
@@ -666,6 +799,51 @@ export default function GamePage() {
         <div className={`absolute top-1 right-1 bg-${currentTheme.accentHover} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} text-[8px] font-bold px-1 rounded z-10`}>TAP</div>
     )
 
+    // Small Display Ad component with eyeball
+    const DisplayAdSmall = ({ ad }) => {
+        if (!ad) return null
+
+        const handleExpand = (e) => {
+            e.stopPropagation()
+            handleEyeballClick(ad)
+        }
+
+        if (ad.card_type === 'uploaded' && ad.image_url) {
+            return (
+                <div className={`relative aspect-[4/3] rounded-lg shadow-lg overflow-hidden bg-${currentTheme.card}`}>
+                    <img
+                        src={ad.image_url}
+                        alt={ad.title || 'Sponsor'}
+                        className="w-full h-full object-contain"
+                    />
+                    <button
+                        onClick={handleExpand}
+                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                    >
+                        👁
+                    </button>
+                </div>
+            )
+        } else {
+            return (
+                <div
+                    className="relative aspect-[4/3] rounded-lg shadow-lg flex items-center justify-center p-2"
+                    style={{ backgroundColor: ad.card_color || '#4F46E5' }}
+                >
+                    <h3 className="font-bold text-xs text-center line-clamp-2" style={{ color: ad.text_color || '#FFFFFF' }}>
+                        {ad.title}
+                    </h3>
+                    <button
+                        onClick={handleExpand}
+                        className="absolute bottom-1 right-1 bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center text-sm shadow"
+                    >
+                        👁
+                    </button>
+                </div>
+            )
+        }
+    }
+
     if (loading) {
         return (
             <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
@@ -693,7 +871,7 @@ export default function GamePage() {
                                 <img src={viewingCard.image_url} alt="Card" className="w-full h-auto" style={{ transform: `rotate(${viewingCard.image_rotation || 0}deg)` }} />
                                 {viewingCard.website_url && (
                                     <div className="p-3 text-center">
-                                        {cardBackSetting?.card_url_clickable === 'true' ? (
+                                        {cardBackSetting?.card_url_clickable === 'true' || urlClickable ? (
                                             <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className={`text-${currentTheme.accent} hover:underline text-sm`}>
                                                 🔗 {viewingCard.website_url}
                                             </a>
@@ -727,7 +905,7 @@ export default function GamePage() {
                                     {viewingCard.phone && <p className="text-sm">📞 {viewingCard.phone}</p>}
                                     {viewingCard.email && <p className="text-sm">✉️ {viewingCard.email}</p>}
                                     {viewingCard.website_url && (
-                                        cardBackSetting?.card_url_clickable === 'true' ? (
+                                        cardBackSetting?.card_url_clickable === 'true' || urlClickable ? (
                                             <a href={viewingCard.website_url} target="_blank" rel="noopener noreferrer" className="text-sm underline hover:opacity-80 block">
                                                 🔗 {viewingCard.website_url}
                                             </a>
@@ -951,28 +1129,53 @@ export default function GamePage() {
                 )}
 
                 {!gameStarted && (
-                    <div className="text-center py-8">
-                        <h2 className={`text-2xl sm:text-3xl font-bold text-${currentTheme.text} mb-3`}>Choose Your Challenge!</h2>
-                        <p className={`text-sm sm:text-lg text-${currentTheme.textMuted} mb-6`}>
-                            Match all pairs. Lower score wins!
-                        </p>
-                        <div className="flex gap-3 justify-center">
-                            <button
-                                onClick={() => startGame('easy')}
-                                className="px-6 py-3 sm:px-8 sm:py-4 bg-green-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-green-500 transition-all"
-                            >
-                                Easy Mode<br />
-                                <span className="text-xs sm:text-sm font-normal">12 Cards</span>
-                            </button>
-                            <button
-                                onClick={() => startGame('challenge')}
-                                className="px-6 py-3 sm:px-8 sm:py-4 bg-red-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-red-500 transition-all"
-                            >
-                                Challenge<br />
-                                <span className="text-xs sm:text-sm font-normal">16 Cards</span>
-                            </button>
+                    <>
+                        <div className="text-center py-8">
+                            <h2 className={`text-2xl sm:text-3xl font-bold text-${currentTheme.text} mb-3`}>Choose Your Challenge!</h2>
+                            <p className={`text-sm sm:text-lg text-${currentTheme.textMuted} mb-6`}>
+                                Match all pairs. Lower score wins!
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={() => startGame('easy')}
+                                    className="px-6 py-3 sm:px-8 sm:py-4 bg-green-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-green-500 transition-all"
+                                >
+                                    Easy Mode<br />
+                                    <span className="text-xs sm:text-sm font-normal">12 Cards</span>
+                                </button>
+                                <button
+                                    onClick={() => startGame('challenge')}
+                                    className="px-6 py-3 sm:px-8 sm:py-4 bg-red-600 text-white text-base sm:text-lg font-bold rounded-lg hover:bg-red-500 transition-all"
+                                >
+                                    Challenge<br />
+                                    <span className="text-xs sm:text-sm font-normal">16 Cards</span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+
+                        {/* Display Ads - Pre-game: up to 8 on desktop, 4 on mobile, centered */}
+                        {displayAds.length > 0 && (
+                            <div className="mt-8 mb-4">
+                                <p className={`text-${currentTheme.textMuted} text-xs text-center mb-3`}>Our Sponsors</p>
+                                {/* Desktop: up to 8 ads, centered */}
+                                <div className="hidden md:flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 8).map((ad, index) => (
+                                        <div key={`${ad.id}-${index}`} className="w-24">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Mobile: up to 4 ads, centered */}
+                                <div className="md:hidden flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 4).map((ad, index) => (
+                                        <div key={`${ad.id}-${index}`} className="w-20">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {gameStarted && (
@@ -1113,6 +1316,20 @@ export default function GamePage() {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Display Ads - Desktop only during gameplay: up to 8 ads, centered */}
+                        {displayAds.length > 0 && (
+                            <div className="hidden md:block mt-8">
+                                <p className={`text-${currentTheme.textMuted} text-xs text-center mb-3`}>Our Sponsors</p>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 8).map((ad, index) => (
+                                        <div key={`${ad.id}-${index}`} className="w-24">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </main>
