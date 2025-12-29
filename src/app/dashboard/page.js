@@ -1010,16 +1010,58 @@ export default function DashboardPage() {
                                                     ></div>
                                                 </div>
                                             </div>
-
                                             {camp.status === 'active' && (
-                                                <div className={`flex gap-4 text-xs text-${currentTheme.textMuted}`}>
-                                                    <span>Game: {camp.views_from_game || 0}</span>
-                                                    <span>Flips: {camp.views_from_flips || 0}</span>
-                                                    <span>Card Backs: {camp.views_from_card_back || 0}</span>
+                                                <div className={`mt-2 p-2 bg-${currentTheme.border}/30 rounded-lg`}>
+                                                    <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Views by source: <span className="opacity-50">(tap for info)</span></p>
+                                                    <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                                                        <div
+                                                            className={`bg-${currentTheme.card} rounded p-1 cursor-pointer hover:ring-1 hover:ring-${currentTheme.accent} transition-all relative`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                const tip = e.currentTarget.querySelector('.tooltip')
+                                                                document.querySelectorAll('.tooltip').forEach(t => t.classList.add('hidden'))
+                                                                tip.classList.toggle('hidden')
+                                                            }}
+                                                        >
+                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_game || 0}</p>
+                                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>🎮 Match</p>
+                                                            <div className={`tooltip hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-${currentTheme.bg} border border-${currentTheme.accent} rounded shadow-lg text-left z-50`}>
+                                                                <p className={`text-${currentTheme.text} text-xs`}>Views earned when players flip and match your card in Memory Match</p>
+                                                            </div>
+                                                        </div>
+                                                        <div
+                                                            className={`bg-${currentTheme.card} rounded p-1 cursor-pointer hover:ring-1 hover:ring-${currentTheme.accent} transition-all relative`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                const tip = e.currentTarget.querySelector('.tooltip')
+                                                                document.querySelectorAll('.tooltip').forEach(t => t.classList.add('hidden'))
+                                                                tip.classList.toggle('hidden')
+                                                            }}
+                                                        >
+                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_flips || 0}</p>
+                                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>👁 Gallery</p>
+                                                            <div className={`tooltip hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-${currentTheme.bg} border border-${currentTheme.accent} rounded shadow-lg text-left z-50`}>
+                                                                <p className={`text-${currentTheme.text} text-xs`}>Views from players clicking the eye icon in Card Gallery to see your full card</p>
+                                                            </div>
+                                                        </div>
+                                                        <div
+                                                            className={`bg-${currentTheme.card} rounded p-1 cursor-pointer hover:ring-1 hover:ring-${currentTheme.accent} transition-all relative`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                const tip = e.currentTarget.querySelector('.tooltip')
+                                                                document.querySelectorAll('.tooltip').forEach(t => t.classList.add('hidden'))
+                                                                tip.classList.toggle('hidden')
+                                                            }}
+                                                        >
+                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_card_back || 0}</p>
+                                                            <p className={`text-${currentTheme.textMuted} text-[10px]`}>🎰 Slots</p>
+                                                            <div className={`tooltip hidden absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-${currentTheme.bg} border border-${currentTheme.accent} rounded shadow-lg text-left z-50`}>
+                                                                <p className={`text-${currentTheme.text} text-xs`}>Views from your card appearing on slot machine between spins</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            )}
-
-                                            {camp.status === 'queued' && (
+                                            )}                                            {camp.status === 'queued' && (
                                                 <p className="text-xs text-yellow-400/70 mt-1">
                                                     Waiting for current campaign to complete
                                                 </p>
