@@ -19,6 +19,7 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [message, setMessage] = useState(null)
+    const [showPassword, setShowPassword] = useState(false)
 
     const formatPhone = (value) => {
         const numbers = value.replace(/\D/g, '')
@@ -77,7 +78,6 @@ export default function RegisterPage() {
 
                 if (userError) throw userError
 
-                // Log IP address for registration
                 try {
                     await fetch('/api/log-ip', {
                         method: 'POST',
@@ -208,15 +208,25 @@ export default function RegisterPage() {
 
                         <div>
                             <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Password</label>
-                            <input
-                                name="password"
-                                type="password"
-                                required
-                                className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
-                                placeholder="At least 6 characters"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
+                            <div className="relative">
+                                <input
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    className={`w-full px-3 py-2 pr-10 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
+                                    placeholder="At least 6 characters"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 text-${currentTheme.textMuted} hover:text-${currentTheme.text} transition-colors`}
+                                    tabIndex={-1}
+                                >
+                                    {showPassword ? '🙈' : '👁'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
