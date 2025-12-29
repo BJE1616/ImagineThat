@@ -22,6 +22,7 @@ export default function CardGalleryPage() {
     const viewedCards = useRef(new Set())
     const [weeklyEntries, setWeeklyEntries] = useState(0)
     const [totalUniqueViews, setTotalUniqueViews] = useState(0)
+    const demoViewedCards = useRef(new Set())
 
     useEffect(() => {
         loadData()
@@ -145,7 +146,38 @@ export default function CardGalleryPage() {
         e.stopPropagation()
         setSelectedCard(card)
 
-        if (!user) return
+        // DEMO MODE: Record view for advertiser even without login
+        if (!user) {
+            if (demoViewedCards.current.has(card.id)) return
+            demoViewedCards.current.add(card.id)
+
+            try {
+                // Still credit the advertiser
+                const { data: campaignData } = await supabase
+                    .from('ad_campaigns')
+                    .select('id, views_from_clicks')
+                    .eq('user_id', card.user_id)
+                    .eq('status', 'active')
+                    .limit(1)
+
+                if (campaignData && campaignData.length > 0) {
+                    await supabase
+                        .from('ad_campaigns')
+                        .update({
+                            views_from_clicks: (campaignData[0].views_from_clicks || 0) + 1,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', campaignData[0].id)
+                }
+
+                setMessage({ type: 'info', text: 'Register to earn tokens!' })
+                setTimeout(() => setMessage(null), 2000)
+            } catch (error) {
+                console.error('Error recording demo view:', error)
+            }
+            return
+        }
+
         if (!gameSettings?.is_enabled) return
         if (viewedCards.current.has(card.id)) return
 
@@ -357,6 +389,13 @@ export default function CardGalleryPage() {
 
     return (
         <div className="min-h-screen bg-slate-900">
+            {/* Demo Mode Banner */}
+            {!user && (
+                <div className="bg-purple-600 text-white text-center py-2 px-4 text-sm font-medium sticky top-0 z-30">
+                    🎮 DEMO MODE — <button onClick={() => router.push('/auth/register')} className="underline hover:no-underline">REGISTER for FREE</button> to earn real tokens & prizes!
+                </div>
+            )}
+
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                     <div className="animate-celebration text-center">
@@ -383,12 +422,12 @@ export default function CardGalleryPage() {
                 .animate-celebration { animation: celebrationFloat 2s ease-out forwards; }
             `}</style>
 
-            <div className="bg-slate-800 border-b border-slate-700 sticky top-0 z-10">
+            <div className={`bg-slate-800 border-b border-slate-700 sticky ${user ? 'top-0' : 'top-[36px]'} z-10`}>
                 <div className="max-w-7xl mx-auto px-4 py-3">
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-xl font-bold text-white">🖼️ Card Gallery</h1>
-                            <p className="text-slate-400 text-sm">Tap the eye to view cards and earn Tokens</p>
+                            <p className="text-slate-400 text-sm">Tap the eye to view cards {user ? 'and earn Tokens' : ''}</p>
                         </div>
                         <div className="flex items-center gap-4">
                             {message && (
@@ -408,8 +447,8 @@ export default function CardGalleryPage() {
                                     </div>
                                 </div>
                             ) : (
-                                <button onClick={() => router.push('/auth/login')} className="px-4 py-2 bg-yellow-500 text-slate-900 rounded-lg font-medium hover:bg-yellow-400">
-                                    You Should Login to Earn Rewards!
+                                <button onClick={() => router.push('/auth/login')} className="px-4 py-2 bg-yellow-500 text-slate-900 rounded-lg font-medium hover:bg-yellow-400 text-sm">
+                                    Login to Earn!
                                 </button>
                             )}
                         </div>
@@ -437,7 +476,7 @@ export default function CardGalleryPage() {
                 ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                         {cards.map(card => {
-                            const isViewed = viewedCards.current.has(card.id)
+                            const isViewed = user ? viewedCards.current.has(card.id) : demoViewedCards.current.has(card.id)
                             const canEarn = user && gameSettings?.is_enabled && !isViewed && (viewedToday * tokensPerView < dailyLimit)
 
                             return (
@@ -471,6 +510,24 @@ export default function CardGalleryPage() {
                     </div>
                 )}
             </div>
+
+            {/* Demo CTA Box */}
+            {!user && cards.length > 0 && (
+                <div className="max-w-7xl mx-auto px-4 pb-8">
+                    <div className="bg-green-900/30 border border-green-700 rounded-xl p-6 text-center">
+                        <h3 className="text-xl font-bold text-green-400 mb-2">🎁 Want to Earn Tokens?</h3>
+                        <p className="text-slate-300 text-sm mb-4">
+                            Register for FREE and start earning tokens for every card you view. Use tokens to enter weekly prize drawings!
+                        </p>
+                        <button
+                            onClick={() => router.push('/auth/register')}
+                            className="px-6 py-3 bg-green-900 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:bg-green-800 hover:-translate-y-1 transition-all"
+                        >
+                            REGISTER for FREE
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {selectedCard && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={closeCard}>
