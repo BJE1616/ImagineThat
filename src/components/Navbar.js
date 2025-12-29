@@ -272,13 +272,13 @@ export default function Navbar() {
                                         📢 How It Works
                                     </Link>
                                     <Link
-                                        href="/advertise"
+                                        href="/advertise/pricing"
                                         className={`block px-3 py-2 text-sm transition-all text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`}
                                     >
                                         💵 Pricing
                                     </Link>
                                     <Link
-                                        href="/advertise"
+                                        href="/advertise/matrix"
                                         className={`block px-3 py-2 text-sm transition-all text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`}
                                     >
                                         🔄 Referral Matrix
@@ -286,7 +286,7 @@ export default function Navbar() {
                                     </Link>
                                     <div className={`border-t border-${currentTheme.border} my-1`}></div>
                                     <Link
-                                        href="/advertise"
+                                        href="/advertise/start"
                                         className={`block px-3 py-2 text-sm font-medium transition-all text-${currentTheme.accentHover} hover:bg-${currentTheme.accent}/10`}
                                     >
                                         🚀 Start a Campaign
