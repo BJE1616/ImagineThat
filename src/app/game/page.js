@@ -984,6 +984,19 @@ export default function GamePage() {
                     </div>
                 </div>
             )}
+            {/* DEMO MODE BANNER */}
+            {!user && (
+                <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white text-center py-2 px-4 shadow-lg mb-2">
+                    <p className="text-sm font-bold">DEMO MODE — Register FREE to win real tokens & prizes!</p>
+                    <button
+                        onClick={() => router.push('/auth/register')}
+                        className="inline-block mt-1 px-4 py-1 bg-white text-purple-600 font-bold rounded-full text-xs hover:bg-yellow-300 transition-all"
+                    >
+                        Sign Up Now →
+                    </button>
+                </div>
+            )}
+
             <main className="max-w-7xl mx-auto px-2 py-4 sm:px-6 lg:px-8">
                 {weeklyPrize && !gameStarted && (
                     <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-4 sm:p-6 mb-4 text-center shadow-lg">
@@ -1331,6 +1344,19 @@ export default function GamePage() {
                             </div>
                         )}
                     </>
+                )}
+                {/* DEMO MODE GREEN CTA */}
+                {!user && (
+                    <div className="mt-6 bg-gradient-to-r from-green-600 to-emerald-600 border border-green-400 rounded-lg p-4 text-center">
+                        <p className="text-white font-bold text-sm mb-2">🎁 Ready to win REAL prizes?</p>
+                        <p className="text-green-100 text-xs mb-3">Register FREE to earn tokens, enter weekly drawings, and compete on the leaderboard!</p>
+                        <button
+                            onClick={() => router.push('/auth/register')}
+                            className="inline-block px-6 py-2 bg-white text-green-600 font-bold rounded-full text-sm hover:bg-yellow-300 transition-all"
+                        >
+                            Sign Up — No Obligations, 100% FREE
+                        </button>
+                    </div>
                 )}
             </main>
         </div>
