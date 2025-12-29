@@ -409,7 +409,7 @@ export default function CardGalleryPage() {
                                 </div>
                             ) : (
                                 <button onClick={() => router.push('/auth/login')} className="px-4 py-2 bg-yellow-500 text-slate-900 rounded-lg font-medium hover:bg-yellow-400">
-                                    Login to Earn
+                                    You Should Login to Earn Rewards!
                                 </button>
                             )}
                         </div>
@@ -447,7 +447,7 @@ export default function CardGalleryPage() {
                                     style={{ aspectRatio: '3.5 / 2' }}
                                 >
                                     {card.card_type === 'uploaded' && card.image_url ? (
-                                        <img src={card.image_url} alt={card.title || 'Business Card'} className="w-full h-full object-cover" />
+                                        <img src={card.image_url} alt={card.title || 'Business Card'} className="w-full h-full object-contain bg-slate-800" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center p-2" style={{ backgroundColor: card.card_color || '#4F46E5' }}>
                                             <h3 className="font-bold text-center text-xs leading-tight line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>{card.title}</h3>

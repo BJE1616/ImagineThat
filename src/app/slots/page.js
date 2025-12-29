@@ -27,6 +27,7 @@ export default function SlotMachinePage() {
 
     // ===== STATE =====
     const [user, setUser] = useState(null)
+    const [demoMode, setDemoMode] = useState(false)  // NEW: Demo mode for non-logged-in users
     const [isAdmin, setIsAdmin] = useState(false)
     const [loading, setLoading] = useState(true)
     const [spinning, setSpinning] = useState(false)
@@ -185,15 +186,21 @@ export default function SlotMachinePage() {
         }
     }
 
-    // ===== CHECK USER =====
+    // ===== CHECK USER - MODIFIED FOR DEMO MODE =====
     const checkUser = async () => {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser()
+
+            // NEW: If no user, enable demo mode instead of redirecting
             if (!authUser) {
-                router.push('/auth/login')
+                setDemoMode(true)
+                setFreeSpinsLeft(999)  // Unlimited demo spins
+                setTokenBalance(0)
                 return
             }
+
             setUser(authUser)
+            setDemoMode(false)
 
             // Check if user is admin
             const { data: userData } = await supabase
@@ -243,6 +250,9 @@ export default function SlotMachinePage() {
 
         } catch (error) {
             console.error('Error checking user:', error)
+            // On error, also enable demo mode
+            setDemoMode(true)
+            setFreeSpinsLeft(999)
         }
     }
 
@@ -597,24 +607,21 @@ export default function SlotMachinePage() {
     const hitWinCap = dailyWinnings >= dailyWinCap
     const hasFreeSpin = freeSpinsLeft > 0
     const canAffordPaidSpin = tokenBalance >= selectedBet
-    const canSpin = hasFreeSpin || canAffordPaidSpin
+    // MODIFIED: Demo mode can always spin
+    const canSpin = demoMode || hasFreeSpin || canAffordPaidSpin
 
     // ===== SPIN =====
     const spin = async () => {
         if (spinning || cards.length === 0 || !canSpin) return
-        if (!user) {
-            setMessage({ type: 'error', text: 'Please log in to play!' })
-            return
-        }
 
-        const usingFreeSpin = freeSpinsLeft > 0
+        const usingFreeSpin = demoMode || freeSpinsLeft > 0
         const cost = usingFreeSpin ? 0 : selectedBet
 
         setSpinning(true)
         setResult(null)
         setCelebration(null)
 
-        if (!usingFreeSpin) {
+        if (!usingFreeSpin && !demoMode) {
             setTokenBalance(prev => prev - cost)
         }
 
@@ -688,13 +695,41 @@ export default function SlotMachinePage() {
 
         setReels(finalReels)
 
-        // Log promo card views for cards displayed
+        // Log promo card views for cards displayed (even in demo mode - ads still get views!)
         for (const card of finalReels) {
             if (card?.is_house_card) {
                 await logPromoCardView(card, 'game_display')
             }
         }
 
+        // DEMO MODE: Show result but don't save anything
+        if (demoMode) {
+            setResult({
+                type: resultType,
+                amount: winAmount > 0 ? winAmount : 0,
+                tickets: ticketsWon,
+                entries: 0,
+                entryMode: false,
+                demoMode: true  // Flag for demo display
+            })
+
+            // Show celebration for wins (visual only)
+            if (winAmount > 0 || ticketsWon > 0) {
+                if (resultType === 'jackpot') {
+                    setCelebration({ type: 'jackpot', amount: winAmount, tickets: ticketsWon, entries: 0 })
+                } else if (resultType === 'triple') {
+                    setCelebration({ type: 'triple', amount: winAmount, tickets: ticketsWon, entries: 0 })
+                } else if (resultType === 'pair') {
+                    setCelebration({ type: 'pair', amount: winAmount, tickets: ticketsWon, entries: 0 })
+                }
+                setTimeout(() => setCelebration(null), 4000)
+            }
+
+            setSpinning(false)
+            return  // Exit early - don't save anything for demo mode
+        }
+
+        // NORMAL MODE: Full logic with saving
         let entriesEarned = 0
 
         // Entry mode (hit win cap) - earn entries instead of tokens
@@ -769,6 +804,9 @@ export default function SlotMachinePage() {
 
     // ===== SAVE SPIN =====
     const saveSpinResult = async (usingFreeSpin, cost, winAmount, resultType, finalReels, entriesEarned) => {
+        // Don't save anything in demo mode
+        if (demoMode || !user) return
+
         try {
             await supabase
                 .from('slot_machine_spins')
@@ -922,6 +960,16 @@ export default function SlotMachinePage() {
     // ===== RENDER =====
     return (
         <div className={`min-h-screen bg-${currentTheme.bg} py-2 px-2`}>
+            {/* ===== DEMO MODE BANNER ===== */}
+            {demoMode && (
+                <div className="fixed top-12 left-0 right-0 z-30 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white text-center py-2 px-4 shadow-lg">
+                    <p className="text-sm font-bold">DEMO MODE — YOU SHOULD REGISTER, it's FREE and you can win prizes!</p>
+                    <Link href="/auth/login" className="inline-block mt-1 px-4 py-1 bg-white text-purple-600 font-bold rounded-full text-xs hover:bg-yellow-300 transition-all">
+                        Sign Up Now →
+                    </Link>
+                </div>
+            )}
+
             {/* ===== PROMO POPUP MODAL ===== */}
             {viewingPromoPopup && (
                 <div
@@ -1137,7 +1185,7 @@ export default function SlotMachinePage() {
 
             {/* ===== ADMIN FALLBACK WARNING ===== */}
             {isAdmin && usingFallbackOdds && (
-                <div className="fixed top-14 left-2 right-2 z-50 bg-red-500/90 text-white text-xs p-2 rounded-lg text-center">
+                <div className={`fixed ${demoMode ? 'top-28' : 'top-14'} left-2 right-2 z-50 bg-red-500/90 text-white text-xs p-2 rounded-lg text-center`}>
                     ⚠️ Admin Notice: Using default odds (database connection issue). Check console for details.
                 </div>
             )}
@@ -1174,11 +1222,17 @@ export default function SlotMachinePage() {
                                     {celebration.type === 'triple' && '🎉 TRIPLE! 🎉'}
                                     {celebration.type === 'pair' && '✨ PAIR! ✨'}
                                 </div>
-                                <div className="text-3xl text-white font-bold">
-                                    {celebration.amount > 0 && `+${celebration.amount} 🪙`}
-                                </div>
-                                {celebration.tickets > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.tickets} 🎟️</div>}
-                                {celebration.entries > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.entries} entries</div>}
+                                {demoMode ? (
+                                    <div className="text-2xl text-white font-bold">
+                                        Register to win tokens!
+                                    </div>
+                                ) : (
+                                    <div className="text-3xl text-white font-bold">
+                                        {celebration.amount > 0 && `+${celebration.amount} 🪙`}
+                                    </div>
+                                )}
+                                {!demoMode && celebration.tickets > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.tickets} 🎟️</div>}
+                                {!demoMode && celebration.entries > 0 && <div className="text-xl text-purple-300 font-bold mt-1">+{celebration.entries} entries</div>}
                             </>
                         )}
                     </div>
@@ -1198,7 +1252,7 @@ export default function SlotMachinePage() {
                 }
             `}</style>
 
-            <div className="max-w-sm mx-auto">
+            <div className={`max-w-sm mx-auto ${demoMode ? 'mt-16' : ''}`}>
                 {/* ===== MESSAGE ===== */}
                 {message && (
                     <div className={`mb-2 p-1.5 rounded text-center text-xs ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
@@ -1224,25 +1278,34 @@ export default function SlotMachinePage() {
                         {/* Header with Neon Effect */}
                         <div className="text-center mb-2">
                             <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-yellow-100 to-yellow-300 drop-shadow-lg" style={{ textShadow: '0 0 10px rgba(253, 224, 71, 0.5), 0 0 20px rgba(253, 224, 71, 0.3)' }}>
-                                🎰 LUCKY CARDS 🎰
+                                🎰 AdVANTAGEOUS SLOTS 🎰
                             </h1>
-                            <div className="flex items-center justify-center mt-1">
-                                <span className="text-yellow-300 font-bold text-sm bg-black/30 px-3 py-0.5 rounded-full">Your Tokens: {tokenBalance} 🪙</span>
-                            </div>
+                            {!demoMode && (
+                                <div className="flex items-center justify-center mt-1">
+                                    <span className="text-yellow-300 font-bold text-sm bg-black/30 px-3 py-0.5 rounded-full">Your Tokens: {tokenBalance} 🪙</span>
+                                </div>
+                            )}
                         </div>
 
-                        {/* Weekly Prize & Entries Banner */}
+                        {/* Weekly Prize & Entries Banner - Hide entries count in demo mode */}
                         <div className="mb-2 bg-gradient-to-r from-purple-900/60 via-purple-800/60 to-purple-900/60 rounded-lg p-2 border border-purple-500/50 text-center">
                             <div className="text-yellow-300 font-bold text-xs mb-1">
                                 🏆 THIS WEEK'S PRIZE: {getPrizeDisplay() || 'TBA'}
                             </div>
-                            <div className="text-purple-200 text-[11px]">
-                                You have <span className="text-yellow-400 font-bold text-sm mx-1 bg-yellow-500/20 px-1.5 py-0.5 rounded">{weeklyEntries}</span> {weeklyEntries === 1 ? 'entry' : 'entries'} into this week's drawing.
-                            </div>
+                            {!demoMode && (
+                                <div className="text-purple-200 text-[11px]">
+                                    You have <span className="text-yellow-400 font-bold text-sm mx-1 bg-yellow-500/20 px-1.5 py-0.5 rounded">{weeklyEntries}</span> {weeklyEntries === 1 ? 'entry' : 'entries'} into this week's drawing.
+                                </div>
+                            )}
+                            {demoMode && (
+                                <div className="text-purple-200 text-[11px]">
+                                    Register FREE to earn entries!
+                                </div>
+                            )}
                         </div>
 
                         {/* Entry Mode Banner */}
-                        {hitWinCap && (
+                        {!demoMode && hitWinCap && (
                             <div className="mb-2 p-1.5 bg-purple-500/30 rounded-lg text-center border border-purple-400/50">
                                 <span className="text-purple-200 text-[11px] font-bold">🎟️ ENTRY MODE: Wins earn drawing entries!</span>
                             </div>
@@ -1290,12 +1353,16 @@ export default function SlotMachinePage() {
 
                                 {/* Result Display */}
                                 {result && !spinning && (
-                                    <div className={`mt-2 text-center py-1 rounded-lg text-xs font-bold ${result.entryMode ? 'bg-purple-500/40 text-purple-200 border border-purple-400/50' :
-                                        result.type === 'jackpot' ? 'bg-yellow-500/40 text-yellow-200 border border-yellow-400/50' :
-                                            result.type === 'triple' ? 'bg-green-500/30 text-green-200 border border-green-400/50' :
-                                                result.type === 'pair' ? 'bg-blue-500/30 text-blue-200 border border-blue-400/50' : 'bg-gray-700/50 text-gray-300 border border-gray-500/50'
+                                    <div className={`mt-2 text-center py-1 rounded-lg text-xs font-bold ${result.demoMode ? 'bg-purple-500/40 text-purple-200 border border-purple-400/50' :
+                                        result.entryMode ? 'bg-purple-500/40 text-purple-200 border border-purple-400/50' :
+                                            result.type === 'jackpot' ? 'bg-yellow-500/40 text-yellow-200 border border-yellow-400/50' :
+                                                result.type === 'triple' ? 'bg-green-500/30 text-green-200 border border-green-400/50' :
+                                                    result.type === 'pair' ? 'bg-blue-500/30 text-blue-200 border border-blue-400/50' : 'bg-gray-700/50 text-gray-300 border border-gray-500/50'
                                         }`}>
-                                        {result.entryMode ? (
+                                        {result.demoMode ? (
+                                            result.type === 'lose' ? '❌ No match - Try again!' :
+                                                `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} Register to win!`
+                                        ) : result.entryMode ? (
                                             result.type === 'lose' ? '❌ No entries' : `${result.type === 'jackpot' ? '🎊 JACKPOT!' : result.type === 'triple' ? '🎉 TRIPLE!' : '✨ PAIR!'} +${result.entries}🎟️${result.amount > 0 ? ` +${result.amount}🪙` : ''}`
                                         ) : (
                                             result.type === 'lose' ? `No match -${odds.loseTokens}🪙` :
@@ -1306,14 +1373,16 @@ export default function SlotMachinePage() {
                             </div>
                         </div>
 
-                        {/* Stats Row */}
-                        <div className="flex items-center justify-center gap-4 text-[10px] mt-2 px-1 py-1.5 bg-black/30 rounded-lg">
-                            <span className="text-gray-300">Today's Token Wins: <span className="text-yellow-400 font-bold">{dailyWinnings}/{dailyWinCap}</span></span>
-                            <span className="text-gray-300">Free Spins Left: <span className="text-green-400 font-bold">{freeSpinsLeft}/{maxFreeSpins}</span></span>
-                        </div>
+                        {/* Stats Row - Hide for demo mode */}
+                        {!demoMode && (
+                            <div className="flex items-center justify-center gap-4 text-[10px] mt-2 px-1 py-1.5 bg-black/30 rounded-lg">
+                                <span className="text-gray-300">Today's Token Wins: <span className="text-yellow-400 font-bold">{dailyWinnings}/{dailyWinCap}</span></span>
+                                <span className="text-gray-300">Free Spins Left: <span className="text-green-400 font-bold">{freeSpinsLeft}/{maxFreeSpins}</span></span>
+                            </div>
+                        )}
 
-                        {/* Bet Selector */}
-                        {freeSpinsLeft === 0 && (
+                        {/* Bet Selector - Hide for demo mode */}
+                        {!demoMode && freeSpinsLeft === 0 && (
                             <div className="flex items-center justify-center gap-2 mt-2">
                                 <span className="text-yellow-200 text-xs font-medium">BET:</span>
                                 {[1, 5, 10].map(bet => (
@@ -1339,16 +1408,18 @@ export default function SlotMachinePage() {
                                 disabled={spinning || cards.length === 0 || !canSpin}
                                 className={`w-full py-3 rounded-xl font-bold text-base transition-all transform ${spinning ? 'bg-gray-600 text-gray-400 cursor-not-allowed' :
                                     !canSpin ? 'bg-gray-600 text-gray-400 cursor-not-allowed' :
-                                        hitWinCap ? 'bg-gradient-to-b from-purple-400 via-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/50 hover:from-purple-300 hover:to-purple-600 active:scale-95' :
-                                            freeSpinsLeft > 0 ? 'bg-gradient-to-b from-green-400 via-green-500 to-green-700 text-white shadow-lg shadow-green-500/50 hover:from-green-300 hover:to-green-600 active:scale-95' :
-                                                'bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700 text-slate-900 shadow-lg shadow-yellow-500/50 hover:from-yellow-300 hover:to-yellow-600 active:scale-95'
+                                        demoMode ? 'bg-gradient-to-b from-purple-400 via-pink-500 to-purple-700 text-white shadow-lg shadow-pink-500/50 hover:from-purple-300 hover:to-purple-600 active:scale-95' :
+                                            hitWinCap ? 'bg-gradient-to-b from-purple-400 via-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/50 hover:from-purple-300 hover:to-purple-600 active:scale-95' :
+                                                freeSpinsLeft > 0 ? 'bg-gradient-to-b from-green-400 via-green-500 to-green-700 text-white shadow-lg shadow-green-500/50 hover:from-green-300 hover:to-green-600 active:scale-95' :
+                                                    'bg-gradient-to-b from-yellow-400 via-yellow-500 to-yellow-700 text-slate-900 shadow-lg shadow-yellow-500/50 hover:from-yellow-300 hover:to-yellow-600 active:scale-95'
                                     }`}
                                 style={{ textShadow: spinning || !canSpin ? 'none' : '0 1px 2px rgba(0,0,0,0.3)' }}
                             >
                                 {spinning ? '🎰 SPINNING...' :
-                                    !canAffordPaidSpin && !hasFreeSpin ? '🪙 NEED TOKENS' :
-                                        freeSpinsLeft > 0 ? '🎁 FREE SPIN!' :
-                                            hitWinCap ? `🎟️ SPIN FOR ENTRIES (${selectedBet}🪙)` : `🎰 SPIN (${selectedBet}🪙)`}
+                                    demoMode ? 'DEMO MODE SPIN!' :
+                                        !canAffordPaidSpin && !hasFreeSpin ? '🪙 NEED TOKENS' :
+                                            freeSpinsLeft > 0 ? '🎁 FREE SPIN!' :
+                                                hitWinCap ? `🎟️ SPIN FOR ENTRIES (${selectedBet}🪙)` : `🎰 SPIN (${selectedBet}🪙)`}
                             </button>
                         </div>
 
@@ -1359,7 +1430,7 @@ export default function SlotMachinePage() {
                                 <span>Triple <span className="text-yellow-400">+{odds.tripleTokens}🪙</span></span>
                                 <span>Jackpot <span className="text-yellow-400">+{odds.jackpotTokens}🪙</span></span>
                             </div>
-                            {hitWinCap && (
+                            {!demoMode && hitWinCap && (
                                 <div className="flex justify-center gap-4 text-[10px] text-purple-300 mt-0.5">
                                     <span>Pair +1🎟️</span>
                                     <span>Triple +3🎟️</span>
@@ -1369,6 +1440,20 @@ export default function SlotMachinePage() {
                         </div>
                     </div>
                 </div>
+
+                {/* ===== DEMO MODE REGISTER CTA ===== */}
+                {demoMode && (
+                    <div className="mt-3 bg-gradient-to-r from-green-600 to-emerald-600 border border-green-400 rounded-lg p-3 text-center">
+                        <p className="text-white font-bold text-sm mb-2">🎁 Ready to win REAL prizes?</p>
+                        <p className="text-green-100 text-xs mb-2">Register FREE to earn tokens, enter weekly drawings, and compete for high scores!</p>
+                        <Link
+                            href="/auth/login"
+                            className="inline-block px-6 py-2 bg-white text-green-600 font-bold rounded-full text-sm hover:bg-yellow-300 transition-all"
+                        >
+                            Sign Up, No Obligations, it's 100% FREE
+                        </Link>
+                    </div>
+                )}
 
                 {/* ===== DAILY LEADERBOARD ===== */}
                 {leaderboard.length > 0 && (
@@ -1415,8 +1500,8 @@ export default function SlotMachinePage() {
                     </div>
                 )}
 
-                {/* ===== NEED TOKENS? ===== */}
-                {!canAffordPaidSpin && freeSpinsLeft === 0 && (
+                {/* ===== NEED TOKENS? - Only show for logged in users ===== */}
+                {!demoMode && !canAffordPaidSpin && freeSpinsLeft === 0 && (
                     <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
                         <p className={`text-${currentTheme.text} font-bold text-xs mb-1`}>💡 Need tokens?</p>
                         <div className="flex gap-3 text-[11px]">
