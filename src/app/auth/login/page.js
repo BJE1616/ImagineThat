@@ -14,6 +14,7 @@ export default function LoginPage() {
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
+    const [showPassword, setShowPassword] = useState(false)
 
     const handleChange = (e) => {
         setFormData({
@@ -30,7 +31,6 @@ export default function LoginPage() {
         try {
             let email = formData.emailOrUsername.trim()
 
-            // If not an email, look up by username
             if (!email.includes('@')) {
                 const { data: userData, error: userError } = await supabase
                     .from('users')
@@ -45,7 +45,6 @@ export default function LoginPage() {
                 email = userData.email
             }
 
-            // Sign in
             const { data, error: signInError } = await supabase.auth.signInWithPassword({
                 email: email,
                 password: formData.password,
@@ -53,7 +52,6 @@ export default function LoginPage() {
 
             if (signInError) throw signInError
 
-            // Log IP address
             try {
                 await fetch('/api/log-ip', {
                     method: 'POST',
@@ -67,7 +65,6 @@ export default function LoginPage() {
                 console.log('IP logging error:', ipError)
             }
 
-            // Check if user is admin
             const { data: userData, error: userError } = await supabase
                 .from('users')
                 .select('is_admin, is_super_admin')
@@ -75,10 +72,8 @@ export default function LoginPage() {
                 .single()
 
             if (!userError && userData && (userData.is_admin || userData.is_super_admin)) {
-                // Admin user - redirect to admin dashboard
                 router.push('/admin/dashboard')
             } else {
-                // Regular user - redirect to user dashboard
                 router.push('/dashboard')
             }
 
@@ -126,24 +121,31 @@ export default function LoginPage() {
                             <label htmlFor="password" className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
                                 Password
                             </label>
-                            <input
-                                id="password"
-                                name="password"
-                                type="password"
-                                required
-                                className={`w-full px-3 py-2 border border-${currentTheme.border} rounded-md bg-${currentTheme.card} text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
-                                placeholder="Your password"
-                                value={formData.password}
-                                onChange={handleChange}
-                            />
+                            <div className="relative">
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    required
+                                    className={`w-full px-3 py-2 pr-10 border border-${currentTheme.border} rounded-md bg-${currentTheme.card} text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
+                                    placeholder="Your password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 text-${currentTheme.textMuted} hover:text-${currentTheme.text} transition-colors`}
+                                    tabIndex={-1}
+                                >
+                                    {showPassword ? '🙈' : '👁'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div className="flex justify-end">
-                        <a
-                            href="/auth/forgot-password"
-                            className={`text-sm text-${currentTheme.accent} hover:text-${currentTheme.accentHover}`}
-                        >
+                        <a href="/auth/forgot-password" className={`text-sm text-${currentTheme.accent} hover:text-${currentTheme.accentHover}`}>
                             Forgot password?
                         </a>
                     </div>
