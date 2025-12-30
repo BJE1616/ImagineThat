@@ -391,6 +391,12 @@ export default function Navbar() {
                                             </Link>
                                         )}
                                         <div className={`sm:hidden border-t border-${currentTheme.border} my-1`}></div>
+                                        <Link
+                                            href="/profile"
+                                            className={`block px-3 py-1.5 text-sm text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text} transition-all`}
+                                        >
+                                            ⚙️ Profile
+                                        </Link>
                                         <button
                                             onClick={handleLogout}
                                             className={`w-full text-left px-3 py-1.5 text-sm text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text} transition-all`}

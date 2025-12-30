@@ -219,7 +219,7 @@ STRIPE_SECRET_KEY
 Database uses underscores: `matrix_completed`, `campaign_activated`
 Some old code may use: `matrix_complete`, `campaignActivated`
 Always check database for correct key!
-
+clear
 ### Template Variables Format
 Use `{{variable}}` in templates
 Example: `{{username}}`, `{{first_name}}`, `{{amount}}`
