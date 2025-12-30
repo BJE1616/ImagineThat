@@ -261,6 +261,8 @@ export default function AdminLayout({ children }) {
             icon: '⚙️',
             items: [
                 { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
+                { href: '/admin/email-templates', label: 'Email Templates', icon: '📝' },
+                { href: '/admin/email-testing', label: 'Email Testing', icon: '📧' },
                 { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
                 { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
                 { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },

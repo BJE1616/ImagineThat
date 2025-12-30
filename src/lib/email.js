@@ -24,15 +24,42 @@ const getEmailSettings = async () => {
         }
     } catch (error) {
         console.error('Error fetching email settings:', error)
-        // Default to test mode if we can't fetch settings
         return { testMode: true, testRecipient: 'bje1616@gmail.com' }
     }
+}
+
+// Get template from database
+const getTemplate = async (templateKey) => {
+    try {
+        const { data, error } = await supabase
+            .from('email_templates')
+            .select('*')
+            .eq('template_key', templateKey)
+            .eq('enabled', true)
+            .single()
+
+        if (error) throw error
+        return data
+    } catch (error) {
+        console.error(`Error fetching template ${templateKey}:`, error)
+        return null
+    }
+}
+
+// Replace variables in template
+const replaceVariables = (text, variables) => {
+    if (!text) return ''
+    let result = text
+    Object.keys(variables).forEach(key => {
+        const regex = new RegExp(`{{${key}}}`, 'g')
+        result = result.replace(regex, variables[key] || '')
+    })
+    return result
 }
 
 export const sendEmail = async ({ to, subject, html }) => {
     const { testMode, testRecipient } = await getEmailSettings()
 
-    // If test mode is ON, redirect all emails to test recipient
     if (testMode) {
         console.log('📧 TEST MODE - Redirecting email:')
         console.log('   Original To:', to)
@@ -62,14 +89,35 @@ export const sendEmail = async ({ to, subject, html }) => {
     }
 }
 
-// Email templates
+// Send email using database template
+export const sendTemplateEmail = async (templateKey, to, variables = {}) => {
+    const template = await getTemplate(templateKey)
+
+    if (!template) {
+        console.error(`Template ${templateKey} not found or disabled`)
+        // Fallback to hardcoded templates
+        const fallback = emailTemplates[templateKey]
+        if (fallback) {
+            const content = fallback(variables)
+            return sendEmail({ to, subject: content.subject, html: content.html })
+        }
+        return { success: false, error: 'Template not found' }
+    }
+
+    const subject = replaceVariables(template.subject, variables)
+    const html = replaceVariables(template.html_body, variables)
+
+    return sendEmail({ to, subject, html })
+}
+
+// Fallback hardcoded templates (used if database fails)
 export const emailTemplates = {
-    welcome: (username) => ({
+    welcome: (vars) => ({
         subject: 'Welcome to ImagineThat! 🎮',
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #f59e0b;">Welcome to ImagineThat!</h1>
-                <p>Hey ${username},</p>
+                <p>Hey ${vars.username || 'there'},</p>
                 <p>Thanks for joining! You can now:</p>
                 <ul>
                     <li>🎮 Play games and compete for weekly prizes</li>
@@ -83,15 +131,15 @@ export const emailTemplates = {
         `
     }),
 
-    campaignActivated: (username, views) => ({
+    campaign_activated: (vars) => ({
         subject: 'Your Campaign is Live! 🚀',
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #22c55e;">Your Campaign is Active!</h1>
-                <p>Hey ${username},</p>
+                <p>Hey ${vars.username || 'there'},</p>
                 <p>Great news! Your advertising campaign is now live.</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white;">
-                    <p style="margin: 0;"><strong>Guaranteed Views:</strong> ${views.toLocaleString()}</p>
+                    <p style="margin: 0;"><strong>Guaranteed Views:</strong> ${vars.views || '1,000'}</p>
                 </div>
                 <p>Your business card is now being shown to players. Check your dashboard to track progress!</p>
                 <a href="https://imaginethat.icu/dashboard" style="display: inline-block; background: #f59e0b; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Dashboard</a>
@@ -100,15 +148,15 @@ export const emailTemplates = {
         `
     }),
 
-    campaignCompleted: (username, views) => ({
+    campaign_completed: (vars) => ({
         subject: 'Campaign Complete! ✅',
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #22c55e;">Campaign Complete!</h1>
-                <p>Hey ${username},</p>
+                <p>Hey ${vars.username || 'there'},</p>
                 <p>Your advertising campaign has finished delivering all guaranteed views.</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white;">
-                    <p style="margin: 0;"><strong>Total Views Delivered:</strong> ${views.toLocaleString()}</p>
+                    <p style="margin: 0;"><strong>Total Views Delivered:</strong> ${vars.views || '1,000'}</p>
                 </div>
                 <p>Ready to reach more customers? Start a new campaign today!</p>
                 <a href="https://imaginethat.icu/advertise" style="display: inline-block; background: #f59e0b; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Start New Campaign</a>
@@ -117,15 +165,15 @@ export const emailTemplates = {
         `
     }),
 
-    prizeWinner: (username, rank, prize) => ({
+    prize_winner: (vars) => ({
         subject: '🏆 You Won a Prize!',
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #f59e0b;">🏆 Congratulations!</h1>
-                <p>Hey ${username},</p>
-                <p>Amazing news! You placed <strong>#${rank}</strong> on this week's leaderboard!</p>
+                <p>Hey ${vars.username || 'there'},</p>
+                <p>Amazing news! You placed <strong>#${vars.rank || '1'}</strong> on this week's leaderboard!</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white; text-align: center;">
-                    <p style="margin: 0; font-size: 24px;"><strong>${prize}</strong></p>
+                    <p style="margin: 0; font-size: 24px;"><strong>${vars.prize || 'Prize'}</strong></p>
                 </div>
                 <p>We'll be in touch about claiming your prize.</p>
                 <p style="margin-top: 30px; color: #666;">Keep playing!<br>The ImagineThat Team</p>
@@ -133,15 +181,15 @@ export const emailTemplates = {
         `
     }),
 
-    matrixComplete: (username, payout) => ({
+    matrix_complete: (vars) => ({
         subject: '🎉 Matrix Complete - Payout Coming!',
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #22c55e;">🎉 Matrix Complete!</h1>
-                <p>Hey ${username},</p>
+                <p>Hey ${vars.username || 'there'},</p>
                 <p>Your referral matrix is complete! All 6 spots have been filled.</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white; text-align: center;">
-                    <p style="margin: 0; font-size: 24px;"><strong>$${payout} Bonus!</strong></p>
+                    <p style="margin: 0; font-size: 24px;"><strong>$${vars.payout || '200'} Bonus!</strong></p>
                 </div>
                 <p>Your payout is being processed. Thanks for spreading the word!</p>
                 <p style="margin-top: 30px; color: #666;">The ImagineThat Team</p>
