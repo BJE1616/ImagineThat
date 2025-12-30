@@ -291,6 +291,13 @@ export default function Navbar() {
                                     >
                                         🚀 Start a Campaign
                                     </Link>
+                                    <div className={`border-t border-${currentTheme.border} my-1`}></div>
+                                    <Link
+                                        href="/faq"
+                                        className={`block px-3 py-2 text-sm transition-all text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`}
+                                    >
+                                        FAQ's (Frequently Asked Questions)
+                                    </Link>
                                 </div>
                             )}
                         </div>

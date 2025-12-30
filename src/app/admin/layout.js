@@ -260,16 +260,16 @@ export default function AdminLayout({ children }) {
             label: 'System',
             icon: '⚙️',
             items: [
-                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
-                { href: '/admin/users', label: 'User Management', icon: '👤' },
-                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
-                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
-                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
-                { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
                 { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
+                { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
+                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
+                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
+                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
+                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
+                { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
+                { href: '/admin/users', label: 'User Management', icon: '👤' },
             ]
-        },
-    ]
+        },]
 
     const isItemActive = (href) => pathname === href
     const isGroupActive = (group) => group.items.some(item => pathname === item.href)
