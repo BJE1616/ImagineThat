@@ -1922,6 +1922,19 @@ export default function SolitairePage() {
                 </div>
             )}
 
+            {/* DEMO MODE BANNER */}
+            {!user && (
+                <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white text-center py-2 px-4 shadow-lg mb-2">
+                    <p className="text-sm font-bold">DEMO MODE — Register FREE to win real prizes!</p>
+                    <button
+                        onClick={() => router.push('/auth/register')}
+                        className="inline-block mt-1 px-4 py-1 bg-white text-purple-600 font-bold rounded-full text-xs hover:bg-yellow-300 transition-all"
+                    >
+                        Sign Up Now →
+                    </button>
+                </div>
+            )}
+
             <main className="max-w-4xl mx-auto px-2 py-2 sm:px-4 sm:py-4">
                 {/* Weekly Prize Banner */}
                 {weeklyPrize && !gameStarted && (
@@ -2281,13 +2294,22 @@ export default function SolitairePage() {
                             <p>Click to select, click destination to move. Double-click to send to foundation.</p>
                         </div>
 
-                        {/* Display Ads - Desktop only during gameplay: up to 8 ads, centered */}
+                        {/* Display Ads - During gameplay */}
                         {displayAds.length > 0 && (
-                            <div className="hidden md:block mt-8">
-                                <p className="text-green-300 text-xs text-center mb-3">Our Sponsors</p>
-                                <div className="flex flex-wrap justify-center gap-2">
+                            <div className="mt-4">
+                                <p className="text-green-300 text-xs text-center mb-2">Our Sponsors</p>
+                                {/* Desktop: up to 8 ads */}
+                                <div className="hidden md:flex flex-wrap justify-center gap-2">
                                     {displayAds.slice(0, 8).map((ad, index) => (
                                         <div key={`${ad.id}-${index}`} className="w-24">
+                                            <DisplayAdSmall ad={ad} />
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Mobile: up to 4 ads */}
+                                <div className="md:hidden flex flex-wrap justify-center gap-2">
+                                    {displayAds.slice(0, 4).map((ad, index) => (
+                                        <div key={`${ad.id}-${index}`} className="w-20">
                                             <DisplayAdSmall ad={ad} />
                                         </div>
                                     ))}

@@ -123,7 +123,7 @@ export default function AdvertisePage() {
                             <span className="text-xl">🃏</span>
                             <div className="text-left">
                                 <p className={`text-sm font-medium text-${currentTheme.text}`}>Memory Match</p>
-                                <p className={`text-xs text-${currentTheme.textMuted}`}>Players flip & match YOUR CARDd!</p>
+                                <p className={`text-xs text-${currentTheme.textMuted}`}>Players flip & match YOUR CARD!</p>
                             </div>
                         </div>
 

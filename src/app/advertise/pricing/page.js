@@ -62,7 +62,7 @@ export default function PricingPage() {
                             <div className={`text-5xl font-bold text-${currentTheme.text}`}>
                                 ${settings.ad_price}
                             </div>
-                            <p className={`text-sm text-${currentTheme.textMuted} mt-1`}>one-time payment</p>
+                            <p className={`text-sm text-${currentTheme.textMuted} mt-1`}>per ad campaign and it includes...</p>
                         </div>
 
                         {/* What's Included */}
@@ -79,7 +79,7 @@ export default function PricingPage() {
                                 <span className="text-green-500 mt-0.5">✓</span>
                                 <div>
                                     <p className={`text-sm font-medium text-${currentTheme.text}`}>Shown in All Games</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Memory Match, Slots, Card Gallery</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>(Memory Match, Slots, Solitaire Boards  and Card Gallery)</p>
                                 </div>
                             </div>
 
@@ -111,7 +111,7 @@ export default function PricingPage() {
                                 <span className="text-green-500 mt-0.5">✓</span>
                                 <div>
                                     <p className={`text-sm font-medium text-${currentTheme.text}`}>Optional Referral Matrix</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Earn ${settings.matrix_payout} back</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Earn ${settings.matrix_payout} back!</p>
                                 </div>
                             </div>
                         </div>
