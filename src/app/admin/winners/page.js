@@ -546,12 +546,11 @@ export default function AdminWinnersPage() {
             let subject = template.subject
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
                 .replace(/\{\{prize\}\}/g, prizeDisplay)
-                .replace(/\{\{rank\}\}/g, 'Winner')
+                .replace(/\{\{game_type\}\}/g, 'Slots Drawing')
 
             let body = template.html_body
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
                 .replace(/\{\{prize\}\}/g, prizeDisplay)
-                .replace(/\{\{rank\}\}/g, 'Winner')
                 .replace(/\{\{game_type\}\}/g, 'Slots Drawing')
 
             setEmailSubject(subject)
@@ -803,10 +802,10 @@ export default function AdminWinnersPage() {
 
             {/* ===== EMAIL PREVIEW MODAL ===== */}
             {showEmailModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2">
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col`}>
-                        <div className={`p-4 border-b border-${currentTheme.border} flex items-center justify-between`}>
-                            <h3 className={`text-${currentTheme.text} font-bold`}>📧 Email Preview</h3>
+                        <div className={`p-2 border-b border-${currentTheme.border} flex items-center justify-between`}>
+                            <h3 className={`text-${currentTheme.text} font-bold text-sm`}>📧 Email Preview</h3>
                             <button
                                 onClick={() => setShowEmailModal(false)}
                                 className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
@@ -814,48 +813,51 @@ export default function AdminWinnersPage() {
                                 ✕
                             </button>
                         </div>
-                        <div className="p-4 overflow-y-auto flex-1">
-                            <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>To:</label>
-                                <p className={`text-${currentTheme.text} text-sm`}>{verificationData?.user?.email}</p>
+                        <div className="p-3 overflow-y-auto flex-1">
+                            <div className="flex gap-4 mb-2">
+                                <div className="flex-1">
+                                    <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>To:</label>
+                                    <p className={`text-${currentTheme.text} text-sm`}>{verificationData?.user?.email}</p>
+                                </div>
+                                <div className="flex-1">
+                                    <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Subject:</label>
+                                    <input
+                                        type="text"
+                                        value={emailSubject}
+                                        onChange={(e) => setEmailSubject(e.target.value)}
+                                        className={`w-full p-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                    />
+                                </div>
                             </div>
-                            <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Subject:</label>
-                                <input
-                                    type="text"
-                                    value={emailSubject}
-                                    onChange={(e) => setEmailSubject(e.target.value)}
-                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>Preview:</label>
+                            <div className="mb-2">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Preview:</label>
                                 <div
-                                    className="p-4 bg-white rounded border text-sm"
+                                    className="p-3 rounded border text-sm"
+                                    style={{ backgroundColor: '#f1f5f9' }}
                                     dangerouslySetInnerHTML={{ __html: emailBody }}
                                 />
                             </div>
-                            <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Edit HTML (optional):</label>
+                            <details className="mb-2">
+                                <summary className={`text-${currentTheme.textMuted} text-xs cursor-pointer hover:text-${currentTheme.text}`}>Edit HTML (advanced)</summary>
                                 <textarea
                                     value={emailBody}
                                     onChange={(e) => setEmailBody(e.target.value)}
-                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm font-mono`}
-                                    rows={6}
+                                    className={`w-full p-2 mt-1 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-xs font-mono`}
+                                    rows={5}
                                 />
-                            </div>
+                            </details>
                         </div>
-                        <div className={`p-4 border-t border-${currentTheme.border} flex gap-2 justify-end`}>
+                        <div className={`p-2 border-t border-${currentTheme.border} flex gap-2 justify-end`}>
                             <button
                                 onClick={() => setShowEmailModal(false)}
-                                className={`px-4 py-2 bg-${currentTheme.border} text-${currentTheme.textMuted} rounded text-sm`}
+                                className={`px-3 py-1.5 bg-${currentTheme.border} text-${currentTheme.textMuted} rounded text-sm`}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={sendWinnerEmail}
                                 disabled={sendingEmail}
-                                className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-500 disabled:opacity-50"
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-500 disabled:opacity-50"
                             >
                                 {sendingEmail ? 'Sending...' : '📧 Send Email'}
                             </button>
