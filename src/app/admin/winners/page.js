@@ -529,7 +529,7 @@ export default function AdminWinnersPage() {
             // Fetch the prize_winner email template
             const { data: template, error } = await supabase
                 .from('email_templates')
-                .select('subject, html_body')
+                .select('subject, html_content')
                 .eq('template_key', 'prize_winner')
                 .single()
 
@@ -547,14 +547,7 @@ export default function AdminWinnersPage() {
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
                 .replace(/\{\{prize_name\}\}/g, prizeDisplay)
 
-            let body = template.html_body
-                ```
-
----
-
-save, then in **terminal**:
-```
-cd ~/desktop/creative - advertising - platform && git add. && git commit - m "fix email template column name" && git push
+            let body = template.html_content
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
                 .replace(/\{\{prize_name\}\}/g, prizeDisplay)
                 .replace(/\{\{game_type\}\}/g, 'Slots Drawing')
