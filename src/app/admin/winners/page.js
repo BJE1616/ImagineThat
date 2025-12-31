@@ -1058,12 +1058,14 @@ export default function AdminWinnersPage() {
 
                                     {/* Winner Info */}
                                     {verificationData && (
-                                        <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
+                                        <div className="p-2 bg-green-500/20 border border-green-500/50 rounded-lg mb-3">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <p className="text-green-400 text-xs mb-1">🏆 Winner:</p>
-                                                    <p className={`text-${currentTheme.text} font-bold text-lg`}>{verificationData.user?.username}</p>
-                                                    <p className={`text-${currentTheme.textMuted} text-xs`}>{verificationData.user?.email}</p>
+                                                    <p className={`text-${currentTheme.text} text-sm`}>
+                                                        <span className="text-green-400">🏆 Winner:</span>{' '}
+                                                        <span className="font-bold">{verificationData.user?.username}</span>
+                                                        <span className={`text-${currentTheme.textMuted}`}> — {verificationData.user?.email}</span>
+                                                    </p>
                                                     {verificationData.user?.payout_method && (
                                                         <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
                                                             💳 {verificationData.user.payout_method}: {verificationData.user.payout_handle}
@@ -1071,8 +1073,7 @@ export default function AdminWinnersPage() {
                                                     )}
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className={`text-${currentTheme.textMuted} text-xs`}>Confirmed</p>
-                                                    <p className={`text-${currentTheme.text} text-sm`}>{formatDate(slotsPrize.winner_selected_at)}</p>
+                                                    <p className={`text-${currentTheme.textMuted} text-xs`}>Confirmed {formatDate(slotsPrize.winner_selected_at)}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1115,35 +1116,32 @@ export default function AdminWinnersPage() {
 
                                             {/* Winner Notification Section */}
                                             {payoutStatus.status === 'verified' && (
-                                                <div className={`mb-3 p-3 rounded-lg ${payoutStatus.email_sent_at
+                                                <div className={`mb-3 p-2 rounded-lg ${payoutStatus.email_sent_at
                                                     ? 'bg-green-500/20 border border-green-500/50'
                                                     : 'bg-orange-500/20 border border-orange-500/50'
                                                     }`}>
                                                     {payoutStatus.email_sent_at ? (
                                                         <div>
-                                                            <p className="text-green-400 font-bold text-xs">✅ Winner Notified</p>
-                                                            <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
-                                                                Notified on {formatDateTime(payoutStatus.email_sent_at)}
+                                                            <p className="text-green-400 font-bold text-xs">
+                                                                ✅ Winner Notified — {formatDateTime(payoutStatus.email_sent_at)}
+                                                                {payoutStatus.notification_note && (
+                                                                    <span className={`font-normal text-${currentTheme.textMuted}`}> ({payoutStatus.notification_note})</span>
+                                                                )}
                                                             </p>
-                                                            {payoutStatus.notification_note && (
-                                                                <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
-                                                                    Note: {payoutStatus.notification_note}
-                                                                </p>
-                                                            )}
                                                         </div>
                                                     ) : (
-                                                        <div>
-                                                            <p className="text-orange-400 font-bold text-xs mb-2">🔔 Winner Not Yet Notified</p>
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-orange-400 font-bold text-xs">🔔 Winner Not Yet Notified</p>
                                                             <div className="flex gap-2">
                                                                 <button
                                                                     onClick={openEmailPreview}
-                                                                    className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-500"
+                                                                    className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-500"
                                                                 >
                                                                     📧 Preview & Send Email
                                                                 </button>
                                                                 <button
                                                                     onClick={openNotifiedModal}
-                                                                    className={`px-3 py-1.5 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
+                                                                    className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
                                                                 >
                                                                     ✅ Mark as Notified
                                                                 </button>
@@ -1153,27 +1151,31 @@ export default function AdminWinnersPage() {
                                                 </div>
                                             )}
 
-                                            {/* Notes */}
-                                            <div className="mb-2">
-                                                <p className={`text-${currentTheme.textMuted} text-xs mb-1`}>Admin Notes:</p>
-                                                <textarea
-                                                    value={payoutNotes}
-                                                    onChange={(e) => setPayoutNotes(e.target.value)}
-                                                    placeholder="Add notes about this payout (shipping info, verification details, etc.)"
-                                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
-                                                    rows={3}
-                                                    disabled={payoutStatus.status === 'paid'}
-                                                />
-                                                {payoutStatus.status !== 'paid' && (
-                                                    <button
-                                                        onClick={savePayoutNotes}
-                                                        disabled={savingPayout}
-                                                        className={`mt-2 px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
-                                                    >
-                                                        {savingPayout ? 'Saving...' : 'Save Notes'}
-                                                    </button>
-                                                )}
-                                            </div>
+                                            {/* Notes - Collapsible */}
+                                            <details className="mb-2">
+                                                <summary className={`text-${currentTheme.textMuted} text-xs cursor-pointer hover:text-${currentTheme.text}`}>
+                                                    Admin Notes {payoutNotes ? '(has notes)' : ''}
+                                                </summary>
+                                                <div className="mt-2">
+                                                    <textarea
+                                                        value={payoutNotes}
+                                                        onChange={(e) => setPayoutNotes(e.target.value)}
+                                                        placeholder="Add notes about this payout (shipping info, verification details, etc.)"
+                                                        className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                                        rows={2}
+                                                        disabled={payoutStatus.status === 'paid'}
+                                                    />
+                                                    {payoutStatus.status !== 'paid' && (
+                                                        <button
+                                                            onClick={savePayoutNotes}
+                                                            disabled={savingPayout}
+                                                            className={`mt-1 px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
+                                                        >
+                                                            {savingPayout ? 'Saving...' : 'Save Notes'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </details>
                                         </>
                                     )}
                                 </div>
