@@ -9,13 +9,22 @@ export async function POST(request) {
 
         // Direct send mode (for edited emails)
         if (html && to && subject) {
-            const result = await resend.emails.send({
+            console.log('Attempting direct email send to:', to)
+
+            const { data: result, error } = await resend.emails.send({
                 from: 'Imagine That <noreply@send.imaginethat.icu>',
                 to: to,
                 subject: subject,
                 html: html
             })
-            return Response.json({ success: true, id: result.data?.id })
+
+            if (error) {
+                console.error('Resend error:', error)
+                return Response.json({ error: error.message }, { status: 500 })
+            }
+
+            console.log('Email sent successfully:', result?.id)
+            return Response.json({ success: true, id: result?.id })
         }
 
         // Template mode (original behavior)
