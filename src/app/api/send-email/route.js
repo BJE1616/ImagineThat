@@ -12,7 +12,7 @@ export async function POST(request) {
             console.log('Attempting direct email send to:', to)
 
             const { data: result, error } = await resend.emails.send({
-                from: 'Imagine That <noreply@send.imaginethat.icu>',
+                from: 'Imagine That <noreply@imaginethat.icu>',
                 to: to,
                 subject: subject,
                 html: html
