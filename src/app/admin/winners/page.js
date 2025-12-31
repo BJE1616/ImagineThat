@@ -545,13 +545,14 @@ export default function AdminWinnersPage() {
 
             let subject = template.subject
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
-                .replace(/\{\{prize_name\}\}/g, prizeDisplay)
+                .replace(/\{\{prize\}\}/g, prizeDisplay)
+                .replace(/\{\{rank\}\}/g, 'Winner')
 
             let body = template.html_body
                 .replace(/\{\{username\}\}/g, verificationData.user.username)
-                .replace(/\{\{prize_name\}\}/g, prizeDisplay)
+                .replace(/\{\{prize\}\}/g, prizeDisplay)
+                .replace(/\{\{rank\}\}/g, 'Winner')
                 .replace(/\{\{game_type\}\}/g, 'Slots Drawing')
-                .replace(/\{\{prize_details\}\}/g, `Prize: ${prizeDisplay}`)
 
             setEmailSubject(subject)
             setEmailBody(body)
@@ -828,19 +829,19 @@ export default function AdminWinnersPage() {
                                 />
                             </div>
                             <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Body (HTML):</label>
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>Preview:</label>
+                                <div
+                                    className="p-4 bg-white rounded border text-sm"
+                                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Edit HTML (optional):</label>
                                 <textarea
                                     value={emailBody}
                                     onChange={(e) => setEmailBody(e.target.value)}
                                     className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm font-mono`}
-                                    rows={10}
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>Preview:</label>
-                                <div
-                                    className={`p-4 bg-white rounded border text-sm`}
-                                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                                    rows={6}
                                 />
                             </div>
                         </div>
