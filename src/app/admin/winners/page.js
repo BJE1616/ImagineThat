@@ -34,6 +34,17 @@ export default function AdminWinnersPage() {
     const [payoutNotes, setPayoutNotes] = useState('')
     const [savingPayout, setSavingPayout] = useState(false)
 
+    // ===== EMAIL MODAL STATE =====
+    const [showEmailModal, setShowEmailModal] = useState(false)
+    const [emailSubject, setEmailSubject] = useState('')
+    const [emailBody, setEmailBody] = useState('')
+    const [sendingEmail, setSendingEmail] = useState(false)
+
+    // ===== MARK AS NOTIFIED STATE =====
+    const [showNotifiedModal, setShowNotifiedModal] = useState(false)
+    const [notificationNote, setNotificationNote] = useState('')
+    const [savingNotified, setSavingNotified] = useState(false)
+
     useEffect(() => {
         if (activeTab === 'match') {
             loadWeekData()
@@ -187,7 +198,7 @@ export default function AdminWinnersPage() {
         try {
             const { data: userData } = await supabase
                 .from('users')
-                .select('id, username, email, first_name, last_name, created_at, preferred_payment_method, payment_handle')
+                .select('id, username, email, first_name, last_name, created_at, payout_method, payout_handle')
                 .eq('id', userId)
                 .single()
 
@@ -376,24 +387,29 @@ export default function AdminWinnersPage() {
 
         try {
             // Update prize_payouts record
+            const updateData = {
+                status: newStatus,
+                notes: payoutNotes,
+                updated_at: new Date().toISOString()
+            }
+
+            if (newStatus === 'paid') {
+                updateData.paid_at = new Date().toISOString()
+            }
+
             const { error } = await supabase
                 .from('prize_payouts')
-                .update({
-                    status: newStatus,
-                    notes: payoutNotes,
-                    updated_at: new Date().toISOString(),
-                    ...(newStatus === 'paid' ? { paid_at: new Date().toISOString() } : {})
-                })
+                .update(updateData)
                 .eq('id', payoutStatus.id)
 
             if (error) throw error
 
-            // If status is "verified", add to payout_queue
+            // If status is "verified", add to payout_queue AND public_winners
             if (newStatus === 'verified') {
                 // Get user payment info
                 const { data: userData } = await supabase
                     .from('users')
-                    .select('preferred_payment_method, payment_handle')
+                    .select('username, payout_method, payout_handle')
                     .eq('id', verificationData.user.id)
                     .single()
 
@@ -402,6 +418,7 @@ export default function AdminWinnersPage() {
                     ? slotsPrize.total_prize_pool
                     : 0
 
+                // Add to payout_queue if cash prize
                 if (prizeAmount > 0) {
                     // Check if already in queue
                     const { data: existingQueue } = await supabase
@@ -420,19 +437,56 @@ export default function AdminWinnersPage() {
                                 reason: `Weekly Slots Prize - ${currentWeek}`,
                                 reference_type: 'weekly_prize',
                                 reference_id: payoutStatus.id,
-                                payment_method: userData?.preferred_payment_method || null,
-                                payment_handle: userData?.payment_handle || null,
+                                payment_method: userData?.payout_method || null,
+                                payment_handle: userData?.payout_handle || null,
                                 status: 'pending',
                                 queued_at: new Date().toISOString()
                             }])
-
-                        setMessage({ type: 'success', text: `Status updated to verified. $${prizeAmount} added to Payout Queue!` })
-                    } else {
-                        setMessage({ type: 'success', text: `Status updated to: ${newStatus}` })
                     }
-                } else {
-                    setMessage({ type: 'success', text: `Status updated to: ${newStatus} (non-cash prize - handle manually)` })
                 }
+
+                // Add to public_winners
+                const { data: existingPublicWinner } = await supabase
+                    .from('public_winners')
+                    .select('id')
+                    .eq('payout_id', payoutStatus.id)
+                    .single()
+
+                if (!existingPublicWinner) {
+                    const weekStart = getWeekStart(weekOffset)
+                    const weekStartStr = weekStart.toISOString().split('T')[0]
+
+                    const prizeDisplay = slotsPrize.prize_type === 'cash'
+                        ? `$${slotsPrize.total_prize_pool} Cash Prize`
+                        : (slotsPrize.prize_descriptions?.[0] || 'Special Prize')
+
+                    await supabase
+                        .from('public_winners')
+                        .insert([{
+                            user_id: verificationData.user.id,
+                            prize_id: slotsPrize.id,
+                            payout_id: payoutStatus.id,
+                            display_name: userData?.username || verificationData.user.username,
+                            display_text: prizeDisplay,
+                            prize_type: slotsPrize.prize_type,
+                            prize_value: prizeAmount,
+                            is_visible: true,
+                            is_featured: false,
+                            verified_at: new Date().toISOString(),
+                            week_start: weekStartStr,
+                            game_type: 'slots'
+                        }])
+                }
+
+                setMessage({ type: 'success', text: `✅ Winner verified! Added to payout queue and winners board.` })
+            } else if (newStatus === 'paid') {
+                // Update public_winners paid_at
+                await supabase
+                    .from('public_winners')
+                    .update({ paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+                    .eq('payout_id', payoutStatus.id)
+
+                setMessage({ type: 'success', text: `💰 Marked as paid!` })
             } else {
                 setMessage({ type: 'success', text: `Status updated to: ${newStatus}` })
             }
@@ -466,6 +520,121 @@ export default function AdminWinnersPage() {
             setMessage({ type: 'error', text: 'Failed to save notes' })
         } finally {
             setSavingPayout(false)
+        }
+    }
+
+    // ===== EMAIL FUNCTIONS =====
+    const openEmailPreview = async () => {
+        try {
+            // Fetch the prize_winner email template
+            const { data: template, error } = await supabase
+                .from('email_templates')
+                .select('subject, html_content')
+                .eq('template_key', 'prize_winner')
+                .single()
+
+            if (error || !template) {
+                setMessage({ type: 'error', text: 'Email template not found. Please check email templates.' })
+                return
+            }
+
+            // Replace variables in subject and body
+            const prizeDisplay = slotsPrize.prize_type === 'cash'
+                ? `$${slotsPrize.total_prize_pool} Cash Prize`
+                : (slotsPrize.prize_descriptions?.[0] || 'Special Prize')
+
+            let subject = template.subject
+                .replace(/\{\{username\}\}/g, verificationData.user.username)
+                .replace(/\{\{prize_name\}\}/g, prizeDisplay)
+
+            let body = template.html_content
+                .replace(/\{\{username\}\}/g, verificationData.user.username)
+                .replace(/\{\{prize_name\}\}/g, prizeDisplay)
+                .replace(/\{\{game_type\}\}/g, 'Slots Drawing')
+                .replace(/\{\{prize_details\}\}/g, `Prize: ${prizeDisplay}`)
+
+            setEmailSubject(subject)
+            setEmailBody(body)
+            setShowEmailModal(true)
+        } catch (error) {
+            console.error('Error loading email template:', error)
+            setMessage({ type: 'error', text: 'Failed to load email template' })
+        }
+    }
+
+    const sendWinnerEmail = async () => {
+        if (!verificationData?.user?.email) {
+            setMessage({ type: 'error', text: 'No email address found for winner' })
+            return
+        }
+
+        setSendingEmail(true)
+        try {
+            const response = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: verificationData.user.email,
+                    subject: emailSubject,
+                    html: emailBody
+                })
+            })
+
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to send email')
+            }
+
+            // Update email_sent_at
+            await supabase
+                .from('prize_payouts')
+                .update({
+                    email_sent_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', payoutStatus.id)
+
+            setPayoutStatus(prev => ({ ...prev, email_sent_at: new Date().toISOString() }))
+            setShowEmailModal(false)
+            setMessage({ type: 'success', text: '📧 Email sent successfully!' })
+        } catch (error) {
+            console.error('Error sending email:', error)
+            setMessage({ type: 'error', text: `Failed to send email: ${error.message}` })
+        } finally {
+            setSendingEmail(false)
+        }
+    }
+
+    const openNotifiedModal = () => {
+        setNotificationNote('')
+        setShowNotifiedModal(true)
+    }
+
+    const markAsNotified = async () => {
+        setSavingNotified(true)
+        try {
+            await supabase
+                .from('prize_payouts')
+                .update({
+                    email_sent_at: new Date().toISOString(),
+                    notification_note: notificationNote || null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', payoutStatus.id)
+
+            setPayoutStatus(prev => ({
+                ...prev,
+                email_sent_at: new Date().toISOString(),
+                notification_note: notificationNote
+            }))
+            setShowNotifiedModal(false)
+            setMessage({ type: 'success', text: '✅ Marked as notified' })
+        } catch (error) {
+            console.error('Error marking as notified:', error)
+            setMessage({ type: 'error', text: 'Failed to mark as notified' })
+        } finally {
+            setSavingNotified(false)
         }
     }
 
@@ -544,10 +713,8 @@ export default function AdminWinnersPage() {
     const getStatusColor = (status) => {
         switch (status) {
             case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
-            case 'contacted': return 'bg-blue-500/20 text-blue-400 border-blue-500/50'
             case 'verified': return 'bg-purple-500/20 text-purple-400 border-purple-500/50'
             case 'paid': return 'bg-green-500/20 text-green-400 border-green-500/50'
-            case 'shipped': return 'bg-green-500/20 text-green-400 border-green-500/50'
             default: return `bg-${currentTheme.border} text-${currentTheme.textMuted}`
         }
     }
@@ -558,6 +725,16 @@ export default function AdminWinnersPage() {
             month: 'short',
             day: 'numeric',
             year: 'numeric'
+        })
+    }
+
+    const formatDateTime = (dateStr) => {
+        if (!dateStr) return 'N/A'
+        return new Date(dateStr).toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
         })
     }
 
@@ -620,6 +797,106 @@ export default function AdminWinnersPage() {
             {message && (
                 <div className={`mb-3 p-2 rounded text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {message.text}
+                </div>
+            )}
+
+            {/* ===== EMAIL PREVIEW MODAL ===== */}
+            {showEmailModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col`}>
+                        <div className={`p-4 border-b border-${currentTheme.border} flex items-center justify-between`}>
+                            <h3 className={`text-${currentTheme.text} font-bold`}>📧 Email Preview</h3>
+                            <button
+                                onClick={() => setShowEmailModal(false)}
+                                className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto flex-1">
+                            <div className="mb-4">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>To:</label>
+                                <p className={`text-${currentTheme.text} text-sm`}>{verificationData?.user?.email}</p>
+                            </div>
+                            <div className="mb-4">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Subject:</label>
+                                <input
+                                    type="text"
+                                    value={emailSubject}
+                                    onChange={(e) => setEmailSubject(e.target.value)}
+                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Body (HTML):</label>
+                                <textarea
+                                    value={emailBody}
+                                    onChange={(e) => setEmailBody(e.target.value)}
+                                    className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm font-mono`}
+                                    rows={10}
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label className={`block text-${currentTheme.textMuted} text-xs mb-2`}>Preview:</label>
+                                <div
+                                    className={`p-4 bg-white rounded border text-sm`}
+                                    dangerouslySetInnerHTML={{ __html: emailBody }}
+                                />
+                            </div>
+                        </div>
+                        <div className={`p-4 border-t border-${currentTheme.border} flex gap-2 justify-end`}>
+                            <button
+                                onClick={() => setShowEmailModal(false)}
+                                className={`px-4 py-2 bg-${currentTheme.border} text-${currentTheme.textMuted} rounded text-sm`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={sendWinnerEmail}
+                                disabled={sendingEmail}
+                                className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-500 disabled:opacity-50"
+                            >
+                                {sendingEmail ? 'Sending...' : '📧 Send Email'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MARK AS NOTIFIED MODAL ===== */}
+            {showNotifiedModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg w-full max-w-md`}>
+                        <div className={`p-4 border-b border-${currentTheme.border}`}>
+                            <h3 className={`text-${currentTheme.text} font-bold`}>Mark as Notified</h3>
+                            <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>Record that winner was notified through other means</p>
+                        </div>
+                        <div className="p-4">
+                            <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Note (optional):</label>
+                            <textarea
+                                value={notificationNote}
+                                onChange={(e) => setNotificationNote(e.target.value)}
+                                placeholder="e.g., Called them, DM'd on social media, etc."
+                                className={`w-full p-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                rows={3}
+                            />
+                        </div>
+                        <div className={`p-4 border-t border-${currentTheme.border} flex gap-2 justify-end`}>
+                            <button
+                                onClick={() => setShowNotifiedModal(false)}
+                                className={`px-4 py-2 bg-${currentTheme.border} text-${currentTheme.textMuted} rounded text-sm`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={markAsNotified}
+                                disabled={savingNotified}
+                                className="px-4 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-500 disabled:opacity-50"
+                            >
+                                {savingNotified ? 'Saving...' : '✅ Mark as Notified'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -784,9 +1061,9 @@ export default function AdminWinnersPage() {
                                                     <p className="text-green-400 text-xs mb-1">🏆 Winner:</p>
                                                     <p className={`text-${currentTheme.text} font-bold text-lg`}>{verificationData.user?.username}</p>
                                                     <p className={`text-${currentTheme.textMuted} text-xs`}>{verificationData.user?.email}</p>
-                                                    {verificationData.user?.preferred_payment_method && (
+                                                    {verificationData.user?.payout_method && (
                                                         <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
-                                                            💳 {verificationData.user.preferred_payment_method}: {verificationData.user.payment_handle}
+                                                            💳 {verificationData.user.payout_method}: {verificationData.user.payout_handle}
                                                         </p>
                                                     )}
                                                 </div>
@@ -804,7 +1081,7 @@ export default function AdminWinnersPage() {
                                             <div className="mb-3">
                                                 <p className={`text-${currentTheme.textMuted} text-xs mb-2`}>Payout Status:</p>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {['pending', 'contacted', 'verified', 'paid'].map(status => (
+                                                    {['pending', 'verified', 'paid'].map(status => (
                                                         <button
                                                             key={status}
                                                             onClick={() => updatePayoutStatus(status)}
@@ -815,8 +1092,7 @@ export default function AdminWinnersPage() {
                                                                 } ${payoutStatus.status === 'paid' ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                         >
                                                             {status === 'pending' && '⏳'}
-                                                            {status === 'contacted' && '📧'}
-                                                            {status === 'verified' && '✓ → Queue'}
+                                                            {status === 'verified' && '✓'}
                                                             {status === 'paid' && '💰'}
                                                             {' '}{status.charAt(0).toUpperCase() + status.slice(1)}
                                                         </button>
@@ -824,24 +1100,54 @@ export default function AdminWinnersPage() {
                                                 </div>
                                                 {payoutStatus.status === 'verified' && (
                                                     <p className="text-purple-400 text-xs mt-2">
-                                                        ✓ Added to Payout Queue - process payment there
+                                                        ✓ Added to Payout Queue and Winners Board
                                                     </p>
                                                 )}
                                                 {payoutStatus.status === 'paid' && (
                                                     <p className="text-green-400 text-xs mt-2">
-                                                        ✓ Payment completed via Payout Queue
+                                                        ✓ Payment completed
                                                     </p>
                                                 )}
                                             </div>
 
-                                            {/* Email Button */}
-                                            {verificationData?.user?.email && payoutStatus.status !== 'paid' && (
-                                                <button
-                                                    onClick={() => window.open(`mailto:${verificationData.user.email}`)}
-                                                    className="mb-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
-                                                >
-                                                    📧 Email Winner
-                                                </button>
+                                            {/* Winner Notification Section */}
+                                            {payoutStatus.status === 'verified' && (
+                                                <div className={`mb-3 p-3 rounded-lg ${payoutStatus.email_sent_at
+                                                    ? 'bg-green-500/20 border border-green-500/50'
+                                                    : 'bg-orange-500/20 border border-orange-500/50'
+                                                    }`}>
+                                                    {payoutStatus.email_sent_at ? (
+                                                        <div>
+                                                            <p className="text-green-400 font-bold text-xs">✅ Winner Notified</p>
+                                                            <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
+                                                                Notified on {formatDateTime(payoutStatus.email_sent_at)}
+                                                            </p>
+                                                            {payoutStatus.notification_note && (
+                                                                <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
+                                                                    Note: {payoutStatus.notification_note}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <p className="text-orange-400 font-bold text-xs mb-2">🔔 Winner Not Yet Notified</p>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={openEmailPreview}
+                                                                    className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-500"
+                                                                >
+                                                                    📧 Preview & Send Email
+                                                                </button>
+                                                                <button
+                                                                    onClick={openNotifiedModal}
+                                                                    className={`px-3 py-1.5 bg-${currentTheme.border} text-${currentTheme.text} rounded text-xs hover:bg-${currentTheme.card}`}
+                                                                >
+                                                                    ✅ Mark as Notified
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             )}
 
                                             {/* Notes */}
@@ -925,98 +1231,95 @@ export default function AdminWinnersPage() {
                         </>
                     )}
                 </>
-            )
-            }
+            )}
 
             {/* ===== MATCH GAME TAB ===== */}
-            {
-                activeTab === 'match' && (
-                    <>
-                        {loading ? (
-                            <div className="animate-pulse space-y-3">
-                                <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
-                            </div>
-                        ) : (
-                            <>
-                                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className={`border-b border-${currentTheme.border}`}>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Score</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Prize</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
-                                                    <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {leaderboard.length > 0 ? (
-                                                    leaderboard.map((entry, index) => {
-                                                        const rank = index + 1
-                                                        const badge = getRankBadge(rank)
-                                                        const payment = payments[entry.id]
-                                                        const isPaid = payment?.status === 'paid'
-                                                        const prizeAmount = getPrizeAmount(rank)
+            {activeTab === 'match' && (
+                <>
+                    {loading ? (
+                        <div className="animate-pulse space-y-3">
+                            <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className={`border-b border-${currentTheme.border}`}>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Rank</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Player</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Email</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Score</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Prize</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Status</th>
+                                                <th className={`text-left py-2 px-3 text-${currentTheme.textMuted} font-medium text-xs`}>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {leaderboard.length > 0 ? (
+                                                leaderboard.map((entry, index) => {
+                                                    const rank = index + 1
+                                                    const badge = getRankBadge(rank)
+                                                    const payment = payments[entry.id]
+                                                    const isPaid = payment?.status === 'paid'
+                                                    const prizeAmount = getPrizeAmount(rank)
 
-                                                        return (
-                                                            <tr key={entry.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30`}>
-                                                                <td className="py-2 px-3">
-                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${badge.color}`}>
-                                                                        {rank <= 3 ? badge.emoji : rank}
-                                                                    </div>
-                                                                </td>
-                                                                <td className={`py-2 px-3 text-${currentTheme.text} font-medium text-xs`}>{entry.user.username}</td>
-                                                                <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
-                                                                <td className={`py-2 px-3 text-${currentTheme.accent} font-bold text-sm`}>{entry.score}</td>
-                                                                <td className="py-2 px-3">
-                                                                    {prizeAmount > 0 ? (
-                                                                        <span className="text-green-400 font-semibold text-xs">${prizeAmount}</span>
-                                                                    ) : (
-                                                                        <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
-                                                                    )}
-                                                                </td>
-                                                                <td className="py-2 px-3">
-                                                                    {prizeAmount > 0 ? (
-                                                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
-                                                                            }`}>
-                                                                            {isPaid ? '✓ Paid' : 'Pending'}
-                                                                        </span>
-                                                                    ) : '—'}
-                                                                </td>
-                                                                <td className="py-2 px-3">
-                                                                    {prizeAmount > 0 && (
-                                                                        <button
-                                                                            onClick={() => togglePaymentStatus(entry, rank)}
-                                                                            disabled={saving === entry.id}
-                                                                            className={`px-2 py-1 rounded text-xs font-medium ${isPaid ? `bg-${currentTheme.border} text-${currentTheme.textMuted}` : 'bg-green-600 text-white'
-                                                                                }`}
-                                                                        >
-                                                                            {saving === entry.id ? '...' : isPaid ? 'Undo' : 'Mark Paid'}
-                                                                        </button>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        )
-                                                    })
-                                                ) : (
-                                                    <tr>
-                                                        <td colSpan="7" className={`py-8 text-center text-${currentTheme.textMuted}`}>
-                                                            <p className="text-sm">No games played this week</p>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                    return (
+                                                        <tr key={entry.id} className={`border-b border-${currentTheme.border}/50 hover:bg-${currentTheme.border}/30`}>
+                                                            <td className="py-2 px-3">
+                                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${badge.color}`}>
+                                                                    {rank <= 3 ? badge.emoji : rank}
+                                                                </div>
+                                                            </td>
+                                                            <td className={`py-2 px-3 text-${currentTheme.text} font-medium text-xs`}>{entry.user.username}</td>
+                                                            <td className={`py-2 px-3 text-${currentTheme.textMuted} text-xs`}>{entry.user.email}</td>
+                                                            <td className={`py-2 px-3 text-${currentTheme.accent} font-bold text-sm`}>{entry.score}</td>
+                                                            <td className="py-2 px-3">
+                                                                {prizeAmount > 0 ? (
+                                                                    <span className="text-green-400 font-semibold text-xs">${prizeAmount}</span>
+                                                                ) : (
+                                                                    <span className={`text-${currentTheme.textMuted} text-xs`}>—</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="py-2 px-3">
+                                                                {prizeAmount > 0 ? (
+                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                                                        }`}>
+                                                                        {isPaid ? '✓ Paid' : 'Pending'}
+                                                                    </span>
+                                                                ) : '—'}
+                                                            </td>
+                                                            <td className="py-2 px-3">
+                                                                {prizeAmount > 0 && (
+                                                                    <button
+                                                                        onClick={() => togglePaymentStatus(entry, rank)}
+                                                                        disabled={saving === entry.id}
+                                                                        className={`px-2 py-1 rounded text-xs font-medium ${isPaid ? `bg-${currentTheme.border} text-${currentTheme.textMuted}` : 'bg-green-600 text-white'
+                                                                            }`}
+                                                                    >
+                                                                        {saving === entry.id ? '...' : isPaid ? 'Undo' : 'Mark Paid'}
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="7" className={`py-8 text-center text-${currentTheme.textMuted}`}>
+                                                        <p className="text-sm">No games played this week</p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            </>
-                        )}
-                    </>
-                )
-            }
-        </div >
+                            </div>
+                        </>
+                    )}
+                </>
+            )}
+        </div>
     )
 }
