@@ -42,6 +42,7 @@ const PAGE_ACCESS = {
     '/admin/cancellations': ['super_admin', 'admin', 'manager'],
     '/admin/promo-cards': ['super_admin', 'admin', 'manager'],
     '/admin/promo-stats': ['super_admin', 'admin', 'manager'],
+    '/admin/alerts': ['super_admin', 'admin', 'manager', 'support'],
 }
 
 export default function AdminLayout({ children }) {
@@ -58,6 +59,10 @@ export default function AdminLayout({ children }) {
     const [expandedGroups, setExpandedGroups] = useState([])
     const [accessDenied, setAccessDenied] = useState(false)
 
+    // Alert state
+    const [alertCount, setAlertCount] = useState(0)
+    const [alertsBySeverity, setAlertsBySeverity] = useState({ critical: 0, high: 0, medium: 0 })
+
     useEffect(() => {
         checkAdmin()
     }, [])
@@ -68,6 +73,29 @@ export default function AdminLayout({ children }) {
             checkPageAccess()
         }
     }, [pathname, userRole, hasHealthAccess, hasAuditLogAccess])
+
+    // Fetch alerts when admin is verified
+    useEffect(() => {
+        if (isAdmin && userRole) {
+            fetchAlerts()
+            // Refresh alerts every 2 minutes
+            const interval = setInterval(fetchAlerts, 120000)
+            return () => clearInterval(interval)
+        }
+    }, [isAdmin, userRole])
+
+    const fetchAlerts = async () => {
+        try {
+            const response = await fetch('/api/admin/alerts')
+            if (response.ok) {
+                const data = await response.json()
+                setAlertCount(data.count || 0)
+                setAlertsBySeverity(data.countBySeverity || { critical: 0, high: 0, medium: 0 })
+            }
+        } catch (error) {
+            console.error('Error fetching alerts:', error)
+        }
+    }
 
     const checkAdmin = async () => {
         try {
@@ -178,6 +206,14 @@ export default function AdminLayout({ children }) {
         const allowedRoles = PAGE_ACCESS[href]
         if (!allowedRoles) return true
         return allowedRoles.includes(userRole)
+    }
+
+    // Get alert badge color based on severity
+    const getAlertBadgeColor = () => {
+        if (alertsBySeverity.critical > 0) return 'bg-red-500'
+        if (alertsBySeverity.high > 0) return 'bg-orange-500'
+        if (alertsBySeverity.medium > 0) return 'bg-yellow-500'
+        return 'bg-slate-500'
     }
 
     if (pathname === '/admin/login') {
@@ -322,6 +358,29 @@ export default function AdminLayout({ children }) {
                         >
                             <span>🌐</span>
                             {sidebarOpen && <span className="font-medium">Back to Site</span>}
+                        </Link>
+                    </div>
+
+                    {/* Alerts Link */}
+                    <div className={`p-2 border-b border-${currentTheme.border}`}>
+                        <Link
+                            href="/admin/alerts"
+                            className={`flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${pathname === '/admin/alerts'
+                                    ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent}`
+                                    : alertCount > 0
+                                        ? 'text-white hover:bg-slate-700/50'
+                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
+                                }`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span>🔔</span>
+                                {sidebarOpen && <span className="font-medium">Alerts</span>}
+                            </div>
+                            {alertCount > 0 && (
+                                <span className={`${getAlertBadgeColor()} text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center`}>
+                                    {alertCount > 99 ? '99+' : alertCount}
+                                </span>
+                            )}
                         </Link>
                     </div>
 
