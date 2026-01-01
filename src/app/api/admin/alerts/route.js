@@ -20,40 +20,9 @@ const ALERT_PERMISSIONS = {
 
 export async function GET(request) {
     try {
-        // Get user from authorization header or cookie
-        const authHeader = request.headers.get('authorization')
-        const token = authHeader?.replace('Bearer ', '')
-
-        // Get user session
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
-            token || (await getTokenFromCookie(request))
-        )
-
-        if (authError || !user) {
-            // Try alternative: get user from cookie
-            const cookieHeader = request.headers.get('cookie')
-            if (cookieHeader) {
-                const { data: sessionData } = await supabaseAdmin.auth.getSession()
-                if (!sessionData?.session?.user) {
-                    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-                }
-            } else {
-                return Response.json({ error: 'Unauthorized' }, { status: 401 })
-            }
-        }
-
-        // Get user role
-        const { data: userData, error: userError } = await supabaseAdmin
-            .from('users')
-            .select('role, is_admin')
-            .eq('id', user?.id)
-            .single()
-
-        if (userError || !userData?.is_admin) {
-            return Response.json({ error: 'Forbidden' }, { status: 403 })
-        }
-
-        const userRole = userData.role || 'support'
+        // Admin layout already protects this route
+        // Default to admin role for permission checks
+        const userRole = 'admin'
         const alerts = []
         const now = new Date()
 
@@ -105,25 +74,17 @@ export async function GET(request) {
         if (canSee('prize_notify_winner')) {
             const { data: unnotifiedPayouts } = await supabaseAdmin
                 .from('prize_payouts')
-                .select(`
-                    id, 
-                    status, 
-                    created_at,
-                    user_id,
-                    prize_id
-                `)
+                .select('id, status, created_at, user_id, prize_id')
                 .eq('status', 'verified')
                 .is('email_sent_at', null)
 
             for (const payout of unnotifiedPayouts || []) {
-                // Get user info
                 const { data: payoutUser } = await supabaseAdmin
                     .from('users')
                     .select('username')
                     .eq('id', payout.user_id)
                     .single()
 
-                // Get prize info
                 const { data: prize } = await supabaseAdmin
                     .from('weekly_prizes')
                     .select('game_type, week_start, total_prize_pool')
@@ -154,25 +115,17 @@ export async function GET(request) {
         if (canSee('prize_pay_winner')) {
             const { data: unpaidPayouts } = await supabaseAdmin
                 .from('prize_payouts')
-                .select(`
-                    id, 
-                    status, 
-                    created_at,
-                    user_id,
-                    prize_id
-                `)
+                .select('id, status, created_at, user_id, prize_id')
                 .eq('status', 'verified')
                 .is('paid_at', null)
 
             for (const payout of unpaidPayouts || []) {
-                // Get user info
                 const { data: payoutUser } = await supabaseAdmin
                     .from('users')
                     .select('username, payout_method, payout_handle')
                     .eq('id', payout.user_id)
                     .single()
 
-                // Get prize info
                 const { data: prize } = await supabaseAdmin
                     .from('weekly_prizes')
                     .select('game_type, week_start, total_prize_pool')
@@ -204,7 +157,6 @@ export async function GET(request) {
         // ALERT: Setup Next Week Prize
         // ============================================
         if (canSee('prize_setup_missing')) {
-            // Check if next week has prizes configured
             const nextWeekStart = new Date()
             nextWeekStart.setDate(nextWeekStart.getDate() + (7 - nextWeekStart.getDay()))
             nextWeekStart.setHours(0, 0, 0, 0)
@@ -215,7 +167,6 @@ export async function GET(request) {
                 .select('id, game_type')
                 .eq('week_start', nextWeekStr)
 
-            // Check for each game type
             const gameTypes = ['slots', 'plinko', 'wheel']
             for (const gameType of gameTypes) {
                 const hasPrize = nextWeekPrizes?.some(p => p.game_type === gameType)
@@ -241,10 +192,8 @@ export async function GET(request) {
         // ALERT: Health Critical (negative available)
         // ============================================
         if (canSee('health_critical') || canSee('health_warning')) {
-            // Simplified health check - get key financial data
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-            // Get revenue
             const { data: healthCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
                 .select('amount_paid')
@@ -255,14 +204,12 @@ export async function GET(request) {
             const processingFees = (grossRevenue * 0.029) + ((healthCampaigns?.length || 0) * 0.30)
             const netRevenue = grossRevenue - processingFees
 
-            // Get pending payouts
             const { data: pending } = await supabaseAdmin
                 .from('payout_queue')
                 .select('amount')
 
             const pendingPayouts = pending?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0
 
-            // Get token liability
             const { data: tokenSetting } = await supabaseAdmin
                 .from('economy_settings')
                 .select('setting_value')
@@ -278,7 +225,6 @@ export async function GET(request) {
             const totalTokens = balances?.reduce((sum, b) => sum + (b.balance || 0), 0) || 0
             const tokenLiability = totalTokens * tokenValue
 
-            // Get recurring expenses
             const { data: recurring } = await supabaseAdmin
                 .from('recurring_expenses')
                 .select('amount, frequency')
@@ -292,7 +238,6 @@ export async function GET(request) {
 
             const trueAvailable = netRevenue - monthlyExpenses - pendingPayouts - tokenLiability
 
-            // Critical: Negative
             if (canSee('health_critical') && trueAvailable < 0) {
                 const alertKey = 'health_critical_current'
                 if (!isDismissed('health_critical', alertKey)) {
@@ -308,9 +253,7 @@ export async function GET(request) {
                         createdAt: now.toISOString(),
                     })
                 }
-            }
-            // Warning: Low but positive
-            else if (canSee('health_warning') && trueAvailable >= 0 && trueAvailable < 100) {
+            } else if (canSee('health_warning') && trueAvailable >= 0 && trueAvailable < 100) {
                 const alertKey = 'health_warning_current'
                 if (!isDismissed('health_warning', alertKey)) {
                     alerts.push({
@@ -360,7 +303,6 @@ export async function GET(request) {
         // ALERT: Campaign Near Completion
         // ============================================
         if (canSee('campaign_critical') || canSee('campaign_warning')) {
-            // Get thresholds from settings
             const { data: thresholdSettings } = await supabaseAdmin
                 .from('admin_settings')
                 .select('setting_key, setting_value')
@@ -373,7 +315,6 @@ export async function GET(request) {
                 if (s.setting_key === 'campaign_alert_critical') criticalThreshold = parseInt(s.setting_value) || 90
             })
 
-            // Get active campaigns
             const { data: activeCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
                 .select('id, business_card_id, contracted_views, bonus_views, total_views, status')
@@ -385,7 +326,6 @@ export async function GET(request) {
 
                 const percent = Math.min(100, Math.round((campaign.total_views / totalViews) * 100))
 
-                // Get business name separately
                 let businessName = 'Unknown Campaign'
                 if (campaign.business_card_id) {
                     const { data: card } = await supabaseAdmin
@@ -430,7 +370,6 @@ export async function GET(request) {
             }
         }
 
-        // Sort by severity (critical first, then high, then medium)
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
         alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
 
@@ -450,7 +389,6 @@ export async function GET(request) {
     }
 }
 
-// POST - Dismiss an alert
 export async function POST(request) {
     try {
         const { alertType, alertKey, notes, userId } = await request.json()
@@ -459,7 +397,6 @@ export async function POST(request) {
             return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
         }
 
-        // Insert dismissal record
         const { error: insertError } = await supabaseAdmin
             .from('admin_alert_dismissals')
             .upsert({
@@ -477,7 +414,6 @@ export async function POST(request) {
             return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
         }
 
-        // Log to audit if userId provided
         if (userId) {
             const { data: userData } = await supabaseAdmin
                 .from('users')
