@@ -14,6 +14,8 @@ const ALERT_PERMISSIONS = {
     health_critical: ['super_admin', 'admin'],
     health_warning: ['super_admin', 'admin'],
     payout_pending: ['super_admin', 'admin'],
+    campaign_critical: ['super_admin', 'admin', 'manager'],
+    campaign_warning: ['super_admin', 'admin', 'manager'],
 }
 
 export async function GET(request) {
@@ -354,76 +356,142 @@ export async function GET(request) {
             }
         }
 
-        // Sort by severity (critical first, then high, then medium)
-        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-        alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+        // ============================================
+        // ALERT: Campaign Near Completion
+        // ============================================
+        if (canSee('campaign_critical') || canSee('campaign_warning')) {
+            // Get thresholds from settings
+            const { data: thresholdSettings } = await supabaseAdmin
+                .from('admin_settings')
+                .select('setting_key, setting_value')
+                .in('setting_key', ['campaign_alert_warning', 'campaign_alert_critical'])
 
-        return Response.json({
-            alerts,
-            count: alerts.length,
-            countBySeverity: {
-                critical: alerts.filter(a => a.severity === 'critical').length,
-                high: alerts.filter(a => a.severity === 'high').length,
-                medium: alerts.filter(a => a.severity === 'medium').length,
+            let warningThreshold = 75
+            let criticalThreshold = 90
+            thresholdSettings?.forEach(s => {
+                if (s.setting_key === 'campaign_alert_warning') warningThreshold = parseInt(s.setting_value) || 75
+                if (s.setting_key === 'campaign_alert_critical') criticalThreshold = parseInt(s.setting_value) || 90
+            })
+
+            // Get active campaigns
+            const { data: campaigns } = await supabaseAdmin
+                .from('ad_campaigns')
+                .select('id, business_name, contracted_views, bonus_views, total_views, status')
+                .eq('status', 'active')
+
+            for (const campaign of campaigns || []) {
+                const totalViews = (campaign.contracted_views || 0) + (campaign.bonus_views || 0)
+                if (totalViews === 0) continue
+
+                const percent = Math.min(100, Math.round((campaign.total_views / totalViews) * 100))
+
+                if (percent >= criticalThreshold && canSee('campaign_critical')) {
+                    const alertKey = `campaign_critical_${campaign.id}`
+                    if (!isDismissed('campaign_critical', alertKey)) {
+                        alerts.push({
+                            type: 'campaign_critical',
+                            key: alertKey,
+                            severity: 'critical',
+                            icon: '📢',
+                            title: 'Campaign Almost Done!',
+                            description: `${campaign.business_name} at ${percent}% — needs attention soon`,
+                            actionUrl: '/admin/campaigns',
+                            actionLabel: 'View Campaign',
+                            createdAt: now.toISOString(),
+                        })
+                    }
+                } else if (percent >= warningThreshold && canSee('campaign_warning')) {
+                    const alertKey = `campaign_warning_${campaign.id}`
+                    if (!isDismissed('campaign_warning', alertKey)) {
+                        alerts.push({
+                            type: 'campaign_warning',
+                            key: alertKey,
+                            severity: 'medium',
+                            icon: '📊',
+                            title: 'Campaign Nearing End',
+                            description: `${campaign.business_name} at ${percent}% completion`,
+                            actionUrl: '/admin/campaigns',
+                            actionLabel: 'View Campaign',
+                            createdAt: now.toISOString(),
+                        })
+                    }
+                }
             }
-        })
 
-    } catch (error) {
-        console.error('Error fetching alerts:', error)
-        return Response.json({ error: 'Internal server error' }, { status: 500 })
+            // Sort by severity (critical first, then high, then medium)
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+            alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+
+            // Sort by severity (critical first, then high, then medium)
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+            alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+
+            return Response.json({
+                alerts,
+                count: alerts.length,
+                countBySeverity: {
+                    critical: alerts.filter(a => a.severity === 'critical').length,
+                    high: alerts.filter(a => a.severity === 'high').length,
+                    medium: alerts.filter(a => a.severity === 'medium').length,
+                }
+            })
+
+        } catch (error) {
+            console.error('Error fetching alerts:', error)
+            return Response.json({ error: 'Internal server error' }, { status: 500 })
+        }
     }
-}
 
 // POST - Dismiss an alert
 export async function POST(request) {
-    try {
-        const { alertType, alertKey, notes, userId } = await request.json()
+        try {
+            const { alertType, alertKey, notes, userId } = await request.json()
 
-        if (!alertType || !alertKey) {
-            return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
+            if (!alertType || !alertKey) {
+                return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
+            }
+
+            // Insert dismissal record
+            const { error: insertError } = await supabaseAdmin
+                .from('admin_alert_dismissals')
+                .upsert({
+                    alert_type: alertType,
+                    alert_key: alertKey,
+                    dismissed_by: userId || null,
+                    dismissed_at: new Date().toISOString(),
+                    notes: notes || null,
+                }, {
+                    onConflict: 'alert_type,alert_key'
+                })
+
+            if (insertError) {
+                console.error('Error dismissing alert:', insertError)
+                return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
+            }
+
+            // Log to audit if userId provided
+            if (userId) {
+                const { data: userData } = await supabaseAdmin
+                    .from('users')
+                    .select('email')
+                    .eq('id', userId)
+                    .single()
+
+                await supabaseAdmin.from('admin_audit_log').insert({
+                    user_id: userId,
+                    user_email: userData?.email,
+                    action: 'alert_dismissed',
+                    table_name: 'admin_alert_dismissals',
+                    record_id: alertKey,
+                    description: `Dismissed alert: ${alertType} - ${alertKey}`,
+                    new_value: { alertType, alertKey, notes },
+                })
+            }
+
+            return Response.json({ success: true })
+
+        } catch (error) {
+            console.error('Error dismissing alert:', error)
+            return Response.json({ error: 'Internal server error' }, { status: 500 })
         }
-
-        // Insert dismissal record
-        const { error: insertError } = await supabaseAdmin
-            .from('admin_alert_dismissals')
-            .upsert({
-                alert_type: alertType,
-                alert_key: alertKey,
-                dismissed_by: userId || null,
-                dismissed_at: new Date().toISOString(),
-                notes: notes || null,
-            }, {
-                onConflict: 'alert_type,alert_key'
-            })
-
-        if (insertError) {
-            console.error('Error dismissing alert:', insertError)
-            return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
-        }
-
-        // Log to audit if userId provided
-        if (userId) {
-            const { data: userData } = await supabaseAdmin
-                .from('users')
-                .select('email')
-                .eq('id', userId)
-                .single()
-
-            await supabaseAdmin.from('admin_audit_log').insert({
-                user_id: userId,
-                user_email: userData?.email,
-                action: 'alert_dismissed',
-                table_name: 'admin_alert_dismissals',
-                record_id: alertKey,
-                description: `Dismissed alert: ${alertType} - ${alertKey}`,
-                new_value: { alertType, alertKey, notes },
-            })
-        }
-
-        return Response.json({ success: true })
-
-    } catch (error) {
-        console.error('Error dismissing alert:', error)
-        return Response.json({ error: 'Internal server error' }, { status: 500 })
     }
-}
