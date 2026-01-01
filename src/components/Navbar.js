@@ -17,6 +17,7 @@ export default function Navbar() {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [gamesDropdownOpen, setGamesDropdownOpen] = useState(false)
     const [advertiseDropdownOpen, setAdvertiseDropdownOpen] = useState(false)
+    const [showWinnersLink, setShowWinnersLink] = useState(false)
     const dropdownRef = useRef(null)
     const gamesDropdownRef = useRef(null)
     const advertiseDropdownRef = useRef(null)
@@ -55,6 +56,25 @@ export default function Navbar() {
             checkRewards()
         }
     }, [pathname, user])
+
+    // Check if Winners page should be shown
+    useEffect(() => {
+        const checkWinnersVisibility = async () => {
+            try {
+                const { data } = await supabase
+                    .from('admin_settings')
+                    .select('setting_value')
+                    .eq('setting_key', 'show_winners_page')
+                    .single()
+
+                setShowWinnersLink(data?.setting_value === 'true')
+            } catch (err) {
+                // Default to hidden if error
+                setShowWinnersLink(false)
+            }
+        }
+        checkWinnersVisibility()
+    }, [])
 
     useEffect(() => {
         const handleClickOutside = (event) => {

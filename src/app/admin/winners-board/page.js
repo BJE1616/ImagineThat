@@ -5,11 +5,52 @@ import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminWinnersBoardPage() {
-    const { currentTheme } = useTheme()
-    const [winners, setWinners] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState(null)
-    const [message, setMessage] = useState(null)
+    useEffect(() => {
+        loadWinners()
+        loadVisibilitySetting()
+    }, [])
+
+    const loadVisibilitySetting = async () => {
+        try {
+            const { data } = await supabase
+                .from('admin_settings')
+                .select('setting_value')
+                .eq('setting_key', 'show_winners_page')
+                .single()
+
+            if (data) {
+                setShowWinnersPage(data.setting_value === 'true')
+            }
+        } catch (err) {
+            console.error('Error loading visibility setting:', err)
+        }
+    }
+
+    const toggleWinnersPageVisibility = async () => {
+        setSavingVisibility(true)
+        try {
+            const newValue = !showWinnersPage
+            const { error } = await supabase
+                .from('admin_settings')
+                .update({ setting_value: newValue.toString() })
+                .eq('setting_key', 'show_winners_page')
+
+            if (error) throw error
+
+            setShowWinnersPage(newValue)
+            setMessage({
+                type: 'success',
+                text: newValue
+                    ? 'Winners page is now VISIBLE in the Games menu'
+                    : 'Winners page is now HIDDEN from the Games menu'
+            })
+        } catch (err) {
+            console.error('Error updating visibility:', err)
+            setMessage({ type: 'error', text: 'Failed to update visibility setting' })
+        } finally {
+            setSavingVisibility(false)
+        }
+    }
 
     // Filters
     const [filterGameType, setFilterGameType] = useState('all')
@@ -288,6 +329,32 @@ export default function AdminWinnersBoardPage() {
                 </button>
             </div>
 
+            {/* Page Visibility Toggle */}
+            <div className={`mb-4 p-3 rounded-lg border ${showWinnersPage ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className={`font-medium ${showWinnersPage ? 'text-green-400' : 'text-red-400'}`}>
+                            {showWinnersPage ? '✅ Winners Page is LIVE' : '🚫 Winners Page is HIDDEN'}
+                        </div>
+                        <div className={`text-xs text-${currentTheme.textMuted}`}>
+                            {showWinnersPage
+                                ? 'The "Winners" link appears in the Games dropdown menu for all users'
+                                : 'The "Winners" link is NOT showing in the Games menu — users cannot see this page'}
+                        </div>
+                    </div>
+                    <button
+                        onClick={toggleWinnersPageVisibility}
+                        disabled={savingVisibility}
+                        className={`px-4 py-2 rounded text-sm font-medium ${showWinnersPage
+                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            } disabled:opacity-50`}
+                    >
+                        {savingVisibility ? '...' : showWinnersPage ? 'Hide Page' : 'Show Page'}
+                    </button>
+                </div>
+            </div>
+
             {/* Message */}
             {message && (
                 <div className={`mb-3 p-2 rounded text-sm ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
@@ -413,8 +480,8 @@ export default function AdminWinnersBoardPage() {
                                     <td className={`p-2 text-${currentTheme.text}`}>{winner.display_text}</td>
                                     <td className="p-2">
                                         <span className={`px-1.5 py-0.5 rounded text-xs ${winner.game_type === 'slots' ? 'bg-purple-500/20 text-purple-400' :
-                                                winner.game_type === 'match' ? 'bg-blue-500/20 text-blue-400' :
-                                                    'bg-gray-500/20 text-gray-400'
+                                            winner.game_type === 'match' ? 'bg-blue-500/20 text-blue-400' :
+                                                'bg-gray-500/20 text-gray-400'
                                             }`}>
                                             {winner.game_type || '?'}
                                         </span>
