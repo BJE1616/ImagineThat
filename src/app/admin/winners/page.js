@@ -363,6 +363,16 @@ export default function AdminWinnersPage() {
                 .select()
                 .single()
 
+            // Audit log: Winner selected
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: 'winner_selected',
+                table_name: 'weekly_prizes',
+                record_id: slotsPrize.id,
+                new_value: { winner_user_id: selectedWinner.user_id, username: selectedWinner.user.username },
+                description: `Selected ${selectedWinner.user.username} as Slots winner for ${currentWeek}`
+            }])
+
             setMessage({ type: 'success', text: `🎉 Winner confirmed: ${selectedWinner.user.username}!` })
             setVerificationStep('confirmed')
 
@@ -478,6 +488,16 @@ export default function AdminWinnersPage() {
                         }])
                 }
 
+                // Audit log: Winner verified
+                await supabase.from('admin_audit_log').insert([{
+                    user_email: (await supabase.auth.getUser()).data.user?.email,
+                    action: 'winner_verified',
+                    table_name: 'prize_payouts',
+                    record_id: payoutStatus.id,
+                    new_value: { status: 'verified', username: verificationData.user.username, prize_amount: prizeAmount },
+                    description: `Verified ${verificationData.user.username} as winner, added to payout queue ($${prizeAmount})`
+                }])
+
                 setMessage({ type: 'success', text: `✅ Winner verified! Added to payout queue and winners board.` })
             } else if (newStatus === 'paid') {
                 // Update public_winners paid_at
@@ -485,6 +505,16 @@ export default function AdminWinnersPage() {
                     .from('public_winners')
                     .update({ paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
                     .eq('payout_id', payoutStatus.id)
+
+                // Audit log: Winner paid
+                await supabase.from('admin_audit_log').insert([{
+                    user_email: (await supabase.auth.getUser()).data.user?.email,
+                    action: 'winner_paid',
+                    table_name: 'prize_payouts',
+                    record_id: payoutStatus.id,
+                    new_value: { status: 'paid', username: verificationData.user.username },
+                    description: `Marked ${verificationData.user.username} as paid for Slots prize`
+                }])
 
                 setMessage({ type: 'success', text: `💰 Marked as paid!` })
             } else {
@@ -595,6 +625,16 @@ export default function AdminWinnersPage() {
                 })
                 .eq('id', payoutStatus.id)
 
+            // Audit log: Email sent
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: 'winner_email_sent',
+                table_name: 'prize_payouts',
+                record_id: payoutStatus.id,
+                new_value: { email_to: verificationData.user.email, subject: emailSubject },
+                description: `Sent winner notification email to ${verificationData.user.email}`
+            }])
+
             setPayoutStatus(prev => ({ ...prev, email_sent_at: new Date().toISOString() }))
             setShowEmailModal(false)
             setMessage({ type: 'success', text: '📧 Email sent successfully!' })
@@ -622,6 +662,16 @@ export default function AdminWinnersPage() {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', payoutStatus.id)
+
+            // Audit log: Marked as notified
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: 'winner_marked_notified',
+                table_name: 'prize_payouts',
+                record_id: payoutStatus.id,
+                new_value: { notification_note: notificationNote || 'No note', username: verificationData.user.username },
+                description: `Marked ${verificationData.user.username} as notified${notificationNote ? ` (${notificationNote})` : ''}`
+            }])
 
             setPayoutStatus(prev => ({
                 ...prev,
