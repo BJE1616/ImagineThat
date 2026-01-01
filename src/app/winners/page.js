@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function WinnersPage() {
@@ -179,13 +180,13 @@ export default function WinnersPage() {
                         Want to see your name here?
                     </p>
 
-                    href="/slots"
-                    className={`inline-block px-6 py-2 bg-${currentTheme.accent} text-white rounded-lg font-medium hover:opacity-90 transition-opacity`}
+                    <Link
+                        href="/slots"
+                        className={`inline-block px-6 py-2 bg-${currentTheme.accent} text-white rounded-lg font-medium hover:opacity-90 transition-opacity`}
                     >
-                    Play Now 🎰
-                </a>
+                        Play Now 🎰
+                    </Link>            </div>
             </div>
-        </div>
         </div >
     )
 }
