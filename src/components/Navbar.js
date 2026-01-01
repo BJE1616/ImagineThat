@@ -231,6 +231,15 @@ export default function Navbar() {
                                         🎁 Card Gallery
                                         <span className={`block text-xs text-green-500`}>Earn Free Tokens!</span>
                                     </Link>
+                                    <Link
+                                        href="/winners"
+                                        className={`block px-3 py-2 text-sm transition-all ${pathname === '/winners'
+                                            ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                            : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                            }`}
+                                    >
+                                        🏆 Winners
+                                    </Link>
                                 </div>
                             )}
                         </div>
