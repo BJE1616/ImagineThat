@@ -113,7 +113,6 @@ export default function AdminWinnersBoardPage() {
             const currentOrder = winner.display_order || currentIndex
             const otherOrder = otherWinner.display_order || newIndex
 
-            // Swap display_order values
             await supabase
                 .from('public_winners')
                 .update({ display_order: otherOrder, updated_at: new Date().toISOString() })
@@ -124,7 +123,6 @@ export default function AdminWinnersBoardPage() {
                 .update({ display_order: currentOrder, updated_at: new Date().toISOString() })
                 .eq('id', otherWinner.id)
 
-            // Reload to get correct order
             await loadWinners()
             setMessage({ type: 'success', text: 'Order updated' })
         } catch (err) {
@@ -245,7 +243,6 @@ export default function AdminWinnersBoardPage() {
         }
     }
 
-    // Apply filters
     const filteredWinners = winners.filter(w => {
         if (filterGameType !== 'all' && w.game_type !== filterGameType) return false
         if (filterVisibility === 'visible' && !w.is_visible) return false
@@ -257,228 +254,195 @@ export default function AdminWinnersBoardPage() {
 
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A'
-        return new Date(dateStr).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        })
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+
+    if (loading) {
+        return (
+            <div className="p-4">
+                <div className="animate-pulse space-y-3">
+                    <div className={`h-6 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className="grid grid-cols-4 gap-2">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className={`h-16 bg-${currentTheme.card} rounded`}></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (
-        <div className="p-6">
+        <div className="p-4">
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold" style={{ color: currentTheme.text }}>
-                        🏆 Winners Board Management
-                    </h1>
-                    <p style={{ color: currentTheme.textMuted }}>
-                        Manage what appears on the public winners page
-                    </p>
+                    <h1 className={`text-lg font-bold text-${currentTheme.text}`}>🏆 Winners Board</h1>
+                    <p className={`text-${currentTheme.textMuted} text-xs`}>Manage what appears on the public winners page</p>
                 </div>
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700"
                 >
-                    + Add Manual Winner
+                    + Add Manual
                 </button>
             </div>
 
             {/* Message */}
             {message && (
-                <div className={`mb-4 p-3 rounded-lg ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                <div className={`mb-3 p-2 rounded text-sm ${message.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
                     {message.text}
-                    <button onClick={() => setMessage(null)} className="ml-4 opacity-60 hover:opacity-100">✕</button>
+                    <button onClick={() => setMessage(null)} className="ml-3 opacity-60 hover:opacity-100">✕</button>
                 </div>
             )}
 
             {/* Filters */}
-            <div className="flex gap-4 mb-6 flex-wrap">
+            <div className="flex gap-2 mb-4 flex-wrap items-end">
                 <div>
-                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>Game Type</label>
+                    <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Type</label>
                     <select
                         value={filterGameType}
                         onChange={(e) => setFilterGameType(e.target.value)}
-                        className="px-3 py-2 rounded-lg border"
-                        style={{ backgroundColor: currentTheme.card, color: currentTheme.text, borderColor: currentTheme.border }}
+                        className={`px-2 py-1 text-sm rounded border bg-${currentTheme.card} text-${currentTheme.text} border-${currentTheme.border}`}
                     >
-                        <option value="all">All Types</option>
+                        <option value="all">All</option>
                         <option value="slots">Slots</option>
-                        <option value="match">Match Game</option>
-                        <option value="manual">Manual Entry</option>
+                        <option value="match">Match</option>
+                        <option value="manual">Manual</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>Visibility</label>
+                    <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Visibility</label>
                     <select
                         value={filterVisibility}
                         onChange={(e) => setFilterVisibility(e.target.value)}
-                        className="px-3 py-2 rounded-lg border"
-                        style={{ backgroundColor: currentTheme.card, color: currentTheme.text, borderColor: currentTheme.border }}
+                        className={`px-2 py-1 text-sm rounded border bg-${currentTheme.card} text-${currentTheme.text} border-${currentTheme.border}`}
                     >
                         <option value="all">All</option>
-                        <option value="visible">Visible Only</option>
-                        <option value="hidden">Hidden Only</option>
+                        <option value="visible">Visible</option>
+                        <option value="hidden">Hidden</option>
                     </select>
                 </div>
                 <div>
-                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>Featured</label>
+                    <label className={`block text-${currentTheme.textMuted} text-xs mb-1`}>Featured</label>
                     <select
                         value={filterFeatured}
                         onChange={(e) => setFilterFeatured(e.target.value)}
-                        className="px-3 py-2 rounded-lg border"
-                        style={{ backgroundColor: currentTheme.card, color: currentTheme.text, borderColor: currentTheme.border }}
+                        className={`px-2 py-1 text-sm rounded border bg-${currentTheme.card} text-${currentTheme.text} border-${currentTheme.border}`}
                     >
                         <option value="all">All</option>
-                        <option value="featured">Featured Only</option>
-                        <option value="normal">Not Featured</option>
+                        <option value="featured">Featured</option>
+                        <option value="normal">Normal</option>
                     </select>
                 </div>
-                <div className="flex items-end">
-                    <button
-                        onClick={loadWinners}
-                        className="px-4 py-2 rounded-lg border hover:opacity-80"
-                        style={{ borderColor: currentTheme.border, color: currentTheme.text }}
-                    >
-                        🔄 Refresh
-                    </button>
-                </div>
+                <button
+                    onClick={loadWinners}
+                    className={`px-2 py-1 text-sm rounded border border-${currentTheme.border} text-${currentTheme.text} hover:opacity-80`}
+                >
+                    🔄
+                </button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="p-4 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                    <div className="text-2xl font-bold" style={{ color: currentTheme.text }}>{winners.length}</div>
-                    <div style={{ color: currentTheme.textMuted }}>Total Winners</div>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+                <div className={`p-3 rounded bg-${currentTheme.card} border border-${currentTheme.border}`}>
+                    <div className={`text-xl font-bold text-${currentTheme.text}`}>{winners.length}</div>
+                    <div className={`text-${currentTheme.textMuted} text-xs`}>Total</div>
                 </div>
-                <div className="p-4 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                    <div className="text-2xl font-bold text-green-400">{winners.filter(w => w.is_visible).length}</div>
-                    <div style={{ color: currentTheme.textMuted }}>Visible</div>
+                <div className="p-3 rounded bg-green-500/10 border border-green-500/20">
+                    <div className="text-xl font-bold text-green-400">{winners.filter(w => w.is_visible).length}</div>
+                    <div className={`text-${currentTheme.textMuted} text-xs`}>Visible</div>
                 </div>
-                <div className="p-4 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                    <div className="text-2xl font-bold text-yellow-400">{winners.filter(w => w.is_featured).length}</div>
-                    <div style={{ color: currentTheme.textMuted }}>Featured</div>
+                <div className="p-3 rounded bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="text-xl font-bold text-yellow-400">{winners.filter(w => w.is_featured).length}</div>
+                    <div className={`text-${currentTheme.textMuted} text-xs`}>Featured</div>
                 </div>
-                <div className="p-4 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                    <div className="text-2xl font-bold text-gray-400">{winners.filter(w => !w.is_visible).length}</div>
-                    <div style={{ color: currentTheme.textMuted }}>Hidden</div>
+                <div className="p-3 rounded bg-gray-500/10 border border-gray-500/20">
+                    <div className="text-xl font-bold text-gray-400">{winners.filter(w => !w.is_visible).length}</div>
+                    <div className={`text-${currentTheme.textMuted} text-xs`}>Hidden</div>
                 </div>
             </div>
 
             {/* Winners Table */}
-            {loading ? (
-                <div className="text-center py-12" style={{ color: currentTheme.textMuted }}>
-                    Loading winners...
-                </div>
-            ) : filteredWinners.length === 0 ? (
-                <div className="text-center py-12 rounded-lg" style={{ backgroundColor: currentTheme.card, color: currentTheme.textMuted }}>
-                    No winners found matching filters
+            {filteredWinners.length === 0 ? (
+                <div className={`text-center py-8 rounded bg-${currentTheme.card} text-${currentTheme.textMuted} text-sm`}>
+                    No winners found
                 </div>
             ) : (
-                <div className="rounded-lg overflow-hidden border" style={{ backgroundColor: currentTheme.card, borderColor: currentTheme.border }}>
-                    <table className="w-full">
+                <div className={`rounded overflow-hidden border bg-${currentTheme.card} border-${currentTheme.border}`}>
+                    <table className="w-full text-sm">
                         <thead>
-                            <tr style={{ backgroundColor: currentTheme.hover }}>
-                                <th className="text-left p-3" style={{ color: currentTheme.textMuted }}>Order</th>
-                                <th className="text-left p-3" style={{ color: currentTheme.textMuted }}>Display Name</th>
-                                <th className="text-left p-3" style={{ color: currentTheme.textMuted }}>Prize</th>
-                                <th className="text-left p-3" style={{ color: currentTheme.textMuted }}>Type</th>
-                                <th className="text-left p-3" style={{ color: currentTheme.textMuted }}>Week</th>
-                                <th className="text-center p-3" style={{ color: currentTheme.textMuted }}>Visible</th>
-                                <th className="text-center p-3" style={{ color: currentTheme.textMuted }}>Featured</th>
-                                <th className="text-right p-3" style={{ color: currentTheme.textMuted }}>Actions</th>
+                            <tr className={`bg-${currentTheme.hover}`}>
+                                <th className={`text-left p-2 text-${currentTheme.textMuted} text-xs font-medium`}>#</th>
+                                <th className={`text-left p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Name</th>
+                                <th className={`text-left p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Prize</th>
+                                <th className={`text-left p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Type</th>
+                                <th className={`text-left p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Week</th>
+                                <th className={`text-center p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Visible</th>
+                                <th className={`text-center p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Featured</th>
+                                <th className={`text-right p-2 text-${currentTheme.textMuted} text-xs font-medium`}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredWinners.map((winner, index) => (
                                 <tr
                                     key={winner.id}
-                                    className="border-t hover:opacity-90"
-                                    style={{ borderColor: currentTheme.border, backgroundColor: winner.is_featured ? 'rgba(234, 179, 8, 0.1)' : 'transparent' }}
+                                    className={`border-t border-${currentTheme.border} ${winner.is_featured ? 'bg-yellow-500/5' : ''}`}
                                 >
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-1">
+                                    <td className="p-2">
+                                        <div className="flex items-center gap-0.5">
                                             <button
                                                 onClick={() => moveWinner(winner, 'up')}
                                                 disabled={index === 0 || saving === winner.id}
-                                                className="p-1 rounded hover:bg-gray-700 disabled:opacity-30"
-                                                style={{ color: currentTheme.text }}
-                                            >
-                                                ▲
-                                            </button>
+                                                className={`p-0.5 text-xs text-${currentTheme.textMuted} hover:text-${currentTheme.text} disabled:opacity-30`}
+                                            >▲</button>
                                             <button
                                                 onClick={() => moveWinner(winner, 'down')}
                                                 disabled={index === filteredWinners.length - 1 || saving === winner.id}
-                                                className="p-1 rounded hover:bg-gray-700 disabled:opacity-30"
-                                                style={{ color: currentTheme.text }}
-                                            >
-                                                ▼
-                                            </button>
-                                            <span className="ml-2 text-sm" style={{ color: currentTheme.textMuted }}>
-                                                #{winner.display_order || index + 1}
+                                                className={`p-0.5 text-xs text-${currentTheme.textMuted} hover:text-${currentTheme.text} disabled:opacity-30`}
+                                            >▼</button>
+                                            <span className={`ml-1 text-xs text-${currentTheme.textMuted}`}>
+                                                {winner.display_order || index + 1}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="p-3">
-                                        <div style={{ color: currentTheme.text }}>{winner.display_name}</div>
-                                        {winner.admin_notes && (
-                                            <div className="text-xs mt-1" style={{ color: currentTheme.textMuted }}>
-                                                📝 {winner.admin_notes.substring(0, 30)}...
-                                            </div>
-                                        )}
+                                    <td className={`p-2 text-${currentTheme.text}`}>
+                                        {winner.display_name}
+                                        {winner.admin_notes && <span className={`ml-1 text-${currentTheme.textMuted}`}>📝</span>}
                                     </td>
-                                    <td className="p-3" style={{ color: currentTheme.text }}>
-                                        {winner.display_text}
-                                    </td>
-                                    <td className="p-3">
-                                        <span className={`px-2 py-1 rounded text-xs ${winner.game_type === 'slots' ? 'bg-purple-500/20 text-purple-400' :
+                                    <td className={`p-2 text-${currentTheme.text}`}>{winner.display_text}</td>
+                                    <td className="p-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-xs ${winner.game_type === 'slots' ? 'bg-purple-500/20 text-purple-400' :
                                                 winner.game_type === 'match' ? 'bg-blue-500/20 text-blue-400' :
                                                     'bg-gray-500/20 text-gray-400'
                                             }`}>
-                                            {winner.game_type || 'unknown'}
+                                            {winner.game_type || '?'}
                                         </span>
                                     </td>
-                                    <td className="p-3" style={{ color: currentTheme.textMuted }}>
-                                        {formatDate(winner.week_start)}
-                                    </td>
-                                    <td className="p-3 text-center">
+                                    <td className={`p-2 text-${currentTheme.textMuted} text-xs`}>{formatDate(winner.week_start)}</td>
+                                    <td className="p-2 text-center">
                                         <button
                                             onClick={() => toggleVisibility(winner)}
                                             disabled={saving === winner.id}
-                                            className={`px-3 py-1 rounded text-sm ${winner.is_visible
-                                                    ? 'bg-green-500/20 text-green-400'
-                                                    : 'bg-gray-500/20 text-gray-400'
+                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_visible ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
                                                 }`}
                                         >
-                                            {saving === winner.id ? '...' : winner.is_visible ? '👁 Show' : '🚫 Hide'}
+                                            {saving === winner.id ? '...' : winner.is_visible ? '👁' : '🚫'}
                                         </button>
                                     </td>
-                                    <td className="p-3 text-center">
+                                    <td className="p-2 text-center">
                                         <button
                                             onClick={() => toggleFeatured(winner)}
                                             disabled={saving === winner.id}
-                                            className={`px-3 py-1 rounded text-sm ${winner.is_featured
-                                                    ? 'bg-yellow-500/20 text-yellow-400'
-                                                    : 'bg-gray-500/20 text-gray-400'
+                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_featured ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'
                                                 }`}
                                         >
-                                            {saving === winner.id ? '...' : winner.is_featured ? '⭐ Featured' : '☆ Normal'}
+                                            {saving === winner.id ? '...' : winner.is_featured ? '⭐' : '☆'}
                                         </button>
                                     </td>
-                                    <td className="p-3 text-right">
-                                        <button
-                                            onClick={() => openEditModal(winner)}
-                                            className="px-2 py-1 text-blue-400 hover:text-blue-300 mr-2"
-                                        >
-                                            ✏️ Edit
-                                        </button>
-                                        <button
-                                            onClick={() => deleteWinner(winner)}
-                                            disabled={saving === winner.id}
-                                            className="px-2 py-1 text-red-400 hover:text-red-300"
-                                        >
-                                            🗑️
-                                        </button>
+                                    <td className="p-2 text-right">
+                                        <button onClick={() => openEditModal(winner)} className="text-blue-400 hover:text-blue-300 text-xs mr-2">✏️</button>
+                                        <button onClick={() => deleteWinner(winner)} disabled={saving === winner.id} className="text-red-400 hover:text-red-300 text-xs">🗑️</button>
                                     </td>
                                 </tr>
                             ))}
@@ -490,62 +454,41 @@ export default function AdminWinnersBoardPage() {
             {/* Edit Modal */}
             {editingWinner && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="w-full max-w-md p-6 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                        <h2 className="text-xl font-bold mb-4" style={{ color: currentTheme.text }}>
-                            Edit Winner
-                        </h2>
-                        <div className="space-y-4">
+                    <div className={`w-full max-w-md p-4 rounded-lg bg-${currentTheme.card}`}>
+                        <h2 className={`text-lg font-bold mb-3 text-${currentTheme.text}`}>Edit Winner</h2>
+                        <div className="space-y-3">
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Display Name
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Display Name</label>
                                 <input
                                     type="text"
                                     value={editDisplayName}
                                     onChange={(e) => setEditDisplayName(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Display Text (Prize Description)
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Display Text</label>
                                 <input
                                     type="text"
                                     value={editDisplayText}
                                     onChange={(e) => setEditDisplayText(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Admin Notes (not shown publicly)
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Admin Notes</label>
                                 <textarea
                                     value={editAdminNotes}
                                     onChange={(e) => setEditAdminNotes(e.target.value)}
-                                    rows={3}
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    rows={2}
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => setEditingWinner(null)}
-                                className="px-4 py-2 rounded-lg border"
-                                style={{ borderColor: currentTheme.border, color: currentTheme.text }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={saveEdit}
-                                disabled={saving === editingWinner.id}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                {saving === editingWinner.id ? 'Saving...' : 'Save Changes'}
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button onClick={() => setEditingWinner(null)} className={`px-3 py-1.5 text-sm rounded border border-${currentTheme.border} text-${currentTheme.text}`}>Cancel</button>
+                            <button onClick={saveEdit} disabled={saving === editingWinner.id} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                                {saving === editingWinner.id ? 'Saving...' : 'Save'}
                             </button>
                         </div>
                     </div>
@@ -555,129 +498,94 @@ export default function AdminWinnersBoardPage() {
             {/* Add Manual Winner Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="w-full max-w-md p-6 rounded-lg" style={{ backgroundColor: currentTheme.card }}>
-                        <h2 className="text-xl font-bold mb-4" style={{ color: currentTheme.text }}>
-                            Add Manual Winner
-                        </h2>
-                        <p className="text-sm mb-4" style={{ color: currentTheme.textMuted }}>
-                            Use this for legacy winners or special contests not tracked in the system.
-                        </p>
-                        <div className="space-y-4">
+                    <div className={`w-full max-w-md p-4 rounded-lg bg-${currentTheme.card}`}>
+                        <h2 className={`text-lg font-bold mb-1 text-${currentTheme.text}`}>Add Manual Winner</h2>
+                        <p className={`text-xs mb-3 text-${currentTheme.textMuted}`}>For legacy winners or special contests</p>
+                        <div className="space-y-3">
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Display Name *
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Display Name *</label>
                                 <input
                                     type="text"
                                     value={newWinner.display_name}
                                     onChange={(e) => setNewWinner({ ...newWinner, display_name: e.target.value })}
                                     placeholder="e.g., John D."
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Display Text (Prize Description) *
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Display Text *</label>
                                 <input
                                     type="text"
                                     value={newWinner.display_text}
                                     onChange={(e) => setNewWinner({ ...newWinner, display_text: e.target.value })}
                                     placeholder="e.g., $50 Cash Prize"
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                        Prize Type
-                                    </label>
+                                    <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Prize Type</label>
                                     <select
                                         value={newWinner.prize_type}
                                         onChange={(e) => setNewWinner({ ...newWinner, prize_type: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border"
-                                        style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                        className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                     >
                                         <option value="cash">Cash</option>
                                         <option value="gift_card">Gift Card</option>
-                                        <option value="physical">Physical Prize</option>
+                                        <option value="physical">Physical</option>
                                         <option value="other">Other</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                        Prize Value ($)
-                                    </label>
+                                    <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Value ($)</label>
                                     <input
                                         type="number"
                                         value={newWinner.prize_value}
                                         onChange={(e) => setNewWinner({ ...newWinner, prize_value: e.target.value })}
                                         placeholder="50"
-                                        className="w-full px-3 py-2 rounded-lg border"
-                                        style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                        className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                     />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                        Game Type
-                                    </label>
+                                    <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Game Type</label>
                                     <select
                                         value={newWinner.game_type}
                                         onChange={(e) => setNewWinner({ ...newWinner, game_type: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border"
-                                        style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                        className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                     >
-                                        <option value="manual">Manual Entry</option>
+                                        <option value="manual">Manual</option>
                                         <option value="slots">Slots</option>
-                                        <option value="match">Match Game</option>
+                                        <option value="match">Match</option>
                                         <option value="contest">Contest</option>
-                                        <option value="referral">Referral Bonus</option>
+                                        <option value="referral">Referral</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                        Week/Date
-                                    </label>
+                                    <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Week/Date</label>
                                     <input
                                         type="date"
                                         value={newWinner.week_start}
                                         onChange={(e) => setNewWinner({ ...newWinner, week_start: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border"
-                                        style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                        className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm mb-1" style={{ color: currentTheme.textMuted }}>
-                                    Admin Notes
-                                </label>
+                                <label className={`block text-xs mb-1 text-${currentTheme.textMuted}`}>Admin Notes</label>
                                 <textarea
                                     value={newWinner.admin_notes}
                                     onChange={(e) => setNewWinner({ ...newWinner, admin_notes: e.target.value })}
                                     rows={2}
-                                    placeholder="Internal notes (not shown publicly)"
-                                    className="w-full px-3 py-2 rounded-lg border"
-                                    style={{ backgroundColor: currentTheme.background, color: currentTheme.text, borderColor: currentTheme.border }}
+                                    placeholder="Internal notes"
+                                    className={`w-full px-2 py-1.5 text-sm rounded border bg-${currentTheme.background} text-${currentTheme.text} border-${currentTheme.border}`}
                                 />
                             </div>
                         </div>
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => setShowAddModal(false)}
-                                className="px-4 py-2 rounded-lg border"
-                                style={{ borderColor: currentTheme.border, color: currentTheme.text }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={addManualWinner}
-                                disabled={saving === 'new'}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                            >
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button onClick={() => setShowAddModal(false)} className={`px-3 py-1.5 text-sm rounded border border-${currentTheme.border} text-${currentTheme.text}`}>Cancel</button>
+                            <button onClick={addManualWinner} disabled={saving === 'new'} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50">
                                 {saving === 'new' ? 'Adding...' : 'Add Winner'}
                             </button>
                         </div>
