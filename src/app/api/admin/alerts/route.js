@@ -11,6 +11,7 @@ const ALERT_PERMISSIONS = {
     prize_notify_winner: ['super_admin', 'admin', 'manager', 'support'],
     prize_pay_winner: ['super_admin', 'admin', 'manager', 'support'],
     prize_setup_missing: ['super_admin', 'admin', 'manager'],
+    email_test_mode: ['super_admin', 'admin'],
     health_no_revenue: ['super_admin', 'admin'],
     health_critical: ['super_admin', 'admin'],
     health_warning: ['super_admin', 'admin'],
@@ -39,6 +40,32 @@ export async function GET(request) {
 
         const isDismissed = (type, key) => dismissedSet.has(`${type}:${key}`)
         const canSee = (type) => ALERT_PERMISSIONS[type]?.includes(userRole)
+
+        // ============================================
+        // ALERT: Email Test Mode ON
+        // ============================================
+        if (canSee('email_test_mode')) {
+            const { data: testModeSetting } = await supabaseAdmin
+                .from('admin_settings')
+                .select('setting_value')
+                .eq('setting_key', 'email_test_mode')
+                .single()
+
+            if (testModeSetting?.setting_value === 'true') {
+                // Not dismissable - always shows when test mode is on
+                alerts.push({
+                    type: 'email_test_mode',
+                    key: 'email_test_mode_active',
+                    severity: 'high',
+                    icon: '🧪',
+                    title: 'Email Test Mode ON',
+                    description: 'Real users won\'t receive emails — only going to test recipient',
+                    actionUrl: '/admin/email-testing',
+                    actionLabel: 'Turn Off',
+                    createdAt: now.toISOString(),
+                })
+            }
+        }
 
         // ============================================
         // ALERT: Pick Winner (week ended, no winner)
@@ -192,7 +219,7 @@ export async function GET(request) {
 
         // ============================================
         // ALERT: Health Checks (No Revenue, Deficit, Low Funds, Burn Rate)
-        // Matches Health Dashboard logic with IF/ELSE priority
+        // Matches Health Dashboard logic exactly
         // ============================================
         if (canSee('health_no_revenue') || canSee('health_critical') || canSee('health_warning') || canSee('health_burn_rate')) {
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -204,15 +231,39 @@ export async function GET(request) {
                 .neq('status', 'cancelled')
 
             const grossRevenue = healthCampaigns?.reduce((sum, c) => sum + (parseFloat(c.amount_paid) || 0), 0) || 0
-            const processingFees = (grossRevenue * 0.029) + ((healthCampaigns?.length || 0) * 0.30)
+            const campaignCount = healthCampaigns?.filter(c => c.amount_paid > 0).length || 0
+            const processingFees = (grossRevenue * 0.029) + (campaignCount * 0.30)
             const netRevenue = grossRevenue - processingFees
 
+            // Recurring expenses (monthly)
+            const { data: recurring } = await supabaseAdmin
+                .from('recurring_expenses')
+                .select('amount, frequency')
+                .eq('is_active', true)
+
+            let recurringExpenses = 0
+            recurring?.forEach(exp => {
+                if (exp.frequency === 'monthly') recurringExpenses += parseFloat(exp.amount) || 0
+                else if (exp.frequency === 'yearly') recurringExpenses += (parseFloat(exp.amount) || 0) / 12
+            })
+
+            // One-time expenses this month
+            const { data: oneTime } = await supabaseAdmin
+                .from('expenses')
+                .select('amount')
+                .gte('expense_date', monthStart.split('T')[0])
+
+            const oneTimeExpenses = oneTime?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0
+            const totalHardCosts = recurringExpenses + oneTimeExpenses
+
+            // Pending payouts
             const { data: pending } = await supabaseAdmin
                 .from('payout_queue')
                 .select('amount')
 
             const pendingPayouts = pending?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0
 
+            // Token value and liability
             const { data: tokenSetting } = await supabaseAdmin
                 .from('economy_settings')
                 .select('setting_value')
@@ -221,7 +272,6 @@ export async function GET(request) {
 
             const tokenValue = parseFloat(tokenSetting?.setting_value) || 0.05
 
-            // Fetch balances with lifetime_spent for burn rate calculation
             const { data: balances } = await supabaseAdmin
                 .from('bb_balances')
                 .select('balance, lifetime_spent')
@@ -230,22 +280,34 @@ export async function GET(request) {
             const totalBurned = balances?.reduce((sum, b) => sum + (b.lifetime_spent || 0), 0) || 0
             const tokenLiability = totalTokens * tokenValue
 
-            const { data: recurring } = await supabaseAdmin
-                .from('recurring_expenses')
-                .select('amount, frequency')
-                .eq('is_active', true)
+            // Daily leaderboard token cost (30 days default for monthly view)
+            const { data: dailyConfigData } = await supabaseAdmin
+                .from('daily_leaderboard_config')
+                .select('first_tokens, second_tokens, third_tokens, is_enabled')
+                .eq('is_enabled', true)
 
-            let monthlyExpenses = 0
-            recurring?.forEach(exp => {
-                if (exp.frequency === 'monthly') monthlyExpenses += parseFloat(exp.amount) || 0
-                else if (exp.frequency === 'yearly') monthlyExpenses += (parseFloat(exp.amount) || 0) / 12
+            let dailyTokensAwarded = 0
+            dailyConfigData?.forEach(config => {
+                dailyTokensAwarded += (config.first_tokens || 0) + (config.second_tokens || 0) + (config.third_tokens || 0)
             })
+            const dailyTokenCost = dailyTokensAwarded * tokenValue * 30
 
-            const trueAvailable = netRevenue - monthlyExpenses - pendingPayouts - tokenLiability
+            // Weekly prizes due (cash prizes, active, week ended)
+            const { data: prizesDue } = await supabaseAdmin
+                .from('weekly_prizes')
+                .select('total_prize_pool, prize_type')
+                .eq('prize_type', 'cash')
+                .eq('is_active', true)
+                .lte('week_end_time', now.toISOString())
+
+            const weeklyPrizesDue = prizesDue?.reduce((sum, p) => sum + (parseFloat(p.total_prize_pool) || 0), 0) || 0
+
+            // Final calculation - matches Health Dashboard exactly
+            const totalObligations = pendingPayouts + weeklyPrizesDue + tokenLiability + dailyTokenCost
+            const trueAvailable = netRevenue - totalHardCosts - totalObligations
 
             // IF/ELSE logic matching Health Dashboard - only show ONE of these three
             if (canSee('health_no_revenue') && netRevenue <= 0) {
-                // No Revenue - most fundamental problem
                 const alertKey = 'health_no_revenue_current'
                 if (!isDismissed('health_no_revenue', alertKey)) {
                     alerts.push({
@@ -261,7 +323,6 @@ export async function GET(request) {
                     })
                 }
             } else if (canSee('health_critical') && trueAvailable < 0) {
-                // Deficit - has revenue but not enough
                 const alertKey = 'health_critical_current'
                 if (!isDismissed('health_critical', alertKey)) {
                     alerts.push({
@@ -277,7 +338,6 @@ export async function GET(request) {
                     })
                 }
             } else if (canSee('health_warning') && trueAvailable >= 0 && trueAvailable < 100) {
-                // Low funds - positive but tight
                 const alertKey = 'health_warning_current'
                 if (!isDismissed('health_warning', alertKey)) {
                     alerts.push({

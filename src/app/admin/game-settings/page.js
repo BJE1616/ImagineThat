@@ -136,31 +136,31 @@ export default function TokenSettingsPage() {
     // ===== LOADING STATE =====
     if (loading) {
         return (
-            <div className="p-6">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+            <div className="p-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-500"></div>
             </div>
         )
     }
 
     // ===== MAIN RENDER =====
     return (
-        <div className="p-6">
+        <div className="p-4">
 
             {/* ===== HEADER ===== */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-white">🪙 Game Token Settings</h1>
-                <p className="text-slate-400 mt-1">Configure token rewards for each game. Click a game to expand settings.</p>
+            <div className="mb-3">
+                <h1 className="text-xl font-bold text-white">🪙 Game Token Settings</h1>
+                <p className="text-slate-400 text-sm">Configure token rewards for each game. Click to expand.</p>
             </div>
 
             {/* ===== MESSAGE ===== */}
             {message && (
-                <div className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                <div className={`mb-3 p-2 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                     {message.text}
                 </div>
             )}
 
             {/* ===== GAME CARDS ===== */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
                 {games.map(game => {
                     const warnings = getWarnings(game)
                     const isExpanded = expandedGame === game.id
@@ -171,35 +171,35 @@ export default function TokenSettingsPage() {
                             {/* ----- Game Header (Always Visible) ----- */}
                             <button
                                 onClick={() => toggleGame(game.id)}
-                                className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-700/30 transition-colors rounded-lg"
+                                className="w-full flex items-center justify-between p-2.5 text-left hover:bg-slate-700/30 transition-colors rounded-lg"
                             >
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-2xl ${isExpanded ? '' : 'grayscale opacity-50'}`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-lg ${isExpanded ? '' : 'grayscale opacity-50'}`}>
                                         {game.game_key.includes('slot') ? '🎰' :
                                             game.game_key.includes('card_gallery') ? '🎴' :
                                                 game.game_key.includes('memory') || game.game_key.includes('match') ? '🃏' :
                                                     game.game_key.includes('solitaire') ? '🃏' : '🎮'}
                                     </span>
                                     <div>
-                                        <h2 className="text-lg font-semibold text-white">{game.game_name}</h2>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className={`text-xs px-2 py-0.5 rounded ${game.is_enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                {game.is_enabled ? 'Enabled' : 'Disabled'}
+                                        <h2 className="text-sm font-semibold text-white">{game.game_name}</h2>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${game.is_enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                {game.is_enabled ? 'On' : 'Off'}
                                             </span>
                                             {warnings.length > 0 && (
-                                                <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
-                                                    ⚠️ {warnings.length} warning{warnings.length > 1 ? 's' : ''}
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                                                    ⚠️ {warnings.length}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="text-right text-sm">
-                                        <p className="text-slate-400">Daily Cap: <span className="text-white font-medium">{game.daily_bb_cap ?? '∞'}</span></p>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right text-xs">
+                                        <p className="text-slate-400">Cap: <span className="text-white font-medium">{game.daily_bb_cap ?? '∞'}</span></p>
                                         <p className="text-slate-400">Award: <span className="text-white font-medium">{game.bb_award_chance ?? 0}%</span></p>
                                     </div>
-                                    <span className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                                    <span className={`text-slate-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                                         ▼
                                     </span>
                                 </div>
@@ -207,29 +207,29 @@ export default function TokenSettingsPage() {
 
                             {/* ----- Expanded Settings ----- */}
                             {isExpanded && (
-                                <div className="px-4 pb-4 border-t border-slate-700">
+                                <div className="px-3 pb-3 border-t border-slate-700">
 
                                     {/* Enable Toggle */}
-                                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                                    <div className="flex items-center justify-between py-2 border-b border-slate-700">
                                         <div>
-                                            <p className="text-white font-medium">Game Enabled</p>
-                                            <p className="text-slate-500 text-xs">Turn this game on or off</p>
+                                            <p className="text-white text-sm font-medium">Game Enabled</p>
+                                            <p className="text-slate-500 text-[10px]">Turn this game on or off</p>
                                         </div>
                                         <label className="flex items-center cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 checked={game.is_enabled}
                                                 onChange={(e) => updateGame(game.id, 'is_enabled', e.target.checked)}
-                                                className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-yellow-500"
+                                                className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-yellow-500 focus:ring-yellow-500"
                                             />
                                         </label>
                                     </div>
 
                                     {/* ----- Warnings Banner ----- */}
                                     {warnings.length > 0 && (
-                                        <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                                            <p className="text-yellow-400 text-xs font-medium mb-1">⚠️ Suggestions:</p>
-                                            <ul className="text-yellow-300/80 text-xs space-y-0.5">
+                                        <div className="mt-2 p-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                                            <p className="text-yellow-400 text-[10px] font-medium mb-0.5">⚠️ Suggestions:</p>
+                                            <ul className="text-yellow-300/80 text-[10px] space-y-0.5">
                                                 {warnings.map((w, i) => (
                                                     <li key={i}>• {w.message}</li>
                                                 ))}
@@ -238,10 +238,10 @@ export default function TokenSettingsPage() {
                                     )}
 
                                     {/* ----- Token Settings Grid ----- */}
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.bb_award_chance}>Award Chance %</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.bb_award_chance}>Award %</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -250,14 +250,13 @@ export default function TokenSettingsPage() {
                                                 value={game.bb_award_chance ?? ''}
                                                 onChange={(e) => handleInputChange(game.id, 'bb_award_chance', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'bb_award_chance', e.target.value, true)}
-                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_award_chance') ? 'border-yellow-500/50' : 'border-slate-600'
-                                                    }`}
+                                                className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_award_chance') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.bb_min_amount}>Min Tokens</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.bb_min_amount}>Min</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -265,13 +264,13 @@ export default function TokenSettingsPage() {
                                                 value={game.bb_min_amount ?? ''}
                                                 onChange={(e) => handleInputChange(game.id, 'bb_min_amount', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'bb_min_amount', e.target.value, true)}
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500"
+                                                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:outline-none focus:border-yellow-500"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.bb_max_amount}>Max Tokens</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.bb_max_amount}>Max</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -279,14 +278,13 @@ export default function TokenSettingsPage() {
                                                 value={game.bb_max_amount ?? ''}
                                                 onChange={(e) => handleInputChange(game.id, 'bb_max_amount', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'bb_max_amount', e.target.value, true)}
-                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_max_amount') ? 'border-yellow-500/50' : 'border-slate-600'
-                                                    }`}
+                                                className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'bb_max_amount') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.daily_bb_cap}>Daily Token Cap</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.daily_bb_cap}>Daily Cap</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -294,14 +292,13 @@ export default function TokenSettingsPage() {
                                                 value={game.daily_bb_cap ?? ''}
                                                 onChange={(e) => handleInputChange(game.id, 'daily_bb_cap', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'daily_bb_cap', e.target.value, true)}
-                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'daily_bb_cap') ? 'border-yellow-500/50' : 'border-slate-600'
-                                                    }`}
+                                                className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'daily_bb_cap') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.daily_play_cap}>Daily Play Cap</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.daily_play_cap}>Play Cap</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -309,14 +306,14 @@ export default function TokenSettingsPage() {
                                                 value={game.daily_play_cap ?? ''}
                                                 onChange={(e) => handleInputChange(game.id, 'daily_play_cap', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'daily_play_cap', e.target.value, true)}
-                                                placeholder="No limit"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500"
+                                                placeholder="∞"
+                                                className="w-full px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs focus:outline-none focus:border-yellow-500 placeholder-slate-500"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-slate-400 text-xs mb-1">
-                                                <Tooltip text={TIPS.free_plays_per_day}>Free Plays/Day</Tooltip>
+                                            <label className="block text-slate-400 text-[10px] mb-0.5">
+                                                <Tooltip text={TIPS.free_plays_per_day}>Free/Day</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -325,19 +322,18 @@ export default function TokenSettingsPage() {
                                                 onChange={(e) => handleInputChange(game.id, 'free_plays_per_day', e.target.value, true)}
                                                 onBlur={(e) => handleBlur(game.id, 'free_plays_per_day', e.target.value, true)}
                                                 placeholder="N/A"
-                                                className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 placeholder-slate-500 ${getFieldWarning(game, 'free_plays_per_day') ? 'border-yellow-500/50' : 'border-slate-600'
-                                                    }`}
+                                                className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 placeholder-slate-500 ${getFieldWarning(game, 'free_plays_per_day') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                             />
                                         </div>
                                     </div>
 
                                     {/* ----- Slot Machine Extra Settings ----- */}
                                     {game.game_key.includes('slot_machine') && (
-                                        <div className="mt-4 pt-4 border-t border-slate-700">
-                                            <p className="text-slate-400 text-xs mb-2 font-medium">Slot Machine Settings</p>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="mt-2 pt-2 border-t border-slate-700">
+                                            <p className="text-slate-400 text-[10px] mb-1 font-medium">Slot Machine Settings</p>
+                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                                                 <div>
-                                                    <label className="block text-slate-400 text-xs mb-1">
+                                                    <label className="block text-slate-400 text-[10px] mb-0.5">
                                                         <Tooltip text={TIPS.win_percentage}>Win % (RTP)</Tooltip>
                                                     </label>
                                                     <input
@@ -348,8 +344,7 @@ export default function TokenSettingsPage() {
                                                         value={game.win_percentage ?? ''}
                                                         onChange={(e) => handleInputChange(game.id, 'win_percentage', e.target.value, true)}
                                                         onBlur={(e) => handleBlur(game.id, 'win_percentage', e.target.value, true)}
-                                                        className={`w-full px-3 py-2 bg-slate-700 border rounded text-white text-sm focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'win_percentage') ? 'border-yellow-500/50' : 'border-slate-600'
-                                                            }`}
+                                                        className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'win_percentage') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                                     />
                                                 </div>
                                             </div>
@@ -357,10 +352,10 @@ export default function TokenSettingsPage() {
                                     )}
 
                                     {saving === game.id && (
-                                        <div className="mt-2 text-yellow-500 text-sm">Saving...</div>
+                                        <div className="mt-1 text-yellow-500 text-xs">Saving...</div>
                                     )}
 
-                                    <p className="text-slate-500 text-xs mt-3">Game Key: {game.game_key}</p>
+                                    <p className="text-slate-500 text-[10px] mt-2">Key: {game.game_key}</p>
                                 </div>
                             )}
                         </div>

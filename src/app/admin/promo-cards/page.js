@@ -82,6 +82,9 @@ export default function PromoCardsPage() {
 
     // Popup editor
     const [editingPopup, setEditingPopup] = useState(null)
+
+    // Preview modal
+    const [previewCard, setPreviewCard] = useState(null)
     const [popupForm, setPopupForm] = useState({
         has_popup: false,
         popup_title: '',
@@ -337,26 +340,26 @@ export default function PromoCardsPage() {
 
     if (loading) {
         return (
-            <div className={`p-6 flex items-center justify-center`}>
-                <div className={`w-8 h-8 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+            <div className={`p-4 flex items-center justify-center`}>
+                <div className={`w-6 h-6 border-3 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
             </div>
         )
     }
 
     return (
-        <div className="p-6">
+        <div className="p-4">
             {/* Header */}
-            <div className="mb-6">
-                <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>🎴 IT Company Promo Cards</h1>
-                <p className={`text-${currentTheme.textMuted} mt-1`}>
-                    Create promotional cards for direct communication with players. These are YOUR cards (not advertiser content).
+            <div className="mb-3">
+                <h1 className={`text-xl font-bold text-${currentTheme.text}`}>🎴 IT Company Promo Cards</h1>
+                <p className={`text-${currentTheme.textMuted} text-sm`}>
+                    Create promotional cards for direct communication with players.
                 </p>
-                <p className={`text-${currentTheme.accent} text-sm font-bold mt-2`}>* This is for IT Company Promo Cards — Not Advertiser Cards *</p>
+                <p className={`text-${currentTheme.accent} text-xs font-bold mt-1`}>* IT Company Promo Cards — Not Advertiser Cards *</p>
             </div>
 
             {/* Message */}
             {message && (
-                <div className={`mb-4 p-3 rounded-lg ${message.type === 'error' ? 'bg-red-500/20 text-red-400' :
+                <div className={`mb-3 p-2 rounded-lg text-sm ${message.type === 'error' ? 'bg-red-500/20 text-red-400' :
                     message.type === 'success' ? 'bg-green-500/20 text-green-400' :
                         'bg-blue-500/20 text-blue-400'
                     }`}>
@@ -364,62 +367,52 @@ export default function PromoCardsPage() {
                 </div>
             )}
 
-            {/* Settings Card */}
-            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 mb-6`}>
-                <h2 className={`text-lg font-bold text-${currentTheme.text} mb-3`}>⚙️ Display Settings</h2>
+            {/* Settings Card - Compact Inline */}
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3 mb-3`}>
+                <div className="flex flex-wrap items-center gap-3">
+                    <span className={`text-sm font-bold text-${currentTheme.text}`}>⚙️ Display</span>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                            Frequency (1 promo card per X advertiser cards)
-                        </label>
+                    <div className="flex items-center gap-1.5">
+                        <span className={`text-xs text-${currentTheme.textMuted}`}>1 promo per</span>
                         <input
                             type="number"
                             min="0"
                             value={frequency}
                             onChange={(e) => setFrequency(parseInt(e.target.value) || 0)}
-                            className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                            className={`w-14 px-2 py-1 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm text-center`}
                         />
-                        <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
-                            Set to 0 to disable promo cards in games
-                        </p>
+                        <span className={`text-xs text-${currentTheme.textMuted}`}>ads</span>
                     </div>
 
-                    <div>
-                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                            Fallback Mode
-                        </label>
-                        <div className="flex items-center gap-3 mt-2">
-                            <button
-                                onClick={() => setFallbackEnabled(!fallbackEnabled)}
-                                className={`w-12 h-6 rounded-full transition-all ${fallbackEnabled ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
-                            >
-                                <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-all ${fallbackEnabled ? 'translate-x-6' : 'translate-x-1'}`}></div>
-                            </button>
-                            <span className={`text-sm text-${currentTheme.text}`}>
-                                {fallbackEnabled ? 'Use promo cards when no advertisers' : 'Show nothing when no advertisers'}
-                            </span>
-                        </div>
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            onClick={() => setFallbackEnabled(!fallbackEnabled)}
+                            className={`w-9 h-5 rounded-full transition-all ${fallbackEnabled ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                        >
+                            <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-all ${fallbackEnabled ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
+                        </button>
+                        <span className={`text-xs text-${currentTheme.textMuted}`}>
+                            {fallbackEnabled ? 'Fallback ON' : 'Fallback OFF'}
+                        </span>
                     </div>
+
+                    <button
+                        onClick={saveSettings}
+                        disabled={savingSettings}
+                        className={`px-3 py-1 bg-${currentTheme.accent} text-slate-900 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50`}
+                    >
+                        {savingSettings ? '...' : 'Save'}
+                    </button>
                 </div>
-
-                <button
-                    onClick={saveSettings}
-                    disabled={savingSettings}
-                    className={`mt-4 px-4 py-2 bg-${currentTheme.accent} text-white rounded-lg font-medium hover:opacity-90 disabled:opacity-50`}
-                >
-                    {savingSettings ? 'Saving...' : 'Save Settings'}
-                </button>
             </div>
 
-            {/* Upload & Create Section */}
-            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 mb-6`}>
-                <h2 className={`text-lg font-bold text-${currentTheme.text} mb-3`}>➕ Add Promo Cards</h2>
+            {/* Upload & Create Section - Compact */}
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3 mb-3`}>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-sm font-bold text-${currentTheme.text}`}>➕ Add</span>
 
-                <div className="flex flex-wrap gap-3">
-                    {/* Image Upload */}
-                    <label className={`px-4 py-2 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-500 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {uploading ? 'Uploading...' : '📷 Upload Images'}
+                    <label className={`px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium cursor-pointer hover:bg-blue-500 ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {uploading ? '...' : '📷 Upload Images'}
                         <input
                             type="file"
                             accept="image/*"
@@ -430,49 +423,48 @@ export default function PromoCardsPage() {
                         />
                     </label>
 
-                    {/* Template Card Button */}
                     <button
                         onClick={() => setShowTemplateForm(!showTemplateForm)}
-                        className={`px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-500`}
+                        className={`px-3 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-500`}
                     >
-                        🎨 {showTemplateForm ? 'Cancel' : 'Create Template Card'}
+                        🎨 {showTemplateForm ? 'Cancel' : 'Template Card'}
                     </button>
                 </div>
 
                 {/* Template Form */}
                 {showTemplateForm && (
-                    <div className={`mt-4 p-4 bg-${currentTheme.bg} rounded-lg border border-${currentTheme.border}`}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className={`mt-3 p-3 bg-${currentTheme.bg} rounded-lg border border-${currentTheme.border}`}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Title *</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Title *</label>
                                 <input
                                     type="text"
                                     value={templateForm.title}
                                     onChange={(e) => setTemplateForm(prev => ({ ...prev, title: e.target.value }))}
-                                    className={`w-full px-3 py-2 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                    className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                     placeholder="Card title"
                                 />
                             </div>
 
                             <div>
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Message</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Message</label>
                                 <input
                                     type="text"
                                     value={templateForm.message}
                                     onChange={(e) => setTemplateForm(prev => ({ ...prev, message: e.target.value }))}
-                                    className={`w-full px-3 py-2 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                    className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                     placeholder="Optional message"
                                 />
                             </div>
 
                             <div>
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Background Color</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Background</label>
                                 <div className="flex flex-wrap gap-1">
                                     {BG_COLORS.map(color => (
                                         <button
                                             key={color.value}
                                             onClick={() => setTemplateForm(prev => ({ ...prev, card_color: color.value }))}
-                                            className={`w-6 h-6 rounded border-2 ${templateForm.card_color === color.value ? 'border-white' : 'border-transparent'}`}
+                                            className={`w-5 h-5 rounded border-2 ${templateForm.card_color === color.value ? 'border-white' : 'border-transparent'}`}
                                             style={{ backgroundColor: color.value }}
                                             title={color.label}
                                         />
@@ -481,13 +473,13 @@ export default function PromoCardsPage() {
                             </div>
 
                             <div>
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
+                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
                                 <div className="flex flex-wrap gap-1">
                                     {TEXT_COLORS.map(color => (
                                         <button
                                             key={color.value}
                                             onClick={() => setTemplateForm(prev => ({ ...prev, text_color: color.value }))}
-                                            className={`w-6 h-6 rounded border-2 ${templateForm.text_color === color.value ? 'border-blue-500' : 'border-gray-400'}`}
+                                            className={`w-5 h-5 rounded border-2 ${templateForm.text_color === color.value ? 'border-blue-500' : 'border-gray-400'}`}
                                             style={{ backgroundColor: color.value }}
                                             title={color.label}
                                         />
@@ -497,43 +489,49 @@ export default function PromoCardsPage() {
                         </div>
 
                         {/* Preview */}
-                        <div className="mt-4">
-                            <p className={`text-sm text-${currentTheme.textMuted} mb-2`}>Preview:</p>
+                        <div className="mt-3 flex items-center gap-3">
                             <div
-                                className="w-48 h-28 rounded-lg flex flex-col items-center justify-center p-3"
+                                className="w-36 h-20 rounded-lg flex flex-col items-center justify-center p-2"
                                 style={{ backgroundColor: templateForm.card_color }}
                             >
-                                <p className="font-bold text-sm text-center" style={{ color: templateForm.text_color }}>
+                                <p className="font-bold text-xs text-center" style={{ color: templateForm.text_color }}>
                                     {templateForm.title || 'Title'}
                                 </p>
                                 {templateForm.message && (
-                                    <p className="text-xs text-center mt-1" style={{ color: templateForm.text_color }}>
+                                    <p className="text-[10px] text-center mt-0.5" style={{ color: templateForm.text_color }}>
                                         {templateForm.message}
                                     </p>
                                 )}
                             </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={createTemplateCard}
+                                    className={`px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-500`}
+                                >
+                                    Create Card
+                                </button>
+                                <button
+                                    onClick={() => setShowTemplateForm(false)}
+                                    className={`px-3 py-1.5 bg-slate-600 text-white rounded text-xs font-medium hover:bg-slate-500`}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
-
-                        <button
-                            onClick={createTemplateCard}
-                            className={`mt-4 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-500`}
-                        >
-                            Create Card
-                        </button>
                     </div>
                 )}
             </div>
 
             {/* Cards Grid */}
-            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4`}>
-                <h2 className={`text-lg font-bold text-${currentTheme.text} mb-3`}>📋 Your Promo Cards ({cards.length})</h2>
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
+                <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>📋 Your Promo Cards ({cards.length})</h2>
 
                 {cards.length === 0 ? (
-                    <p className={`text-${currentTheme.textMuted} text-center py-8`}>
+                    <p className={`text-${currentTheme.textMuted} text-center py-6 text-sm`}>
                         No promo cards yet. Upload images or create template cards above.
                     </p>
                 ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
                         {cards.map(card => (
                             <div key={card.id} className="relative group">
                                 {card.card_type === 'uploaded' && card.image_url ? (
@@ -544,14 +542,14 @@ export default function PromoCardsPage() {
                                     />
                                 ) : (
                                     <div
-                                        className="w-full aspect-[4/3] rounded-lg flex flex-col items-center justify-center p-2"
+                                        className="w-full aspect-[4/3] rounded-lg flex flex-col items-center justify-center p-1.5"
                                         style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                     >
-                                        <p className="font-bold text-xs text-center" style={{ color: card.text_color || '#FFFFFF' }}>
+                                        <p className="font-bold text-[10px] text-center leading-tight" style={{ color: card.text_color || '#FFFFFF' }}>
                                             {card.title}
                                         </p>
                                         {card.message && (
-                                            <p className="text-[10px] text-center mt-1" style={{ color: card.text_color || '#FFFFFF' }}>
+                                            <p className="text-[8px] text-center mt-0.5 leading-tight" style={{ color: card.text_color || '#FFFFFF' }}>
                                                 {card.message}
                                             </p>
                                         )}
@@ -560,23 +558,30 @@ export default function PromoCardsPage() {
 
                                 {/* Popup indicator */}
                                 {card.has_popup && (
-                                    <div className="absolute top-1 right-1 bg-purple-500 text-white text-[8px] px-1 rounded">
+                                    <div className="absolute top-0.5 right-0.5 bg-purple-500 text-white text-[6px] px-1 rounded">
                                         POPUP
                                     </div>
                                 )}
 
                                 {/* Hover actions */}
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-1">
+                                    <button
+                                        onClick={() => setPreviewCard(card)}
+                                        className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-500 text-xs"
+                                        title="Preview"
+                                    >
+                                        👁️
+                                    </button>
                                     <button
                                         onClick={() => openPopupEditor(card)}
-                                        className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500"
+                                        className="p-1.5 bg-purple-600 text-white rounded hover:bg-purple-500 text-xs"
                                         title="Edit Popup"
                                     >
                                         💬
                                     </button>
                                     <button
                                         onClick={() => deleteCard(card.id)}
-                                        className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-500"
+                                        className="p-1.5 bg-red-600 text-white rounded hover:bg-red-500 text-xs"
                                         title="Delete"
                                     >
                                         🗑️
@@ -595,20 +600,20 @@ export default function PromoCardsPage() {
                     onClick={() => setEditingPopup(null)}
                 >
                     <div
-                        className={`bg-${currentTheme.card} rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto`}
+                        className={`bg-${currentTheme.card} rounded-xl p-4 max-w-md w-full max-h-[90vh] overflow-y-auto`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 className={`text-xl font-bold text-${currentTheme.text} mb-4`}>💬 Edit Popup</h2>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-3`}>💬 Edit Popup</h2>
 
                         {/* Enable Toggle */}
-                        <div className="flex items-center gap-3 mb-4">
+                        <div className="flex items-center gap-2 mb-3">
                             <button
                                 onClick={() => setPopupForm(prev => ({ ...prev, has_popup: !prev.has_popup }))}
-                                className={`w-12 h-6 rounded-full transition-all ${popupForm.has_popup ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
+                                className={`w-10 h-5 rounded-full transition-all ${popupForm.has_popup ? 'bg-green-500' : `bg-${currentTheme.border}`}`}
                             >
-                                <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-all ${popupForm.has_popup ? 'translate-x-6' : 'translate-x-1'}`}></div>
+                                <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-all ${popupForm.has_popup ? 'translate-x-5' : 'translate-x-0.5'}`}></div>
                             </button>
-                            <span className={`text-${currentTheme.text} font-medium`}>
+                            <span className={`text-${currentTheme.text} text-sm font-medium`}>
                                 {popupForm.has_popup ? 'Popup Enabled' : 'Popup Disabled'}
                             </span>
                         </div>
@@ -616,59 +621,59 @@ export default function PromoCardsPage() {
                         {popupForm.has_popup && (
                             <>
                                 {/* Title */}
-                                <div className="mb-3">
-                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Title *</label>
+                                <div className="mb-2">
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Title *</label>
                                     <input
                                         type="text"
                                         value={popupForm.popup_title}
                                         onChange={(e) => setPopupForm(prev => ({ ...prev, popup_title: e.target.value }))}
-                                        className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                        className={`w-full px-2 py-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                     />
                                 </div>
 
                                 {/* Message */}
-                                <div className="mb-3">
-                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Message *</label>
+                                <div className="mb-2">
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Message *</label>
                                     <textarea
                                         value={popupForm.popup_message}
                                         onChange={(e) => setPopupForm(prev => ({ ...prev, popup_message: e.target.value }))}
-                                        rows={3}
-                                        className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                        rows={2}
+                                        className={`w-full px-2 py-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                     />
                                 </div>
 
                                 {/* Image Upload */}
-                                <div className="mb-3">
-                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Image (optional)</label>
+                                <div className="mb-2">
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Image (optional)</label>
                                     <div className="flex gap-2">
-                                        <label className="px-3 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-500 text-sm">
+                                        <label className="px-2 py-1 bg-blue-600 text-white rounded cursor-pointer hover:bg-blue-500 text-xs">
                                             Upload
                                             <input type="file" accept="image/*" onChange={handlePopupImageUpload} className="hidden" />
                                         </label>
                                         {popupForm.popup_image_url && (
                                             <button
                                                 onClick={() => setPopupForm(prev => ({ ...prev, popup_image_url: '' }))}
-                                                className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm"
+                                                className="px-2 py-1 bg-red-600 text-white rounded text-xs"
                                             >
                                                 Remove
                                             </button>
                                         )}
                                     </div>
                                     {popupForm.popup_image_url && (
-                                        <img src={popupForm.popup_image_url} alt="Preview" className="mt-2 h-20 rounded" />
+                                        <img src={popupForm.popup_image_url} alt="Preview" className="mt-1 h-16 rounded" />
                                     )}
                                 </div>
 
                                 {/* Colors */}
-                                <div className="space-y-3 mb-3">
+                                <div className="space-y-2 mb-2">
                                     <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Solid Background</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Solid Background</label>
                                         <div className="flex flex-wrap gap-1">
                                             {BG_COLORS.map(color => (
                                                 <button
                                                     key={color.value}
                                                     onClick={() => setPopupForm(prev => ({ ...prev, popup_bg_color: color.value }))}
-                                                    className={`w-5 h-5 rounded border-2 ${popupForm.popup_bg_color === color.value ? 'border-white ring-2 ring-blue-400' : 'border-transparent'}`}
+                                                    className={`w-4 h-4 rounded border ${popupForm.popup_bg_color === color.value ? 'border-white ring-1 ring-blue-400' : 'border-transparent'}`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.label}
                                                 />
@@ -676,13 +681,13 @@ export default function PromoCardsPage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Gradient Background</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Gradient Background</label>
                                         <div className="flex flex-wrap gap-1">
                                             {GRADIENT_COLORS.map(color => (
                                                 <button
                                                     key={color.value}
                                                     onClick={() => setPopupForm(prev => ({ ...prev, popup_bg_color: color.value }))}
-                                                    className={`w-8 h-5 rounded border-2 ${popupForm.popup_bg_color === color.value ? 'border-white ring-2 ring-blue-400' : 'border-transparent'}`}
+                                                    className={`w-6 h-4 rounded border ${popupForm.popup_bg_color === color.value ? 'border-white ring-1 ring-blue-400' : 'border-transparent'}`}
                                                     style={{ background: color.value }}
                                                     title={color.label}
                                                 />
@@ -690,13 +695,13 @@ export default function PromoCardsPage() {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
                                         <div className="flex flex-wrap gap-1">
                                             {TEXT_COLORS.map(color => (
                                                 <button
                                                     key={color.value}
                                                     onClick={() => setPopupForm(prev => ({ ...prev, popup_text_color: color.value }))}
-                                                    className={`w-5 h-5 rounded border-2 ${popupForm.popup_text_color === color.value ? 'border-white ring-2 ring-blue-400' : 'border-gray-500'}`}
+                                                    className={`w-4 h-4 rounded border ${popupForm.popup_text_color === color.value ? 'border-white ring-1 ring-blue-400' : 'border-gray-500'}`}
                                                     style={{ backgroundColor: color.value }}
                                                     title={color.label}
                                                 />
@@ -706,50 +711,50 @@ export default function PromoCardsPage() {
                                 </div>
 
                                 {/* CTA */}
-                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="grid grid-cols-2 gap-2 mb-3">
                                     <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>CTA Button Text</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>CTA Button Text</label>
                                         <input
                                             type="text"
                                             value={popupForm.popup_cta_text}
                                             onChange={(e) => setPopupForm(prev => ({ ...prev, popup_cta_text: e.target.value }))}
                                             placeholder="e.g. Learn More"
-                                            className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                            className={`w-full px-2 py-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                         />
                                     </div>
                                     <div>
-                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>CTA URL</label>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>CTA URL</label>
                                         <input
                                             type="url"
                                             value={popupForm.popup_cta_url}
                                             onChange={(e) => setPopupForm(prev => ({ ...prev, popup_cta_url: e.target.value }))}
                                             placeholder="https://..."
-                                            className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                            className={`w-full px-2 py-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
                                         />
                                     </div>
                                 </div>
 
                                 {/* Preview */}
-                                <div className="mb-4">
-                                    <p className={`text-sm text-${currentTheme.textMuted} mb-2`}>Preview:</p>
+                                <div className="mb-3">
+                                    <p className={`text-xs text-${currentTheme.textMuted} mb-1`}>Preview:</p>
                                     <div
-                                        className="rounded-xl overflow-hidden max-w-xs"
+                                        className="rounded-lg overflow-hidden max-w-[200px]"
                                         style={{ background: popupForm.popup_bg_color }}
                                     >
                                         {popupForm.popup_image_url && (
-                                            <img src={popupForm.popup_image_url} alt="Preview" className="w-full h-24 object-cover" />
+                                            <img src={popupForm.popup_image_url} alt="Preview" className="w-full h-16 object-cover" />
                                         )}
-                                        <div className="p-4">
-                                            <h3 className="font-bold text-center mb-2" style={{ color: popupForm.popup_text_color }}>
+                                        <div className="p-2">
+                                            <h3 className="font-bold text-xs text-center mb-1" style={{ color: popupForm.popup_text_color }}>
                                                 {popupForm.popup_title || 'Title'}
                                             </h3>
-                                            <p className="text-sm text-center mb-3" style={{ color: popupForm.popup_text_color, opacity: 0.9 }}>
+                                            <p className="text-[10px] text-center mb-2" style={{ color: popupForm.popup_text_color, opacity: 0.9 }}>
                                                 {popupForm.popup_message || 'Message'}
                                             </p>
                                             {popupForm.popup_cta_text && (
                                                 <div className="text-center">
                                                     <span
-                                                        className="px-4 py-1.5 rounded-lg text-sm font-bold inline-block"
+                                                        className="px-2 py-0.5 rounded text-[10px] font-bold inline-block"
                                                         style={{ backgroundColor: popupForm.popup_text_color, color: popupForm.popup_bg_color }}
                                                     >
                                                         {popupForm.popup_cta_text}
@@ -763,19 +768,69 @@ export default function PromoCardsPage() {
                         )}
 
                         {/* Actions */}
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                             <button
                                 onClick={savePopup}
-                                className="flex-1 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-500"
+                                className="flex-1 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-500"
                             >
                                 Save
                             </button>
                             <button
                                 onClick={() => setEditingPopup(null)}
-                                className={`flex-1 py-2 bg-${currentTheme.border} text-${currentTheme.text} rounded-lg font-medium hover:opacity-80`}
+                                className={`flex-1 py-1.5 bg-${currentTheme.border} text-${currentTheme.text} rounded text-sm font-medium hover:opacity-80`}
                             >
                                 Cancel
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Preview Modal */}
+            {previewCard && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setPreviewCard(null)}
+                >
+                    <div className="relative max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+                        {/* Close button */}
+                        <button
+                            onClick={() => setPreviewCard(null)}
+                            className="absolute -top-10 right-0 text-white hover:text-gray-300 text-sm"
+                        >
+                            ✕ Close
+                        </button>
+
+                        {/* Card preview */}
+                        {previewCard.card_type === 'uploaded' && previewCard.image_url ? (
+                            <img
+                                src={previewCard.image_url}
+                                alt={previewCard.title}
+                                className="w-full rounded-xl shadow-2xl"
+                            />
+                        ) : (
+                            <div
+                                className="w-full aspect-[4/3] rounded-xl flex flex-col items-center justify-center p-6 shadow-2xl"
+                                style={{ backgroundColor: previewCard.card_color || '#4F46E5' }}
+                            >
+                                <p className="font-bold text-2xl text-center" style={{ color: previewCard.text_color || '#FFFFFF' }}>
+                                    {previewCard.title}
+                                </p>
+                                {previewCard.message && (
+                                    <p className="text-base text-center mt-2" style={{ color: previewCard.text_color || '#FFFFFF' }}>
+                                        {previewCard.message}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Card info */}
+                        <div className={`mt-3 text-center`}>
+                            <p className="text-white text-sm font-medium">{previewCard.title}</p>
+                            <p className="text-gray-400 text-xs mt-1">
+                                {previewCard.card_type === 'uploaded' ? 'Uploaded Image' : 'Template Card'}
+                                {previewCard.has_popup && ' • Has Popup'}
+                            </p>
                         </div>
                     </div>
                 </div>
