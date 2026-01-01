@@ -499,24 +499,6 @@ export default function AdminWinnersPage() {
                 }])
 
                 setMessage({ type: 'success', text: `✅ Winner verified! Added to payout queue and winners board.` })
-            } else if (newStatus === 'paid') {
-                // Update public_winners paid_at
-                await supabase
-                    .from('public_winners')
-                    .update({ paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-                    .eq('payout_id', payoutStatus.id)
-
-                // Audit log: Winner paid
-                await supabase.from('admin_audit_log').insert([{
-                    user_email: (await supabase.auth.getUser()).data.user?.email,
-                    action: 'winner_paid',
-                    table_name: 'prize_payouts',
-                    record_id: payoutStatus.id,
-                    new_value: { status: 'paid', username: verificationData.user.username },
-                    description: `Marked ${verificationData.user.username} as paid for Slots prize`
-                }])
-
-                setMessage({ type: 'success', text: `💰 Marked as paid!` })
             } else {
                 setMessage({ type: 'success', text: `Status updated to: ${newStatus}` })
             }
@@ -1135,7 +1117,7 @@ export default function AdminWinnersPage() {
                                             <div className="mb-3">
                                                 <p className={`text-${currentTheme.textMuted} text-xs mb-2`}>Payout Status:</p>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {['pending', 'verified', 'paid'].map(status => (
+                                                    {['pending', 'verified'].map(status => (
                                                         <button
                                                             key={status}
                                                             onClick={() => updatePayoutStatus(status)}
@@ -1147,14 +1129,18 @@ export default function AdminWinnersPage() {
                                                         >
                                                             {status === 'pending' && '⏳'}
                                                             {status === 'verified' && '✓'}
-                                                            {status === 'paid' && '💰'}
                                                             {' '}{status.charAt(0).toUpperCase() + status.slice(1)}
                                                         </button>
                                                     ))}
+                                                    {payoutStatus.status === 'paid' && (
+                                                        <span className="px-3 py-1.5 rounded text-xs font-medium border bg-green-500/20 text-green-400 border-green-500/50">
+                                                            💰 Paid
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 {payoutStatus.status === 'verified' && (
                                                     <p className="text-purple-400 text-xs mt-2">
-                                                        ✓ Added to Payout Queue and Winners Board
+                                                        ✓ Added to Payout Queue and Winners Board — <a href="/admin/payout-queue" className="underline hover:text-purple-300">Process payment there →</a>
                                                     </p>
                                                 )}
                                                 {payoutStatus.status === 'paid' && (
