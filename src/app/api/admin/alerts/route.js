@@ -11,8 +11,10 @@ const ALERT_PERMISSIONS = {
     prize_notify_winner: ['super_admin', 'admin', 'manager', 'support'],
     prize_pay_winner: ['super_admin', 'admin', 'manager', 'support'],
     prize_setup_missing: ['super_admin', 'admin', 'manager'],
+    health_no_revenue: ['super_admin', 'admin'],
     health_critical: ['super_admin', 'admin'],
     health_warning: ['super_admin', 'admin'],
+    health_burn_rate: ['super_admin', 'admin'],
     payout_pending: ['super_admin', 'admin'],
     campaign_critical: ['super_admin', 'admin', 'manager'],
     campaign_warning: ['super_admin', 'admin', 'manager'],
@@ -189,9 +191,10 @@ export async function GET(request) {
         }
 
         // ============================================
-        // ALERT: Health Critical (negative available)
+        // ALERT: Health Checks (No Revenue, Deficit, Low Funds, Burn Rate)
+        // Matches Health Dashboard logic with IF/ELSE priority
         // ============================================
-        if (canSee('health_critical') || canSee('health_warning')) {
+        if (canSee('health_no_revenue') || canSee('health_critical') || canSee('health_warning') || canSee('health_burn_rate')) {
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
             const { data: healthCampaigns } = await supabaseAdmin
@@ -218,11 +221,13 @@ export async function GET(request) {
 
             const tokenValue = parseFloat(tokenSetting?.setting_value) || 0.05
 
+            // Fetch balances with lifetime_spent for burn rate calculation
             const { data: balances } = await supabaseAdmin
                 .from('bb_balances')
-                .select('balance')
+                .select('balance, lifetime_spent')
 
             const totalTokens = balances?.reduce((sum, b) => sum + (b.balance || 0), 0) || 0
+            const totalBurned = balances?.reduce((sum, b) => sum + (b.lifetime_spent || 0), 0) || 0
             const tokenLiability = totalTokens * tokenValue
 
             const { data: recurring } = await supabaseAdmin
@@ -238,7 +243,25 @@ export async function GET(request) {
 
             const trueAvailable = netRevenue - monthlyExpenses - pendingPayouts - tokenLiability
 
-            if (canSee('health_critical') && trueAvailable < 0) {
+            // IF/ELSE logic matching Health Dashboard - only show ONE of these three
+            if (canSee('health_no_revenue') && netRevenue <= 0) {
+                // No Revenue - most fundamental problem
+                const alertKey = 'health_no_revenue_current'
+                if (!isDismissed('health_no_revenue', alertKey)) {
+                    alerts.push({
+                        type: 'health_no_revenue',
+                        key: alertKey,
+                        severity: 'critical',
+                        icon: '🚨',
+                        title: 'No Revenue!',
+                        description: 'No ad campaigns generating income this period',
+                        actionUrl: '/admin/health',
+                        actionLabel: 'View Health',
+                        createdAt: now.toISOString(),
+                    })
+                }
+            } else if (canSee('health_critical') && trueAvailable < 0) {
+                // Deficit - has revenue but not enough
                 const alertKey = 'health_critical_current'
                 if (!isDismissed('health_critical', alertKey)) {
                     alerts.push({
@@ -254,6 +277,7 @@ export async function GET(request) {
                     })
                 }
             } else if (canSee('health_warning') && trueAvailable >= 0 && trueAvailable < 100) {
+                // Low funds - positive but tight
                 const alertKey = 'health_warning_current'
                 if (!isDismissed('health_warning', alertKey)) {
                     alerts.push({
@@ -263,6 +287,24 @@ export async function GET(request) {
                         icon: '⚠️',
                         title: 'Health Warning',
                         description: `Only $${trueAvailable.toFixed(2)} available — tight margins`,
+                        actionUrl: '/admin/health',
+                        actionLabel: 'View Health',
+                        createdAt: now.toISOString(),
+                    })
+                }
+            }
+
+            // Burn Rate check - can appear ALONGSIDE any of the above
+            if (canSee('health_burn_rate') && totalBurned === 0 && totalTokens > 0) {
+                const alertKey = 'health_burn_rate_zero'
+                if (!isDismissed('health_burn_rate', alertKey)) {
+                    alerts.push({
+                        type: 'health_burn_rate',
+                        key: alertKey,
+                        severity: 'medium',
+                        icon: '🔥',
+                        title: '0% Token Burn Rate',
+                        description: 'No tokens being spent — liability only grows',
                         actionUrl: '/admin/health',
                         actionLabel: 'View Health',
                         createdAt: now.toISOString(),

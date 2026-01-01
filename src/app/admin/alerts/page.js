@@ -63,10 +63,10 @@ export default function AlertsPage() {
 
     const getSeverityStyles = (severity) => {
         switch (severity) {
-            case 'critical': return { bg: 'bg-red-500/10', border: 'border-red-500/50', text: 'text-red-400', badge: 'bg-red-500' }
-            case 'high': return { bg: 'bg-orange-500/10', border: 'border-orange-500/50', text: 'text-orange-400', badge: 'bg-orange-500' }
-            case 'medium': return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', text: 'text-yellow-400', badge: 'bg-yellow-500' }
-            default: return { bg: 'bg-slate-500/10', border: 'border-slate-500/50', text: 'text-slate-400', badge: 'bg-slate-500' }
+            case 'critical': return { bg: 'bg-red-500/10', border: 'border-red-500/50', text: 'text-red-400', badge: 'bg-red-500', badgeText: 'text-white' }
+            case 'high': return { bg: 'bg-orange-500/10', border: 'border-orange-500/50', text: 'text-orange-400', badge: 'bg-orange-500', badgeText: 'text-white' }
+            case 'medium': return { bg: 'bg-yellow-500/10', border: 'border-yellow-500/50', text: 'text-yellow-400', badge: 'bg-yellow-500', badgeText: 'text-slate-900' }
+            default: return { bg: 'bg-slate-500/10', border: 'border-slate-500/50', text: 'text-slate-400', badge: 'bg-slate-500', badgeText: 'text-white' }
         }
     }
 
@@ -145,7 +145,7 @@ export default function AlertsPage() {
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                     <button
                                         onClick={() => router.push(alert.actionUrl)}
-                                        className={`px-2 py-0.5 ${styles.badge} text-white rounded text-xs font-medium hover:opacity-90`}
+                                        className={`px-2 py-0.5 ${styles.badge} ${styles.badgeText} rounded text-xs font-medium hover:opacity-90`}
                                     >
                                         {alert.actionLabel}
                                     </button>
