@@ -373,10 +373,10 @@ export async function GET(request) {
                 if (s.setting_key === 'campaign_alert_critical') criticalThreshold = parseInt(s.setting_value) || 90
             })
 
-            // Get active campaigns with business card info
+            // Get active campaigns
             const { data: activeCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
-                .select('id, business_card_id, contracted_views, bonus_views, total_views, status, business_cards(business_name, full_business_name)')
+                .select('id, business_card_id, contracted_views, bonus_views, total_views, status')
                 .eq('status', 'active')
 
             for (const campaign of activeCampaigns || []) {
@@ -384,7 +384,17 @@ export async function GET(request) {
                 if (totalViews === 0) continue
 
                 const percent = Math.min(100, Math.round((campaign.total_views / totalViews) * 100))
-                const businessName = campaign.business_cards?.business_name || campaign.business_cards?.full_business_name || 'Unknown Campaign'
+
+                // Get business name separately
+                let businessName = 'Unknown Campaign'
+                if (campaign.business_card_id) {
+                    const { data: card } = await supabaseAdmin
+                        .from('business_cards')
+                        .select('business_name, full_business_name')
+                        .eq('id', campaign.business_card_id)
+                        .single()
+                    businessName = card?.business_name || card?.full_business_name || 'Unknown Campaign'
+                }
 
                 if (percent >= criticalThreshold && canSee('campaign_critical')) {
                     const alertKey = `campaign_critical_${campaign.id}`
