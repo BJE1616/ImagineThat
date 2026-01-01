@@ -5,6 +5,37 @@ import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function AdminWinnersBoardPage() {
+    const { currentTheme } = useTheme()
+    const [winners, setWinners] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(null)
+    const [message, setMessage] = useState(null)
+    const [showWinnersPage, setShowWinnersPage] = useState(true)
+    const [savingVisibility, setSavingVisibility] = useState(false)
+
+    // Filters
+    const [filterGameType, setFilterGameType] = useState('all')
+    const [filterVisibility, setFilterVisibility] = useState('all')
+    const [filterFeatured, setFilterFeatured] = useState('all')
+
+    // Edit modal
+    const [editingWinner, setEditingWinner] = useState(null)
+    const [editDisplayName, setEditDisplayName] = useState('')
+    const [editDisplayText, setEditDisplayText] = useState('')
+    const [editAdminNotes, setEditAdminNotes] = useState('')
+
+    // Add manual winner modal
+    const [showAddModal, setShowAddModal] = useState(false)
+    const [newWinner, setNewWinner] = useState({
+        display_name: '',
+        display_text: '',
+        prize_type: 'cash',
+        prize_value: '',
+        game_type: 'manual',
+        week_start: new Date().toISOString().split('T')[0],
+        admin_notes: ''
+    })
+
     useEffect(() => {
         loadWinners()
         loadVisibilitySetting()
@@ -51,33 +82,6 @@ export default function AdminWinnersBoardPage() {
             setSavingVisibility(false)
         }
     }
-
-    // Filters
-    const [filterGameType, setFilterGameType] = useState('all')
-    const [filterVisibility, setFilterVisibility] = useState('all')
-    const [filterFeatured, setFilterFeatured] = useState('all')
-
-    // Edit modal
-    const [editingWinner, setEditingWinner] = useState(null)
-    const [editDisplayName, setEditDisplayName] = useState('')
-    const [editDisplayText, setEditDisplayText] = useState('')
-    const [editAdminNotes, setEditAdminNotes] = useState('')
-
-    // Add manual winner modal
-    const [showAddModal, setShowAddModal] = useState(false)
-    const [newWinner, setNewWinner] = useState({
-        display_name: '',
-        display_text: '',
-        prize_type: 'cash',
-        prize_value: '',
-        game_type: 'manual',
-        week_start: new Date().toISOString().split('T')[0],
-        admin_notes: ''
-    })
-
-    useEffect(() => {
-        loadWinners()
-    }, [])
 
     const loadWinners = async () => {
         setLoading(true)
@@ -491,8 +495,7 @@ export default function AdminWinnersBoardPage() {
                                         <button
                                             onClick={() => toggleVisibility(winner)}
                                             disabled={saving === winner.id}
-                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_visible ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                                                }`}
+                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_visible ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}
                                         >
                                             {saving === winner.id ? '...' : winner.is_visible ? '👁' : '🚫'}
                                         </button>
@@ -501,8 +504,7 @@ export default function AdminWinnersBoardPage() {
                                         <button
                                             onClick={() => toggleFeatured(winner)}
                                             disabled={saving === winner.id}
-                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_featured ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'
-                                                }`}
+                                            className={`px-2 py-0.5 rounded text-xs ${winner.is_featured ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}
                                         >
                                             {saving === winner.id ? '...' : winner.is_featured ? '⭐' : '☆'}
                                         </button>
