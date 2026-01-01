@@ -373,10 +373,10 @@ export async function GET(request) {
                 if (s.setting_key === 'campaign_alert_critical') criticalThreshold = parseInt(s.setting_value) || 90
             })
 
-            // Get active campaigns
+            // Get active campaigns with business card info
             const { data: activeCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
-                .select('id, business_name, contracted_views, bonus_views, total_views, status')
+                .select('id, business_card_id, contracted_views, bonus_views, total_views, status, business_cards(business_name, full_business_name)')
                 .eq('status', 'active')
 
             for (const campaign of activeCampaigns || []) {
@@ -384,6 +384,7 @@ export async function GET(request) {
                 if (totalViews === 0) continue
 
                 const percent = Math.min(100, Math.round((campaign.total_views / totalViews) * 100))
+                const businessName = campaign.business_cards?.business_name || campaign.business_cards?.full_business_name || 'Unknown Campaign'
 
                 if (percent >= criticalThreshold && canSee('campaign_critical')) {
                     const alertKey = `campaign_critical_${campaign.id}`
@@ -394,7 +395,7 @@ export async function GET(request) {
                             severity: 'critical',
                             icon: '📢',
                             title: 'Campaign Almost Done!',
-                            description: `${campaign.business_name} at ${percent}% — needs attention soon`,
+                            description: `${businessName} at ${percent}% — needs attention soon`,
                             actionUrl: '/admin/campaigns',
                             actionLabel: 'View Campaign',
                             createdAt: now.toISOString(),
@@ -409,7 +410,7 @@ export async function GET(request) {
                             severity: 'medium',
                             icon: '📊',
                             title: 'Campaign Nearing End',
-                            description: `${campaign.business_name} at ${percent}% completion`,
+                            description: `${businessName} at ${percent}% completion`,
                             actionUrl: '/admin/campaigns',
                             actionLabel: 'View Campaign',
                             createdAt: now.toISOString(),
