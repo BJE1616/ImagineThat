@@ -245,14 +245,14 @@ export async function GET(request) {
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
             // Get revenue
-            const { data: campaigns } = await supabaseAdmin
+            const { data: healthCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
                 .select('amount_paid')
                 .gte('created_at', monthStart)
                 .neq('status', 'cancelled')
 
-            const grossRevenue = campaigns?.reduce((sum, c) => sum + (parseFloat(c.amount_paid) || 0), 0) || 0
-            const processingFees = (grossRevenue * 0.029) + ((campaigns?.length || 0) * 0.30)
+            const grossRevenue = healthCampaigns?.reduce((sum, c) => sum + (parseFloat(c.amount_paid) || 0), 0) || 0
+            const processingFees = (grossRevenue * 0.029) + ((healthCampaigns?.length || 0) * 0.30)
             const netRevenue = grossRevenue - processingFees
 
             // Get pending payouts
@@ -374,12 +374,12 @@ export async function GET(request) {
             })
 
             // Get active campaigns
-            const { data: campaigns } = await supabaseAdmin
+            const { data: activeCampaigns } = await supabaseAdmin
                 .from('ad_campaigns')
                 .select('id, business_name, contracted_views, bonus_views, total_views, status')
                 .eq('status', 'active')
 
-            for (const campaign of campaigns || []) {
+            for (const campaign of activeCampaigns || []) {
                 const totalViews = (campaign.contracted_views || 0) + (campaign.bonus_views || 0)
                 if (totalViews === 0) continue
 
@@ -417,81 +417,78 @@ export async function GET(request) {
                     }
                 }
             }
-
-            // Sort by severity (critical first, then high, then medium)
-            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-            alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
-
-            // Sort by severity (critical first, then high, then medium)
-            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
-            alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
-
-            return Response.json({
-                alerts,
-                count: alerts.length,
-                countBySeverity: {
-                    critical: alerts.filter(a => a.severity === 'critical').length,
-                    high: alerts.filter(a => a.severity === 'high').length,
-                    medium: alerts.filter(a => a.severity === 'medium').length,
-                }
-            })
-
-        } catch (error) {
-            console.error('Error fetching alerts:', error)
-            return Response.json({ error: 'Internal server error' }, { status: 500 })
         }
+
+        // Sort by severity (critical first, then high, then medium)
+        const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+        alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+
+        return Response.json({
+            alerts,
+            count: alerts.length,
+            countBySeverity: {
+                critical: alerts.filter(a => a.severity === 'critical').length,
+                high: alerts.filter(a => a.severity === 'high').length,
+                medium: alerts.filter(a => a.severity === 'medium').length,
+            }
+        })
+
+    } catch (error) {
+        console.error('Error fetching alerts:', error)
+        return Response.json({ error: 'Internal server error' }, { status: 500 })
     }
+}
 
 // POST - Dismiss an alert
 export async function POST(request) {
-        try {
-            const { alertType, alertKey, notes, userId } = await request.json()
+    try {
+        const { alertType, alertKey, notes, userId } = await request.json()
 
-            if (!alertType || !alertKey) {
-                return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
-            }
-
-            // Insert dismissal record
-            const { error: insertError } = await supabaseAdmin
-                .from('admin_alert_dismissals')
-                .upsert({
-                    alert_type: alertType,
-                    alert_key: alertKey,
-                    dismissed_by: userId || null,
-                    dismissed_at: new Date().toISOString(),
-                    notes: notes || null,
-                }, {
-                    onConflict: 'alert_type,alert_key'
-                })
-
-            if (insertError) {
-                console.error('Error dismissing alert:', insertError)
-                return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
-            }
-
-            // Log to audit if userId provided
-            if (userId) {
-                const { data: userData } = await supabaseAdmin
-                    .from('users')
-                    .select('email')
-                    .eq('id', userId)
-                    .single()
-
-                await supabaseAdmin.from('admin_audit_log').insert({
-                    user_id: userId,
-                    user_email: userData?.email,
-                    action: 'alert_dismissed',
-                    table_name: 'admin_alert_dismissals',
-                    record_id: alertKey,
-                    description: `Dismissed alert: ${alertType} - ${alertKey}`,
-                    new_value: { alertType, alertKey, notes },
-                })
-            }
-
-            return Response.json({ success: true })
-
-        } catch (error) {
-            console.error('Error dismissing alert:', error)
-            return Response.json({ error: 'Internal server error' }, { status: 500 })
+        if (!alertType || !alertKey) {
+            return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
         }
+
+        // Insert dismissal record
+        const { error: insertError } = await supabaseAdmin
+            .from('admin_alert_dismissals')
+            .upsert({
+                alert_type: alertType,
+                alert_key: alertKey,
+                dismissed_by: userId || null,
+                dismissed_at: new Date().toISOString(),
+                notes: notes || null,
+            }, {
+                onConflict: 'alert_type,alert_key'
+            })
+
+        if (insertError) {
+            console.error('Error dismissing alert:', insertError)
+            return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
+        }
+
+        // Log to audit if userId provided
+        if (userId) {
+            const { data: userData } = await supabaseAdmin
+                .from('users')
+                .select('email')
+                .eq('id', userId)
+                .single()
+
+            await supabaseAdmin.from('admin_audit_log').insert({
+                user_id: userId,
+                user_email: userData?.email,
+                action: 'alert_dismissed',
+                table_name: 'admin_alert_dismissals',
+                record_id: alertKey,
+                description: `Dismissed alert: ${alertType} - ${alertKey}`,
+                new_value: { alertType, alertKey, notes },
+            })
+        }
+
+        return Response.json({ success: true })
+
+    } catch (error) {
+        console.error('Error dismissing alert:', error)
+        return Response.json({ error: 'Internal server error' }, { status: 500 })
     }
+}
