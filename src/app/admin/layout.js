@@ -271,6 +271,7 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
                 { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
                 { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
+                { href: '/admin/winners-board', label: 'Winners Board', icon: '📋' },
             ]
         },
         {
@@ -366,10 +367,10 @@ export default function AdminLayout({ children }) {
                         <Link
                             href="/admin/alerts"
                             className={`flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${pathname === '/admin/alerts'
-                                    ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent}`
-                                    : alertCount > 0
-                                        ? 'text-white hover:bg-slate-700/50'
-                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
+                                ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent}`
+                                : alertCount > 0
+                                    ? 'text-white hover:bg-slate-700/50'
+                                    : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
                                 }`}
                         >
                             <div className="flex items-center gap-2">
