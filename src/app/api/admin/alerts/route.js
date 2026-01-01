@@ -1,6 +1,9 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+)
 
 // Define which roles can see which alert types
 const ALERT_PERMISSIONS = {
@@ -13,25 +16,39 @@ const ALERT_PERMISSIONS = {
     payout_pending: ['super_admin', 'admin'],
 }
 
-export async function GET() {
+export async function GET(request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
+        // Get user from authorization header or cookie
+        const authHeader = request.headers.get('authorization')
+        const token = authHeader?.replace('Bearer ', '')
 
-        // Check authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        // Get user session
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
+            token || (await getTokenFromCookie(request))
+        )
+
         if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+            // Try alternative: get user from cookie
+            const cookieHeader = request.headers.get('cookie')
+            if (cookieHeader) {
+                const { data: sessionData } = await supabaseAdmin.auth.getSession()
+                if (!sessionData?.session?.user) {
+                    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+                }
+            } else {
+                return Response.json({ error: 'Unauthorized' }, { status: 401 })
+            }
         }
 
         // Get user role
-        const { data: userData, error: userError } = await supabase
+        const { data: userData, error: userError } = await supabaseAdmin
             .from('users')
             .select('role, is_admin')
-            .eq('id', user.id)
+            .eq('id', user?.id)
             .single()
 
         if (userError || !userData?.is_admin) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+            return Response.json({ error: 'Forbidden' }, { status: 403 })
         }
 
         const userRole = userData.role || 'support'
@@ -39,7 +56,7 @@ export async function GET() {
         const now = new Date()
 
         // Get all dismissed alerts
-        const { data: dismissals } = await supabase
+        const { data: dismissals } = await supabaseAdmin
             .from('admin_alert_dismissals')
             .select('alert_type, alert_key')
 
@@ -54,7 +71,7 @@ export async function GET() {
         // ALERT: Pick Winner (week ended, no winner)
         // ============================================
         if (canSee('prize_pick_winner')) {
-            const { data: unpickedPrizes } = await supabase
+            const { data: unpickedPrizes } = await supabaseAdmin
                 .from('weekly_prizes')
                 .select('id, week_start, game_type, total_prize_pool, week_end_time')
                 .is('winner_user_id', null)
@@ -84,23 +101,36 @@ export async function GET() {
         // ALERT: Notify Winner (verified, no email sent)
         // ============================================
         if (canSee('prize_notify_winner')) {
-            const { data: unnotifiedPayouts } = await supabase
+            const { data: unnotifiedPayouts } = await supabaseAdmin
                 .from('prize_payouts')
                 .select(`
                     id, 
                     status, 
                     created_at,
-                    users!prize_payouts_user_id_fkey(username),
-                    weekly_prizes!prize_payouts_prize_id_fkey(game_type, week_start, total_prize_pool)
+                    user_id,
+                    prize_id
                 `)
                 .eq('status', 'verified')
                 .is('email_sent_at', null)
 
             for (const payout of unnotifiedPayouts || []) {
+                // Get user info
+                const { data: payoutUser } = await supabaseAdmin
+                    .from('users')
+                    .select('username')
+                    .eq('id', payout.user_id)
+                    .single()
+
+                // Get prize info
+                const { data: prize } = await supabaseAdmin
+                    .from('weekly_prizes')
+                    .select('game_type, week_start, total_prize_pool')
+                    .eq('id', payout.prize_id)
+                    .single()
+
                 const alertKey = `payout_${payout.id}`
                 if (!isDismissed('prize_notify_winner', alertKey)) {
-                    const prize = payout.weekly_prizes
-                    const username = payout.users?.username || 'Unknown'
+                    const username = payoutUser?.username || 'Unknown'
                     alerts.push({
                         type: 'prize_notify_winner',
                         key: alertKey,
@@ -120,26 +150,38 @@ export async function GET() {
         // ALERT: Pay Winner (verified, not paid)
         // ============================================
         if (canSee('prize_pay_winner')) {
-            const { data: unpaidPayouts } = await supabase
+            const { data: unpaidPayouts } = await supabaseAdmin
                 .from('prize_payouts')
                 .select(`
                     id, 
                     status, 
                     created_at,
-                    users!prize_payouts_user_id_fkey(username, payout_method, payout_handle),
-                    weekly_prizes!prize_payouts_prize_id_fkey(game_type, week_start, total_prize_pool)
+                    user_id,
+                    prize_id
                 `)
                 .eq('status', 'verified')
                 .is('paid_at', null)
 
             for (const payout of unpaidPayouts || []) {
+                // Get user info
+                const { data: payoutUser } = await supabaseAdmin
+                    .from('users')
+                    .select('username, payout_method, payout_handle')
+                    .eq('id', payout.user_id)
+                    .single()
+
+                // Get prize info
+                const { data: prize } = await supabaseAdmin
+                    .from('weekly_prizes')
+                    .select('game_type, week_start, total_prize_pool')
+                    .eq('id', payout.prize_id)
+                    .single()
+
                 const alertKey = `pay_${payout.id}`
                 if (!isDismissed('prize_pay_winner', alertKey)) {
-                    const prize = payout.weekly_prizes
-                    const user = payout.users
-                    const username = user?.username || 'Unknown'
-                    const paymentInfo = user?.payout_handle
-                        ? `${user.payout_method || 'Payment'}: ${user.payout_handle}`
+                    const username = payoutUser?.username || 'Unknown'
+                    const paymentInfo = payoutUser?.payout_handle
+                        ? `${payoutUser.payout_method || 'Payment'}: ${payoutUser.payout_handle}`
                         : 'No payment info'
                     alerts.push({
                         type: 'prize_pay_winner',
@@ -166,7 +208,7 @@ export async function GET() {
             nextWeekStart.setHours(0, 0, 0, 0)
             const nextWeekStr = nextWeekStart.toISOString().split('T')[0]
 
-            const { data: nextWeekPrizes } = await supabase
+            const { data: nextWeekPrizes } = await supabaseAdmin
                 .from('weekly_prizes')
                 .select('id, game_type')
                 .eq('week_start', nextWeekStr)
@@ -201,7 +243,7 @@ export async function GET() {
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
             // Get revenue
-            const { data: campaigns } = await supabase
+            const { data: campaigns } = await supabaseAdmin
                 .from('ad_campaigns')
                 .select('amount_paid')
                 .gte('created_at', monthStart)
@@ -212,14 +254,14 @@ export async function GET() {
             const netRevenue = grossRevenue - processingFees
 
             // Get pending payouts
-            const { data: pending } = await supabase
+            const { data: pending } = await supabaseAdmin
                 .from('payout_queue')
                 .select('amount')
 
             const pendingPayouts = pending?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0
 
             // Get token liability
-            const { data: tokenSetting } = await supabase
+            const { data: tokenSetting } = await supabaseAdmin
                 .from('economy_settings')
                 .select('setting_value')
                 .eq('setting_key', 'token_value')
@@ -227,7 +269,7 @@ export async function GET() {
 
             const tokenValue = parseFloat(tokenSetting?.setting_value) || 0.05
 
-            const { data: balances } = await supabase
+            const { data: balances } = await supabaseAdmin
                 .from('bb_balances')
                 .select('balance')
 
@@ -235,7 +277,7 @@ export async function GET() {
             const tokenLiability = totalTokens * tokenValue
 
             // Get recurring expenses
-            const { data: recurring } = await supabase
+            const { data: recurring } = await supabaseAdmin
                 .from('recurring_expenses')
                 .select('amount, frequency')
                 .eq('is_active', true)
@@ -288,7 +330,7 @@ export async function GET() {
         // ALERT: Pending Payouts in Queue
         // ============================================
         if (canSee('payout_pending')) {
-            const { data: pendingQueue } = await supabase
+            const { data: pendingQueue } = await supabaseAdmin
                 .from('payout_queue')
                 .select('id, amount, reason, created_at')
                 .eq('status', 'pending')
@@ -316,7 +358,7 @@ export async function GET() {
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 }
         alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
 
-        return NextResponse.json({
+        return Response.json({
             alerts,
             count: alerts.length,
             countBySeverity: {
@@ -328,33 +370,26 @@ export async function GET() {
 
     } catch (error) {
         console.error('Error fetching alerts:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return Response.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
 
 // POST - Dismiss an alert
 export async function POST(request) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-        }
-
-        const { alertType, alertKey, notes } = await request.json()
+        const { alertType, alertKey, notes, userId } = await request.json()
 
         if (!alertType || !alertKey) {
-            return NextResponse.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
+            return Response.json({ error: 'Missing alertType or alertKey' }, { status: 400 })
         }
 
         // Insert dismissal record
-        const { error: insertError } = await supabase
+        const { error: insertError } = await supabaseAdmin
             .from('admin_alert_dismissals')
             .upsert({
                 alert_type: alertType,
                 alert_key: alertKey,
-                dismissed_by: user.id,
+                dismissed_by: userId || null,
                 dismissed_at: new Date().toISOString(),
                 notes: notes || null,
             }, {
@@ -363,30 +398,32 @@ export async function POST(request) {
 
         if (insertError) {
             console.error('Error dismissing alert:', insertError)
-            return NextResponse.json({ error: 'Failed to dismiss alert' }, { status: 500 })
+            return Response.json({ error: 'Failed to dismiss alert' }, { status: 500 })
         }
 
-        // Log to audit
-        const { data: userData } = await supabase
-            .from('users')
-            .select('email')
-            .eq('id', user.id)
-            .single()
+        // Log to audit if userId provided
+        if (userId) {
+            const { data: userData } = await supabaseAdmin
+                .from('users')
+                .select('email')
+                .eq('id', userId)
+                .single()
 
-        await supabase.from('admin_audit_log').insert({
-            user_id: user.id,
-            user_email: userData?.email,
-            action: 'alert_dismissed',
-            table_name: 'admin_alert_dismissals',
-            record_id: alertKey,
-            description: `Dismissed alert: ${alertType} - ${alertKey}`,
-            new_value: { alertType, alertKey, notes },
-        })
+            await supabaseAdmin.from('admin_audit_log').insert({
+                user_id: userId,
+                user_email: userData?.email,
+                action: 'alert_dismissed',
+                table_name: 'admin_alert_dismissals',
+                record_id: alertKey,
+                description: `Dismissed alert: ${alertType} - ${alertKey}`,
+                new_value: { alertType, alertKey, notes },
+            })
+        }
 
-        return NextResponse.json({ success: true })
+        return Response.json({ success: true })
 
     } catch (error) {
         console.error('Error dismissing alert:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return Response.json({ error: 'Internal server error' }, { status: 500 })
     }
 }
