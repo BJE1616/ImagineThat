@@ -100,15 +100,26 @@ export default function AdminWinnersPage() {
 
                 setLeaderboard(combined)
 
-                const { data: paymentsData } = await supabase
-                    .from('prize_payments')
-                    .select('*')
-                    .eq('week_start', weekStartStr)
-                    .in('leaderboard_id', leaderboardData.map(e => e.id))
+                // Check payout_queue for queued entries
+                const { data: queuedData } = await supabase
+                    .from('payout_queue')
+                    .select('reference_id')
+                    .eq('reference_type', 'match_game')
+                    .in('reference_id', leaderboardData.map(e => e.id))
+
+                // Check payout_history for paid entries
+                const { data: paidData } = await supabase
+                    .from('payout_history')
+                    .select('reference_id')
+                    .eq('reference_type', 'match_game')
+                    .in('reference_id', leaderboardData.map(e => e.id))
 
                 const paymentsMap = {}
-                paymentsData?.forEach(p => {
-                    paymentsMap[p.leaderboard_id] = p
+                queuedData?.forEach(p => {
+                    paymentsMap[p.reference_id] = { status: 'queued' }
+                })
+                paidData?.forEach(p => {
+                    paymentsMap[p.reference_id] = { status: 'paid' }
                 })
                 setPayments(paymentsMap)
             } else {
@@ -671,51 +682,74 @@ export default function AdminWinnersPage() {
     }
 
     // ===== MATCH GAME FUNCTIONS (continued) =====
-    const togglePaymentStatus = async (entry, rank) => {
+    const addToPayoutQueue = async (entry, rank) => {
         setSaving(entry.id)
         const weekStartStr = getWeekStart(weekOffset).toISOString().split('T')[0]
         const prizeAmount = getPrizeAmount(rank)
 
         try {
-            const existingPayment = payments[entry.id]
-
-            if (existingPayment) {
-                const newStatus = existingPayment.status === 'paid' ? 'pending' : 'paid'
-                await supabase
-                    .from('prize_payments')
-                    .update({
-                        status: newStatus,
-                        paid_at: newStatus === 'paid' ? new Date().toISOString() : null,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', existingPayment.id)
-
-                setPayments(prev => ({
-                    ...prev,
-                    [entry.id]: { ...existingPayment, status: newStatus }
-                }))
-            } else {
-                const { data } = await supabase
-                    .from('prize_payments')
-                    .insert([{
-                        leaderboard_id: entry.id,
-                        user_id: entry.user_id,
-                        week_start: weekStartStr,
-                        rank: rank,
-                        prize_amount: prizeAmount,
-                        status: 'paid',
-                        paid_at: new Date().toISOString()
-                    }])
-                    .select()
-                    .single()
-
-                setPayments(prev => ({
-                    ...prev,
-                    [entry.id]: data
-                }))
+            // Check if already in queue or paid
+            const existingStatus = payments[entry.id]
+            if (existingStatus) {
+                setMessage({ type: 'error', text: 'Already in queue or paid' })
+                return
             }
+
+            // Get user payment info
+            const { data: userData } = await supabase
+                .from('users')
+                .select('username, preferred_payment_method, payment_handle')
+                .eq('id', entry.user_id)
+                .single()
+
+            // Check if already in payout_queue
+            const { data: existingQueue } = await supabase
+                .from('payout_queue')
+                .select('id')
+                .eq('reference_type', 'match_game')
+                .eq('reference_id', entry.id)
+                .single()
+
+            if (existingQueue) {
+                setMessage({ type: 'error', text: 'Already in payout queue' })
+                return
+            }
+
+            // Add to payout_queue
+            await supabase
+                .from('payout_queue')
+                .insert([{
+                    user_id: entry.user_id,
+                    amount: prizeAmount,
+                    reason: `Match Game #${rank} - ${currentWeek}`,
+                    reference_type: 'match_game',
+                    reference_id: entry.id,
+                    payment_method: userData?.preferred_payment_method || null,
+                    payment_handle: userData?.payment_handle || null,
+                    status: 'pending',
+                    queued_at: new Date().toISOString()
+                }])
+
+            // Track locally that this entry is now queued
+            setPayments(prev => ({
+                ...prev,
+                [entry.id]: { status: 'queued' }
+            }))
+
+            // Audit log
+            await supabase.from('admin_audit_log').insert([{
+                user_email: (await supabase.auth.getUser()).data.user?.email,
+                action: 'match_winner_queued',
+                table_name: 'payout_queue',
+                record_id: entry.id,
+                new_value: { username: userData?.username, rank, amount: prizeAmount },
+                description: `Added ${userData?.username} (#${rank}) to payout queue for $${prizeAmount}`
+            }])
+
+            setMessage({ type: 'success', text: `Added ${userData?.username} to payout queue!` })
         } catch (error) {
-            console.error('Error updating payment:', error)
+            console.error('Error adding to queue:', error)
+            setMessage({ type: 'error', text: 'Failed to add to queue' })
         } finally {
             setSaving(null)
         }
@@ -1325,22 +1359,30 @@ export default function AdminWinnersPage() {
                                                             </td>
                                                             <td className="py-2 px-3">
                                                                 {prizeAmount > 0 ? (
-                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${isPaid ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${payment?.status === 'paid' ? 'bg-green-500/20 text-green-400' :
+                                                                        payment?.status === 'queued' ? 'bg-orange-500/20 text-orange-400' :
+                                                                            'bg-slate-500/20 text-slate-400'
                                                                         }`}>
-                                                                        {isPaid ? '✓ Paid' : 'Pending'}
+                                                                        {payment?.status === 'paid' ? '✓ Paid' :
+                                                                            payment?.status === 'queued' ? '⏳ Queued' :
+                                                                                '—'}
                                                                     </span>
                                                                 ) : '—'}
                                                             </td>
                                                             <td className="py-2 px-3">
-                                                                {prizeAmount > 0 && (
+                                                                {prizeAmount > 0 && !payment?.status && (
                                                                     <button
-                                                                        onClick={() => togglePaymentStatus(entry, rank)}
+                                                                        onClick={() => addToPayoutQueue(entry, rank)}
                                                                         disabled={saving === entry.id}
-                                                                        className={`px-2 py-1 rounded text-xs font-medium ${isPaid ? `bg-${currentTheme.border} text-${currentTheme.textMuted}` : 'bg-green-600 text-white'
-                                                                            }`}
+                                                                        className="px-2 py-1 rounded text-xs font-medium bg-orange-600 text-white hover:bg-orange-500"
                                                                     >
-                                                                        {saving === entry.id ? '...' : isPaid ? 'Undo' : 'Mark Paid'}
+                                                                        {saving === entry.id ? '...' : '+ Add to Queue'}
                                                                     </button>
+                                                                )}
+                                                                {payment?.status === 'queued' && (
+                                                                    <a href="/admin/payout-queue" className={`text-xs text-${currentTheme.accent} hover:underline`}>
+                                                                        Process →
+                                                                    </a>
                                                                 )}
                                                             </td>
                                                         </tr>
