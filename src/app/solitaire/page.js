@@ -1941,16 +1941,52 @@ export default function SolitairePage() {
                     <div className="bg-gradient-to-r from-red-800 to-red-900 border border-red-700 rounded-xl p-4 mb-4 text-center shadow-lg">
                         <p className="text-white font-bold mb-1 text-sm">🏆 This Week's Prize 🏆</p>
                         {weeklyPrize.is_surprise ? (
-                            <p className="text-xl font-bold text-white">🎁 Surprise Prize! 🎁</p>
-                        ) : weeklyPrize.prize_type === 'cash' ? (
                             <>
-                                <p className="text-xl font-bold text-white">${weeklyPrize.total_prize_pool}</p>
-                                <p className="text-white text-sm">
-                                    {weeklyPrize.number_of_winners === 1 ? 'Winner takes all!' : `Split among top ${weeklyPrize.number_of_winners} players`}
-                                </p>
+                                <p className="text-xl font-bold text-white mb-1">🎁 Surprise Prize! 🎁</p>
+                                <p className="text-white text-sm">Play to find out what you could win!</p>
                             </>
                         ) : (
-                            <p className="text-xl font-bold text-white">🎁 Special Prize!</p>
+                            <>
+                                {weeklyPrize.prize_type === 'cash' && (
+                                    <>
+                                        <p className="text-xl font-bold text-white mb-1">${weeklyPrize.total_prize_pool}</p>
+                                        <p className="text-white text-sm">
+                                            {weeklyPrize.number_of_winners === 1 ? 'Winner takes all!' : `Split among top ${weeklyPrize.number_of_winners} players`}
+                                        </p>
+                                    </>
+                                )}
+                                {weeklyPrize.prize_type === 'tokens' && (
+                                    <>
+                                        <p className="text-xl font-bold text-white mb-1">🪙 {weeklyPrize.total_prize_pool} Tokens!</p>
+                                        <p className="text-white text-sm">
+                                            {weeklyPrize.number_of_winners === 1 ? 'Winner takes all!' : `Split among top ${weeklyPrize.number_of_winners} players`}
+                                        </p>
+                                    </>
+                                )}
+                                {weeklyPrize.prize_type === 'merchandise' && (
+                                    <>
+                                        <p className="text-xl font-bold text-white mb-1">🎽 Merchandise Prizes!</p>
+                                        <div className="text-white text-sm">
+                                            {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
+                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                                {weeklyPrize.prize_type === 'custom' && (
+                                    <>
+                                        <p className="text-xl font-bold text-white mb-1">🎁 Special Prize!</p>
+                                        <div className="text-white text-sm">
+                                            {weeklyPrize.prize_descriptions?.filter(d => d).map((desc, i) => (
+                                                <p key={i}>{getOrdinal(i + 1)} Place: {desc}</p>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </>
+                        )}
+                        {weeklyPrize.announcement_text && (
+                            <p className="text-white mt-2 italic text-sm">"{weeklyPrize.announcement_text}"</p>
                         )}
                     </div>
                 )}

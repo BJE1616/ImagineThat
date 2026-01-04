@@ -39,6 +39,13 @@ export default function GamePage() {
     const trackedDisplayAdViews = useRef(new Set())
 
     useEffect(() => {
+        checkUser()
+        loadCardBackSetting()
+        loadCardBackAdvertiser()
+        loadDisplayAds()
+    }, [])
+
+    useEffect(() => {
         loadWeeklyPrize(gameMode)
     }, [gameMode])
 

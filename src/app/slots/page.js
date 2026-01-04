@@ -169,20 +169,28 @@ export default function SlotMachinePage() {
     // ===== LOAD WEEKLY PRIZE =====
     const loadWeeklyPrize = async () => {
         try {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const weekStart = new Date(today)
+            weekStart.setDate(today.getDate() - dayOfWeek)
+            weekStart.setHours(0, 0, 0, 0)
+
             const { data } = await supabase
                 .from('weekly_prizes')
                 .select('*')
+                .eq('week_start', weekStart.toISOString().split('T')[0])
                 .eq('game_type', 'slots')
                 .eq('is_active', true)
-                .order('week_start', { ascending: false })
-                .limit(1)
-                .single()
+                .maybeSingle()
 
             if (data) {
                 setWeeklyPrize(data)
+            } else {
+                setWeeklyPrize(null)
             }
         } catch (error) {
             console.log('No active weekly prize')
+            setWeeklyPrize(null)
         }
     }
 
