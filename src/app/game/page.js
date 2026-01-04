@@ -39,12 +39,8 @@ export default function GamePage() {
     const trackedDisplayAdViews = useRef(new Set())
 
     useEffect(() => {
-        checkUser()
-        loadWeeklyPrize()
-        loadCardBackSetting()
-        loadCardBackAdvertiser()
-        loadDisplayAds()
-    }, [])
+        loadWeeklyPrize(gameMode)
+    }, [gameMode])
 
     const checkUser = async () => {
         try {
@@ -272,7 +268,7 @@ export default function GamePage() {
         await loadDisplayAds()
     }
 
-    const loadWeeklyPrize = async () => {
+    const loadWeeklyPrize = async (mode = gameMode) => {
         try {
             const today = new Date()
             const dayOfWeek = today.getDay()
@@ -280,18 +276,24 @@ export default function GamePage() {
             weekStart.setDate(today.getDate() - dayOfWeek)
             weekStart.setHours(0, 0, 0, 0)
 
+            const gameType = mode === 'easy' ? 'match_easy' : 'match_challenge'
+
             const { data } = await supabase
                 .from('weekly_prizes')
                 .select('*')
                 .eq('week_start', weekStart.toISOString().split('T')[0])
+                .eq('game_type', gameType)
                 .eq('is_active', true)
                 .maybeSingle()
 
             if (data) {
                 setWeeklyPrize(data)
+            } else {
+                setWeeklyPrize(null)
             }
         } catch (error) {
             console.log('No prize set for this week')
+            setWeeklyPrize(null)
         }
     }
 

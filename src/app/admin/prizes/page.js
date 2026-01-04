@@ -89,6 +89,7 @@ export default function AdminPrizesPage() {
     const [cardBackImageUrl, setCardBackImageUrl] = useState('')
     const [message, setMessage] = useState('')
     const [uploading, setUploading] = useState(false)
+    const [tokenValue, setTokenValue] = useState(0.05)
 
     // ===== DAILY REWARDS STATE =====
     const [dailyRewards, setDailyRewards] = useState({})
@@ -102,8 +103,23 @@ export default function AdminPrizesPage() {
     const [selectedQueueWeek, setSelectedQueueWeek] = useState(null)
     const [queueWarnings, setQueueWarnings] = useState([])
 
+    // ===== LOAD TOKEN VALUE =====
+    const loadTokenValue = async () => {
+        try {
+            const { data } = await supabase
+                .from('economy_settings')
+                .select('setting_value')
+                .eq('setting_key', 'token_value')
+                .single()
+            if (data) setTokenValue(parseFloat(data.setting_value) || 0.05)
+        } catch (error) {
+            console.log('Using default token value')
+        }
+    }
+
     // ===== INITIAL LOAD =====
     useEffect(() => {
+        loadTokenValue()
         if (activeTab === 'weekly') {
             loadCurrentPrize()
         } else if (activeTab === 'daily') {
@@ -365,7 +381,7 @@ export default function AdminPrizesPage() {
     }
 
     const calculateTotal = () => {
-        if (prizeType !== 'cash') return 0
+        if (prizeType !== 'cash' && prizeType !== 'tokens') return 0
         return prizeAmounts.reduce((sum, amount) => sum + (parseFloat(amount) || 0), 0)
     }
 
@@ -695,17 +711,24 @@ export default function AdminPrizesPage() {
                                             {getOrdinal(index + 1)}
                                         </span>
                                         {(prizeType === 'cash' || prizeType === 'tokens') && (
-                                            <div className="relative">
-                                                <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>
-                                                    {prizeType === 'cash' ? '$' : '🪙'}
-                                                </span>
-                                                <input
-                                                    type="number"
-                                                    value={amount}
-                                                    onChange={(e) => handleAmountChange(index, e.target.value)}
-                                                    placeholder="0"
-                                                    className={`w-24 pl-5 pr-2 py-1 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
-                                                />
+                                            <div className="flex items-center gap-2">
+                                                <div className="relative">
+                                                    <span className={`absolute left-2 top-1/2 -translate-y-1/2 text-${currentTheme.textMuted} text-xs`}>
+                                                        {prizeType === 'cash' ? '$' : '🪙'}
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        value={amount}
+                                                        onChange={(e) => handleAmountChange(index, e.target.value)}
+                                                        placeholder="0"
+                                                        className={`w-24 pl-5 pr-2 py-1 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                                    />
+                                                </div>
+                                                {prizeType === 'tokens' && parseFloat(amount) > 0 && (
+                                                    <span className={`text-xs text-${currentTheme.textMuted}`}>
+                                                        = <span className="text-green-400">${(parseFloat(amount) * tokenValue).toFixed(2)}</span>
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                         {(prizeType === 'merchandise' || prizeType === 'custom') && (
@@ -724,6 +747,15 @@ export default function AdminPrizesPage() {
                                 <div className={`mt-2 pt-2 border-t border-${currentTheme.border}`}>
                                     <span className={`text-xs text-${currentTheme.textMuted}`}>Total: </span>
                                     <span className="text-green-400 font-bold">${calculateTotal()}</span>
+                                </div>
+                            )}
+                            {prizeType === 'tokens' && (
+                                <div className={`mt-2 pt-2 border-t border-${currentTheme.border}`}>
+                                    <span className={`text-xs text-${currentTheme.textMuted}`}>Total: </span>
+                                    <span className="text-yellow-400 font-bold">{calculateTotal()} 🪙</span>
+                                    <span className={`text-xs text-${currentTheme.textMuted} ml-2`}>
+                                        (TOTAL IS WORTH <span className="text-green-400 font-medium">${(calculateTotal() * tokenValue).toFixed(2)}</span> at ${tokenValue}/token)
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -1057,14 +1089,14 @@ export default function AdminPrizesPage() {
                                                             <>
                                                                 <p className="text-blue-400 text-[10px]">🔁 Repeat</p>
                                                                 <p className="text-white text-xs font-bold">
-                                                                    {prize.prize_type === 'cash' ? `$${prize.total_prize_pool}` : prize.prize_descriptions?.[0]?.substring(0, 10) || 'Prize'}
+                                                                    {prize.prize_type === 'cash' ? `$${prize.total_prize_pool}` : prize.prize_type === 'tokens' ? `🪙${prize.total_prize_pool}` : prize.prize_descriptions?.[0]?.substring(0, 10) || 'Prize'}
                                                                 </p>
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <p className="text-green-400 text-[10px]">✅ Set</p>
                                                                 <p className="text-white text-xs font-bold">
-                                                                    {prize.is_surprise ? '🎁' : prize.prize_type === 'cash' ? `$${prize.total_prize_pool}` : prize.prize_descriptions?.[0]?.substring(0, 10) || 'Prize'}
+                                                                    {prize.is_surprise ? '🎁' : prize.prize_type === 'cash' ? `$${prize.total_prize_pool}` : prize.prize_type === 'tokens' ? `🪙${prize.total_prize_pool}` : prize.prize_descriptions?.[0]?.substring(0, 10) || 'Prize'}
                                                                 </p>
                                                             </>
                                                         )}
@@ -1190,6 +1222,15 @@ export default function AdminPrizesPage() {
                                                 </div>
                                             ))}
                                         </div>
+                                        {prizeType === 'tokens' && (
+                                            <div className={`mt-2 pt-2 border-t border-${currentTheme.border}`}>
+                                                <span className={`text-xs text-${currentTheme.textMuted}`}>Total: </span>
+                                                <span className="text-yellow-400 font-bold">{calculateTotal()} 🪙</span>
+                                                <span className={`text-xs text-${currentTheme.textMuted} ml-2`}>
+                                                    (worth <span className="text-green-400 font-medium">${(calculateTotal() * tokenValue).toFixed(2)}</span>)
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {message && (

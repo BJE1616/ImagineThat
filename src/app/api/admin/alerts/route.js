@@ -196,7 +196,7 @@ export async function GET(request) {
                 .select('id, game_type')
                 .eq('week_start', nextWeekStr)
 
-            const gameTypes = ['slots', 'plinko', 'wheel']
+            const gameTypes = ['slots', 'match_easy', 'match_challenge', 'solitaire']
             for (const gameType of gameTypes) {
                 const hasPrize = nextWeekPrizes?.some(p => p.game_type === gameType)
                 const alertKey = `setup_${gameType}_${nextWeekStr}`

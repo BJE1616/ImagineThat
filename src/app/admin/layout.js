@@ -69,7 +69,7 @@ export default function AdminLayout({ children }) {
 
     useEffect(() => {
         // Check page access when pathname or role changes
-        if (userRole && pathname !== '/admin/login') {
+        if (userRole && pathname !== '/auth/login') {
             checkPageAccess()
         }
     }, [pathname, userRole, hasHealthAccess, hasAuditLogAccess])
@@ -102,8 +102,8 @@ export default function AdminLayout({ children }) {
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
-                if (pathname !== '/admin/login') {
-                    router.push('/admin/login')
+                if (pathname !== '/auth/login') {
+                    router.push('/auth/login')
                 }
                 setLoading(false)
                 return
@@ -145,7 +145,7 @@ export default function AdminLayout({ children }) {
 
         } catch (error) {
             console.error('Admin check error:', error)
-            router.push('/admin/login')
+            router.push('/auth/login')
         } finally {
             setLoading(false)
         }
@@ -181,7 +181,7 @@ export default function AdminLayout({ children }) {
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
-        router.push('/admin/login')
+        router.push('/auth/login')
     }
 
     const toggleGroup = (groupKey) => {
@@ -216,7 +216,7 @@ export default function AdminLayout({ children }) {
         return 'bg-slate-500'
     }
 
-    if (pathname === '/admin/login') {
+    if (pathname === '/auth/login') {
         return children
     }
 
