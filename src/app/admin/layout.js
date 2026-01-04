@@ -249,7 +249,6 @@ export default function AdminLayout({ children }) {
             icon: '📊',
             items: [
                 { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
-                { href: '/admin/stats', label: 'Stats', icon: '📉' },
                 { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },

@@ -21,6 +21,22 @@ export default function AdminDashboardPage() {
     const [recentWinners, setRecentWinners] = useState([])
     const [loading, setLoading] = useState(true)
 
+    // Detailed stats state
+    const [detailedStats, setDetailedStats] = useState({
+        users: { total: 0, admins: 0, regular: 0, thisWeek: 0, thisMonth: 0 },
+        campaigns: { total: 0, active: 0, queued: 0, pending: 0, completed: 0, cancelled: 0, thisWeek: 0, thisMonth: 0 },
+        cards: { total: 0, regular: 0, house: 0, inUse: 0 },
+        views: { total: 0, fromGame: 0, fromFlips: 0, fromCardBack: 0 }
+    })
+    const [showDetailedStats, setShowDetailedStats] = useState(false)
+    const [detailedLoading, setDetailedLoading] = useState(false)
+    const [detailedOpen, setDetailedOpen] = useState({
+        users: false,
+        campaigns: false,
+        cards: false,
+        views: false
+    })
+
     useEffect(() => {
         loadDashboardData()
     }, [])
@@ -126,6 +142,89 @@ export default function AdminDashboardPage() {
         }
     }
 
+    const loadDetailedStats = async () => {
+        if (detailedLoading) return
+        setDetailedLoading(true)
+
+        const now = new Date()
+        const startOfWeek = new Date(now)
+        startOfWeek.setDate(now.getDate() - now.getDay())
+        startOfWeek.setHours(0, 0, 0, 0)
+
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+        try {
+            const [
+                { data: users },
+                { data: campaigns },
+                { data: cards },
+                { data: cardsInUse }
+            ] = await Promise.all([
+                supabase.from('users').select('id, is_admin, created_at'),
+                supabase.from('ad_campaigns').select('id, status, views_from_game, views_from_flips, views_from_card_back, created_at'),
+                supabase.from('business_cards').select('id, is_house_card'),
+                supabase.from('ad_campaigns').select('business_card_id').in('status', ['active', 'queued'])
+            ])
+
+            const userStats = {
+                total: users?.length || 0,
+                admins: users?.filter(u => u.is_admin === true).length || 0,
+                regular: users?.filter(u => u.is_admin !== true).length || 0,
+                thisWeek: users?.filter(u => new Date(u.created_at) >= startOfWeek).length || 0,
+                thisMonth: users?.filter(u => new Date(u.created_at) >= startOfMonth).length || 0
+            }
+
+            const campaignStats = {
+                total: campaigns?.length || 0,
+                active: campaigns?.filter(c => c.status === 'active').length || 0,
+                queued: campaigns?.filter(c => c.status === 'queued').length || 0,
+                pending: campaigns?.filter(c => c.status === 'pending_payment').length || 0,
+                completed: campaigns?.filter(c => c.status === 'completed').length || 0,
+                cancelled: campaigns?.filter(c => c.status === 'cancelled').length || 0,
+                thisWeek: campaigns?.filter(c => new Date(c.created_at) >= startOfWeek).length || 0,
+                thisMonth: campaigns?.filter(c => new Date(c.created_at) >= startOfMonth).length || 0
+            }
+
+            const uniqueCardsInUse = [...new Set(cardsInUse?.map(c => c.business_card_id) || [])]
+            const cardStats = {
+                total: cards?.length || 0,
+                regular: cards?.filter(c => !c.is_house_card).length || 0,
+                house: cards?.filter(c => c.is_house_card).length || 0,
+                inUse: uniqueCardsInUse.length
+            }
+
+            const viewStats = {
+                fromGame: campaigns?.reduce((sum, c) => sum + (c.views_from_game || 0), 0) || 0,
+                fromFlips: campaigns?.reduce((sum, c) => sum + (c.views_from_flips || 0), 0) || 0,
+                fromCardBack: campaigns?.reduce((sum, c) => sum + (c.views_from_card_back || 0), 0) || 0,
+                total: 0
+            }
+            viewStats.total = viewStats.fromGame + viewStats.fromFlips + viewStats.fromCardBack
+
+            setDetailedStats({
+                users: userStats,
+                campaigns: campaignStats,
+                cards: cardStats,
+                views: viewStats
+            })
+        } catch (error) {
+            console.error('Error loading detailed stats:', error)
+        } finally {
+            setDetailedLoading(false)
+        }
+    }
+
+    const toggleDetailedStats = () => {
+        if (!showDetailedStats && !detailedLoading && detailedStats.users.total === 0) {
+            loadDetailedStats()
+        }
+        setShowDetailedStats(!showDetailedStats)
+    }
+
+    const toggleDetailedSection = (section) => {
+        setDetailedOpen(prev => ({ ...prev, [section]: !prev[section] }))
+    }
+
     if (loading) {
         return (
             <div className="p-4">
@@ -151,6 +250,38 @@ export default function AdminDashboardPage() {
         { label: 'All-Time Games', value: stats.totalGamesAllTime, icon: '📊', bgColor: 'bg-indigo-500/10', borderColor: 'border-indigo-500/20', textColor: 'text-indigo-400' }
     ]
 
+    function StatRow({ label, value, even }) {
+        return (
+            <div className={`flex justify-between px-3 py-1.5 ${even ? `bg-${currentTheme.card}` : `bg-${currentTheme.border}/50`}`}>
+                <span className={`text-${currentTheme.textMuted}`}>{label}</span>
+                <span className={`text-${currentTheme.text} font-medium`}>{value}</span>
+            </div>
+        )
+    }
+
+    function DetailedSection({ title, sectionKey, summary, children }) {
+        const isOpen = detailedOpen[sectionKey]
+        return (
+            <div className="mb-2">
+                <button
+                    onClick={() => toggleDetailedSection(sectionKey)}
+                    className={`w-full flex items-center justify-between px-3 py-2 bg-${currentTheme.card} hover:bg-${currentTheme.border} rounded border border-${currentTheme.border} transition`}
+                >
+                    <div className="flex items-center gap-2">
+                        <span className={`text-${currentTheme.accent} text-xs`}>{isOpen ? '▼' : '▶'}</span>
+                        <span className={`text-sm font-semibold text-${currentTheme.text}`}>{title}</span>
+                    </div>
+                    <span className={`text-xs text-${currentTheme.textMuted}`}>{summary}</span>
+                </button>
+                {isOpen && (
+                    <div className={`mt-1 rounded overflow-hidden border border-${currentTheme.border}`}>
+                        {children}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     return (
         <div className="p-4">
             <div className="mb-4">
@@ -175,7 +306,7 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
                     <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>Quick Actions</h2>
                     <div className="grid grid-cols-2 gap-2">
@@ -200,11 +331,11 @@ export default function AdminDashboardPage() {
                                 <p className={`text-${currentTheme.textMuted} text-xs`}>Manage accounts</p>
                             </div>
                         </Link>
-                        <Link href="/admin/archive" className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded hover:bg-purple-500/20 transition-all group">
-                            <span className="text-lg">📚</span>
+                        <Link href="/admin/campaigns" className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded hover:bg-purple-500/20 transition-all group">
+                            <span className="text-lg">📋</span>
                             <div>
-                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-purple-400 transition-colors`}>Archive</p>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>Historical winners</p>
+                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-purple-400 transition-colors`}>Campaigns</p>
+                                <p className={`text-${currentTheme.textMuted} text-xs`}>Ad management</p>
                             </div>
                         </Link>
                     </div>
@@ -243,6 +374,82 @@ export default function AdminDashboardPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Detailed Stats Section */}
+            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
+                <button
+                    onClick={toggleDetailedStats}
+                    className={`w-full flex items-center justify-between p-3 hover:bg-${currentTheme.border}/50 transition`}
+                >
+                    <div className="flex items-center gap-2">
+                        <span className={`text-${currentTheme.accent} text-sm`}>{showDetailedStats ? '▼' : '▶'}</span>
+                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📊 Detailed Platform Stats</h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {detailedLoading && (
+                            <div className={`w-4 h-4 border-2 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                        )}
+                        <span className={`text-xs text-${currentTheme.textMuted}`}>
+                            {showDetailedStats ? 'Click to collapse' : 'Click to expand'}
+                        </span>
+                    </div>
+                </button>
+
+                {showDetailedStats && (
+                    <div className={`p-3 border-t border-${currentTheme.border}`}>
+                        {detailedLoading ? (
+                            <div className="flex items-center justify-center h-32">
+                                <div className={`animate-spin rounded-full h-6 w-6 border-b-2 border-${currentTheme.accent}`}></div>
+                            </div>
+                        ) : (
+                            <div className="max-w-md">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className={`text-${currentTheme.textMuted} text-xs`}>Detailed breakdowns by category</p>
+                                    <button
+                                        onClick={loadDetailedStats}
+                                        className={`text-xs bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.textMuted} px-2 py-1 rounded transition`}
+                                    >
+                                        Refresh
+                                    </button>
+                                </div>
+
+                                <DetailedSection title="Users" sectionKey="users" summary={`${detailedStats.users.total} total`}>
+                                    <StatRow label="Total" value={detailedStats.users.total} even={false} />
+                                    <StatRow label="Admins" value={detailedStats.users.admins} even={true} />
+                                    <StatRow label="Regular" value={detailedStats.users.regular} even={false} />
+                                    <StatRow label="New This Week" value={detailedStats.users.thisWeek} even={true} />
+                                    <StatRow label="New This Month" value={detailedStats.users.thisMonth} even={false} />
+                                </DetailedSection>
+
+                                <DetailedSection title="Campaigns" sectionKey="campaigns" summary={`${detailedStats.campaigns.active} active`}>
+                                    <StatRow label="Active" value={detailedStats.campaigns.active} even={false} />
+                                    <StatRow label="Queued" value={detailedStats.campaigns.queued} even={true} />
+                                    <StatRow label="Pending Payment" value={detailedStats.campaigns.pending} even={false} />
+                                    <StatRow label="Completed" value={detailedStats.campaigns.completed} even={true} />
+                                    <StatRow label="Cancelled" value={detailedStats.campaigns.cancelled} even={false} />
+                                    <StatRow label="Total" value={detailedStats.campaigns.total} even={true} />
+                                    <StatRow label="New This Week" value={detailedStats.campaigns.thisWeek} even={false} />
+                                    <StatRow label="New This Month" value={detailedStats.campaigns.thisMonth} even={true} />
+                                </DetailedSection>
+
+                                <DetailedSection title="Business Cards" sectionKey="cards" summary={`${detailedStats.cards.total} total`}>
+                                    <StatRow label="Total" value={detailedStats.cards.total} even={false} />
+                                    <StatRow label="Regular" value={detailedStats.cards.regular} even={true} />
+                                    <StatRow label="House Cards" value={detailedStats.cards.house} even={false} />
+                                    <StatRow label="In Use" value={detailedStats.cards.inUse} even={true} />
+                                </DetailedSection>
+
+                                <DetailedSection title="Ad Views" sectionKey="views" summary={`${detailedStats.views.total.toLocaleString()} total`}>
+                                    <StatRow label="Total" value={detailedStats.views.total.toLocaleString()} even={false} />
+                                    <StatRow label="From Game" value={detailedStats.views.fromGame.toLocaleString()} even={true} />
+                                    <StatRow label="From Flips" value={detailedStats.views.fromFlips.toLocaleString()} even={false} />
+                                    <StatRow label="From Card Back" value={detailedStats.views.fromCardBack.toLocaleString()} even={true} />
+                                </DetailedSection>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     )
