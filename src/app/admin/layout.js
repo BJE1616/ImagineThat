@@ -84,6 +84,13 @@ export default function AdminLayout({ children }) {
         }
     }, [isAdmin, userRole])
 
+    // Also refresh alerts when navigating to alerts page
+    useEffect(() => {
+        if (pathname === '/admin/alerts') {
+            fetchAlerts()
+        }
+    }, [pathname])
+
     const fetchAlerts = async () => {
         try {
             const response = await fetch('/api/admin/alerts')

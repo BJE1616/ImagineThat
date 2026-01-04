@@ -183,36 +183,67 @@ export async function GET(request) {
         }
 
         // ============================================
-        // ALERT: Setup Next Week Prize
+        // ALERT: Setup Prize (configurable days ahead)
         // ============================================
         if (canSee('prize_setup_missing')) {
-            const nextWeekStart = new Date()
-            nextWeekStart.setDate(nextWeekStart.getDate() + (7 - nextWeekStart.getDay()))
-            nextWeekStart.setHours(0, 0, 0, 0)
-            const nextWeekStr = nextWeekStart.toISOString().split('T')[0]
+            // Get the days ahead setting
+            const { data: alertDaysSetting } = await supabaseAdmin
+                .from('admin_settings')
+                .select('setting_value')
+                .eq('setting_key', 'prize_alert_days_ahead')
+                .single()
 
-            const { data: nextWeekPrizes } = await supabaseAdmin
+            const daysAhead = parseInt(alertDaysSetting?.setting_value) || 14
+            const weeksAhead = Math.ceil(daysAhead / 7)
+
+            // Generate week starts for all weeks in range
+            const weekStarts = []
+            for (let i = 1; i <= weeksAhead; i++) {
+                const weekStart = new Date()
+                const currentDay = weekStart.getDay()
+                const daysUntilNextSunday = 7 - currentDay
+                weekStart.setDate(weekStart.getDate() + daysUntilNextSunday + ((i - 1) * 7))
+                weekStart.setHours(0, 0, 0, 0)
+                weekStarts.push(weekStart.toISOString().split('T')[0])
+            }
+
+            // Fetch all prizes for those weeks
+            const { data: futurePrizes } = await supabaseAdmin
                 .from('weekly_prizes')
-                .select('id, game_type')
-                .eq('week_start', nextWeekStr)
+                .select('id, game_type, week_start')
+                .in('week_start', weekStarts)
 
             const gameTypes = ['slots', 'match_easy', 'match_challenge', 'solitaire']
-            for (const gameType of gameTypes) {
-                const hasPrize = nextWeekPrizes?.some(p => p.game_type === gameType)
-                const alertKey = `setup_${gameType}_${nextWeekStr}`
+            const gameLabels = {
+                'slots': 'Slots',
+                'match_easy': 'Match Easy',
+                'match_challenge': 'Match Challenge',
+                'solitaire': 'Solitaire'
+            }
 
-                if (!hasPrize && !isDismissed('prize_setup_missing', alertKey)) {
-                    alerts.push({
-                        type: 'prize_setup_missing',
-                        key: alertKey,
-                        severity: 'high',
-                        icon: '🎁',
-                        title: 'Setup Prize!',
-                        description: `No ${gameType} prize configured for next week`,
-                        actionUrl: '/admin/prizes',
-                        actionLabel: 'Configure Prize',
-                        createdAt: now.toISOString(),
-                    })
+            for (const weekStr of weekStarts) {
+                const weekDate = new Date(weekStr + 'T00:00:00')
+                const weekEnd = new Date(weekDate)
+                weekEnd.setDate(weekDate.getDate() + 6)
+                const dateLabel = `${weekDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+
+                for (const gameType of gameTypes) {
+                    const hasPrize = futurePrizes?.some(p => p.game_type === gameType && p.week_start === weekStr)
+                    const alertKey = `setup_${gameType}_${weekStr}`
+
+                    if (!hasPrize && !isDismissed('prize_setup_missing', alertKey)) {
+                        alerts.push({
+                            type: 'prize_setup_missing',
+                            key: alertKey,
+                            severity: 'high',
+                            icon: '🎁',
+                            title: 'Setup Prize!',
+                            description: `No ${gameLabels[gameType]} prize for ${dateLabel}`,
+                            actionUrl: '/admin/prizes',
+                            actionLabel: 'Configure',
+                            createdAt: now.toISOString(),
+                        })
+                    }
                 }
             }
         }

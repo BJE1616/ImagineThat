@@ -24,7 +24,10 @@ const TIPS = {
     // Card Display
     showAdvertiserCards: "When ON, random advertiser cards appear on card backs during games. When OFF, your company logo shows.",
     companyLogo: "Your logo shown on card backs when 'Show Advertiser Cards' is OFF. Recommended: square image, 200x200px or larger.",
-    cardUrlClickable: "When ON, website URLs on business cards become clickable links. When OFF, URLs display as plain text."
+    cardUrlClickable: "When ON, website URLs on business cards become clickable links. When OFF, URLs display as plain text.",
+
+    // Alerts
+    prizeAlertDays: "How many days ahead to alert you when game prizes are not configured. Alerts check each Sunday's week."
 }
 
 // Default values and recommended ranges for slot settings
@@ -65,7 +68,8 @@ export default function AdminSettingsPage() {
         audit_log_auto_cleanup: 'false',
         audit_log_retention_days: '365',
         ip_log_auto_cleanup: 'true',
-        ip_log_retention_days: '365'
+        ip_log_retention_days: '365',
+        prize_alert_days_ahead: '14'
     })
     const [uploading, setUploading] = useState(false)
     const { theme, themes, updateTheme, currentTheme } = useTheme()
@@ -386,6 +390,48 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="space-y-2">
+                {/* Alert Settings */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
+                    <SectionHeader
+                        id="alerts"
+                        icon="🔔"
+                        title="Alert Settings"
+                        subtitle={`Prize alerts: ${settings.prize_alert_days_ahead} days ahead`}
+                        isExpanded={expandedSections.includes('alerts')}
+                    />
+                    {expandedSections.includes('alerts') && (
+                        <div className="p-2 pt-0 border-t border-slate-700">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                                <div>
+                                    <label className={`block text-[10px] font-medium text-${currentTheme.textMuted} mb-0.5`}>
+                                        <Tooltip text={TIPS.prizeAlertDays}>Prize Alert Days Ahead</Tooltip>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={settings.prize_alert_days_ahead}
+                                        onChange={(e) => handleChange('prize_alert_days_ahead', e.target.value)}
+                                        min="1"
+                                        max="60"
+                                        className={`w-full px-2 py-1 text-xs bg-${currentTheme.border} border border-${currentTheme.border} rounded text-${currentTheme.text} focus:outline-none focus:ring-1 focus:ring-${currentTheme.accent}`}
+                                    />
+                                    <p className={`text-${currentTheme.textMuted} text-[10px] mt-1`}>
+                                        Alert when prizes aren't set within this many days
+                                    </p>
+                                </div>
+
+                                <div className={`bg-${currentTheme.border}/50 rounded p-2`}>
+                                    <h3 className={`text-${currentTheme.text} font-medium text-[10px] mb-1`}>How it works</h3>
+                                    <div className={`text-${currentTheme.textMuted} text-[10px] space-y-0.5`}>
+                                        <p>• Checks all 4 games: Slots, Match Easy, Match Challenge, Solitaire</p>
+                                        <p>• Alerts show in Admin → Alerts page</p>
+                                        <p>• {settings.prize_alert_days_ahead} days = ~{Math.ceil(parseInt(settings.prize_alert_days_ahead) / 7)} week(s) ahead</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Theme Settings */}
                 <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded`}>
                     <SectionHeader
