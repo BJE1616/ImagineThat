@@ -49,9 +49,26 @@ async function sendCampaignCompletedEmail(campaign) {
             (campaign.views_from_card_back || 0) +
             (campaign.bonus_views || 0)
 
+        const bonusTotal = totalViews - (campaign.views_guaranteed || 0)
+
+        // Format dates
+        const formatDate = (dateStr) => {
+            if (!dateStr) return 'N/A'
+            return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        }
+
         const result = await sendTemplateEmail('campaign_completed', user.email, {
             username: user.username,
-            views: totalViews.toLocaleString()
+            views_guaranteed: (campaign.views_guaranteed || 0).toLocaleString(),
+            total_views: totalViews.toLocaleString(),
+            bonus_total: bonusTotal.toLocaleString(),
+            views_from_flips: (campaign.views_from_flips || 0).toLocaleString(),
+            views_from_card_back: (campaign.views_from_card_back || 0).toLocaleString(),
+            views_from_game: (campaign.views_from_game || 0).toLocaleString(),
+            bonus_views: (campaign.bonus_views || 0).toLocaleString(),
+            total_clicks: (campaign.total_clicks || 0).toLocaleString(),
+            started_at: formatDate(campaign.started_at),
+            completed_at: formatDate(campaign.completed_at)
         })
 
         if (result.success) {
