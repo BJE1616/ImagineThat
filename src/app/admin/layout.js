@@ -250,7 +250,6 @@ export default function AdminLayout({ children }) {
             items: [
                 { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
                 { href: '/admin/stats', label: 'Stats', icon: '📉' },
-                { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📋' },
                 { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },
@@ -282,21 +281,27 @@ export default function AdminLayout({ children }) {
             ]
         },
         {
-            key: 'promotions',
-            label: 'Promotions',
-            icon: '📣',
-            items: [
-                { href: '/admin/promo-cards', label: 'Promo Cards', icon: '🎴' },
-                { href: '/admin/promo-stats', label: 'Promo Stats', icon: '📊' },
-            ]
-        },
-        {
             key: 'advertisers',
             label: 'Advertisers',
             icon: '📢',
             items: [
-                { href: '/admin/advertisers', label: 'Advertiser List', icon: '📋' },
+                { href: '/admin/advertisers', label: 'Advertiser List', icon: '👤' },
+                { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📋' },
                 { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
+                { href: '/admin/promo-cards', label: 'Promo Cards', icon: '🎴' },
+                { href: '/admin/promo-stats', label: 'Promo Stats', icon: '📊' },
+                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
+            ]
+        },
+        {
+            key: 'content',
+            label: 'Content',
+            icon: '📝',
+            items: [
+                { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
+                { href: '/admin/email-templates', label: 'Email Templates', icon: '✉️' },
+                { href: '/admin/email-testing', label: 'Email Testing', icon: '📧' },
+                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
             ]
         },
         {
@@ -304,18 +309,14 @@ export default function AdminLayout({ children }) {
             label: 'System',
             icon: '⚙️',
             items: [
-                { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
-                { href: '/admin/email-templates', label: 'Email Templates', icon: '📝' },
-                { href: '/admin/email-testing', label: 'Email Testing', icon: '📧' },
-                { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
-                { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
-                { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
                 { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
-                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
                 { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
                 { href: '/admin/users', label: 'User Management', icon: '👤' },
+                { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
+                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
             ]
-        },]
+        },
+    ]
 
     const isItemActive = (href) => pathname === href
     const isGroupActive = (group) => group.items.some(item => pathname === item.href)
