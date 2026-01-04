@@ -308,7 +308,7 @@ export default function AdvertisePage() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                type: 'matrix_complete',
+                                type: 'matrix_completed',
                                 to: matrixUser.email,
                                 data: {
                                     username: matrixUser.username,

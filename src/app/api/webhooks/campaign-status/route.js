@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
 import { sendTemplateEmail } from '@/lib/email'
+import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,8 +9,6 @@ const supabase = createClient(
 export async function POST(request) {
     try {
         const payload = await request.json()
-
-        // Supabase sends: type, table, record, old_record
         const { type, record, old_record } = payload
 
         if (type !== 'UPDATE') return Response.json({ message: 'Ignored' })
