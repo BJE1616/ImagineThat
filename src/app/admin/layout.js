@@ -275,9 +275,7 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
                 { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
                 { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
-                { href: '/admin/winners', label: 'Weekly Winners', icon: '🏆' },
-                { href: '/admin/archive', label: 'Winners Archive', icon: '📚' },
-                { href: '/admin/winners-board', label: 'Winners Board', icon: '📋' },
+                { href: '/admin/winners', label: 'Winners Management', icon: '🏆' },
             ]
         },
         {
