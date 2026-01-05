@@ -7,7 +7,6 @@ const supabase = createClient(
 )
 
 export async function GET(request) {
-    // Optional: Add a secret key check for security
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 
@@ -16,7 +15,6 @@ export async function GET(request) {
     }
 
     try {
-        // Get pending payouts
         const { data: pendingPayouts, error } = await supabase
             .from('payout_queue')
             .select('amount')
@@ -29,35 +27,34 @@ export async function GET(request) {
 
         const count = pendingPayouts?.length || 0
 
-        // Only send if there are pending payouts
         if (count === 0) {
             return Response.json({ success: true, message: 'No pending payouts', sent: false })
         }
 
         const totalAmount = pendingPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
 
-        // Get admin emails to notify (super_admin and admin roles)
+        // Get admin emails by joining admin_users with users
         const { data: admins } = await supabase
             .from('admin_users')
-            .select('email')
+            .select('user_id, role, users(email)')
             .in('role', ['super_admin', 'admin'])
-            .eq('is_active', true)
 
-        if (!admins || admins.length === 0) {
+        const adminEmails = admins?.filter(a => a.users?.email).map(a => a.users.email) || []
+
+        if (adminEmails.length === 0) {
             return Response.json({ success: false, error: 'No admin emails found' }, { status: 500 })
         }
 
-        // Send to each admin
         let sentCount = 0
-        for (const admin of admins) {
+        for (const email of adminEmails) {
             try {
-                await sendTemplateEmail('daily_payout_reminder', admin.email, {
+                await sendTemplateEmail('daily_payout_reminder', email, {
                     count: count.toString(),
                     total_amount: totalAmount.toFixed(2)
                 })
                 sentCount++
             } catch (emailError) {
-                console.error(`Failed to send to ${admin.email}:`, emailError)
+                console.error(`Failed to send to ${email}:`, emailError)
             }
         }
 
