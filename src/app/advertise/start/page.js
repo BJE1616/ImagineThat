@@ -299,9 +299,16 @@ export default function AdvertisePage() {
                 try {
                     const { data: matrixUser } = await supabase
                         .from('users')
-                        .select('email, username')
+                        .select('email, first_name')
                         .eq('id', matrix.user_id)
                         .single()
+
+                    // Count user's completed matrices
+                    const { count: matrixCount } = await supabase
+                        .from('matrix_entries')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', matrix.user_id)
+                        .eq('is_completed', true)
 
                     if (matrixUser) {
                         await fetch('/api/send-email', {
@@ -311,7 +318,8 @@ export default function AdvertisePage() {
                                 type: 'matrix_completed',
                                 to: matrixUser.email,
                                 data: {
-                                    username: matrixUser.username,
+                                    first_name: matrixUser.first_name || 'there',
+                                    matrix_number: matrixCount || 1,
                                     payout: matrix.payout_amount || settings.matrix_payout
                                 }
                             })
