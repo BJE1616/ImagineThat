@@ -385,6 +385,29 @@ export default function AdvertisePage() {
 
             setCampaignId(campaign.id)
 
+            // Send receipt email for all purchases
+            try {
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'ad_campaign_receipt',
+                        to: userData.email,
+                        data: {
+                            first_name: userData.username,
+                            campaign_tier: 'Standard',
+                            amount: settings.ad_price,
+                            payment_method: paymentMethod,
+                            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                            order_number: campaign.id.slice(0, 8).toUpperCase(),
+                            views_guaranteed: parseInt(settings.guaranteed_views).toLocaleString()
+                        }
+                    })
+                })
+            } catch (emailError) {
+                console.error('Ad campaign receipt email error:', emailError)
+            }
+
             if (newStatus === 'active') {
                 try {
                     await fetch('/api/send-email', {

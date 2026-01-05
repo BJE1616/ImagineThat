@@ -312,6 +312,28 @@ export default function PayoutQueuePage() {
                 description: `Processed $${parseFloat(paymentForm.amount_paid).toFixed(2)} payout to ${payout.users?.username} via ${paymentForm.payment_method} (Conf: ${paymentForm.confirmation_number.trim()})`
             }])
 
+            // Send payout notification email
+            try {
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'payout_initiated',
+                        to: payout.users?.email,
+                        data: {
+                            first_name: payout.users?.first_name || payout.users?.username,
+                            amount: parseFloat(paymentForm.amount_paid).toFixed(2),
+                            payment_method: paymentForm.payment_method,
+                            payment_handle: payout.payment_handle || payout.users?.payment_handle || 'N/A',
+                            confirmation_number: paymentForm.confirmation_number.trim(),
+                            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        }
+                    })
+                })
+            } catch (emailError) {
+                console.error('Payout notification email error:', emailError)
+            }
+
             setMessage({ type: 'success', text: `✅ Payout of $${parseFloat(paymentForm.amount_paid).toFixed(2)} to ${payout.users?.username} processed!` })
             closePaymentModal()
             loadAllData()

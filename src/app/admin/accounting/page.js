@@ -31,7 +31,12 @@ const TIPS = {
     transactions: "All money in and out. Ad campaigns are added automatically. Use 'Add Income' for other revenue.",
 
     // Fund Balances
-    fundBalances: "Money set aside in each allocation category. Builds up over time based on allocation percentages."
+    fundBalances: "Money set aside in each allocation category. Builds up over time based on allocation percentages.",
+
+    // Tax Summaries
+    taxYear: "The tax year to send summaries for. Users who earned money this year will be included.",
+    taxRecipients: "Number of users who received payouts (matrix, prizes, etc.) during the selected year.",
+    taxConfirm: "This sends official tax documents. Double-check the year and recipient count before sending."
 }
 
 export default function AccountingDashboardPage() {
@@ -81,6 +86,11 @@ export default function AccountingDashboardPage() {
         transaction_date: new Date().toISOString().split('T')[0],
         notes: ''
     })
+    const [taxYear, setTaxYear] = useState(new Date().getFullYear() - 1)
+    const [taxRecipientCount, setTaxRecipientCount] = useState(0)
+    const [taxConfirmed, setTaxConfirmed] = useState(false)
+    const [sendingTax, setSendingTax] = useState(false)
+    const [taxRecipients, setTaxRecipients] = useState([])
     const [newPartner, setNewPartner] = useState({
         name: '',
         email: '',
@@ -93,6 +103,12 @@ export default function AccountingDashboardPage() {
     useEffect(() => {
         loadAllData()
     }, [dateRange])
+
+    useEffect(() => {
+        if (activeTab === 'tax') {
+            loadTaxRecipients(taxYear)
+        }
+    }, [activeTab, taxYear])
 
     const loadAllData = async () => {
         setLoading(true)
@@ -178,6 +194,92 @@ export default function AccountingDashboardPage() {
     const loadPartners = async () => {
         const { data } = await supabase.from('partners').select('*').order('is_owner', { ascending: false }).order('name')
         setPartners(data || [])
+    }
+
+    const loadTaxRecipients = async (year) => {
+        try {
+            const startDate = `${year}-01-01`
+            const endDate = `${year}-12-31`
+
+            const { data, error } = await supabase
+                .from('payout_history')
+                .select('user_id, amount, users(email, username, first_name)')
+                .gte('paid_at', startDate)
+                .lte('paid_at', endDate)
+
+            if (error) throw error
+
+            const userTotals = {}
+            data?.forEach(p => {
+                if (p.user_id && p.users?.email) {
+                    if (!userTotals[p.user_id]) {
+                        userTotals[p.user_id] = {
+                            email: p.users.email,
+                            username: p.users.username,
+                            first_name: p.users.first_name,
+                            total: 0
+                        }
+                    }
+                    userTotals[p.user_id].total += parseFloat(p.amount) || 0
+                }
+            })
+
+            const recipients = Object.values(userTotals).map(u => ({
+                ...u,
+                total: u.total.toFixed(2)
+            }))
+
+            setTaxRecipients(recipients)
+            setTaxRecipientCount(recipients.length)
+        } catch (error) {
+            console.error('Error loading tax recipients:', error)
+            setTaxRecipients([])
+            setTaxRecipientCount(0)
+        }
+    }
+
+    const sendTaxSummaries = async () => {
+        if (!taxConfirmed || sendingTax) return
+
+        setSendingTax(true)
+        try {
+            let successCount = 0
+            let errorCount = 0
+
+            for (const recipient of taxRecipients) {
+                try {
+                    await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'tax_summary_ready',
+                            to: recipient.email,
+                            data: {
+                                first_name: recipient.first_name || recipient.username,
+                                year: taxYear.toString(),
+                                total_earnings: recipient.total
+                            }
+                        })
+                    })
+                    successCount++
+                } catch (err) {
+                    console.error(`Failed to send to ${recipient.email}:`, err)
+                    errorCount++
+                }
+            }
+
+            setMessage({
+                type: errorCount === 0 ? 'success' : 'error',
+                text: `Sent ${successCount} tax summaries${errorCount > 0 ? `, ${errorCount} failed` : ''}`
+            })
+            setTaxConfirmed(false)
+            setTimeout(() => setMessage(null), 5000)
+        } catch (error) {
+            console.error('Error sending tax summaries:', error)
+            setMessage({ type: 'error', text: 'Failed to send tax summaries' })
+        } finally {
+            setSendingTax(false)
+        }
     }
 
     const calculateSummary = async () => {
@@ -489,7 +591,7 @@ export default function AccountingDashboardPage() {
             </div>
 
             <div className="flex gap-1 mb-3">
-                {['overview', 'allocations', 'expenses', 'transactions', 'partners'].map(tab => (
+                {['overview', 'allocations', 'expenses', 'transactions', 'partners', 'tax'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -1002,6 +1104,98 @@ export default function AccountingDashboardPage() {
                     </div>
                 </div>
             )}
+
+            {activeTab === 'tax' && (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+                        📋 Year-End Tax Summaries
+                        <Tooltip text={TIPS.taxConfirm} />
+                    </h3>
+
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <label className="text-slate-400 text-sm flex items-center gap-1">
+                                Tax Year <Tooltip text={TIPS.taxYear} />
+                            </label>
+                            <select
+                                value={taxYear}
+                                onChange={(e) => {
+                                    setTaxYear(parseInt(e.target.value))
+                                    setTaxConfirmed(false)
+                                }}
+                                className="px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                            >
+                                {[...Array(5)].map((_, i) => {
+                                    const year = new Date().getFullYear() - 1 - i
+                                    return <option key={year} value={year}>{year}</option>
+                                })}
+                            </select>
+                        </div>
+
+                        <div className="bg-slate-700/50 rounded-lg p-3">
+                            <p className="text-slate-400 text-sm flex items-center gap-1">
+                                Recipients <Tooltip text={TIPS.taxRecipients} />
+                            </p>
+                            <p className="text-2xl font-bold text-white">{taxRecipientCount}</p>
+                            <p className="text-xs text-slate-500">users earned money in {taxYear}</p>
+                        </div>
+
+                        {taxRecipientCount > 0 && (
+                            <>
+                                <div className="bg-slate-700/30 rounded-lg p-3 max-h-40 overflow-y-auto">
+                                    <p className="text-xs text-slate-400 mb-2">Will send to:</p>
+                                    <div className="space-y-1">
+                                        {taxRecipients.slice(0, 10).map((r, i) => (
+                                            <p key={i} className="text-xs text-slate-300">{r.email} - ${r.total}</p>
+                                        ))}
+                                        {taxRecipients.length > 10 && (
+                                            <p className="text-xs text-slate-500">...and {taxRecipients.length - 10} more</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                                    <p className="text-red-400 text-sm font-medium">⚠️ Warning</p>
+                                    <p className="text-red-300 text-xs mt-1">
+                                        This will send official tax summary emails to {taxRecipientCount} users.
+                                        This action cannot be undone.
+                                    </p>
+                                </div>
+
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={taxConfirmed}
+                                        onChange={(e) => setTaxConfirmed(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
+                                    />
+                                    <span className="text-slate-300 text-sm">
+                                        I confirm I want to send {taxYear} tax summaries to {taxRecipientCount} users
+                                    </span>
+                                </label>
+
+                                <button
+                                    onClick={sendTaxSummaries}
+                                    disabled={!taxConfirmed || sendingTax}
+                                    className={`w-full py-2 rounded-lg font-medium transition-all ${taxConfirmed && !sendingTax
+                                            ? 'bg-yellow-500 text-slate-900 hover:bg-yellow-400'
+                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                        }`}
+                                >
+                                    {sendingTax ? 'Sending...' : `Send ${taxYear} Tax Summaries`}
+                                </button>
+                            </>
+                        )}
+
+                        {taxRecipientCount === 0 && (
+                            <div className="bg-slate-700/30 rounded-lg p-4 text-center">
+                                <p className="text-slate-400">No users earned money in {taxYear}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
+ENDOFFILE

@@ -262,6 +262,48 @@ export default function MerchStoreAdminPage() {
 
             if (error) throw error
 
+            // Send shipped notification email
+            if (newStatus === 'shipped' && order.users?.email) {
+                try {
+                    await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'merch_shipped',
+                            to: order.users.email,
+                            data: {
+                                first_name: order.users.first_name || order.users.username,
+                                item_name: order.item_name,
+                                tracking_number: orderForm.tracking_number || 'See order details'
+                            }
+                        })
+                    })
+                } catch (emailError) {
+                    console.error('Shipped notification email error:', emailError)
+                }
+            }
+
+            // Send gift card delivered email
+            if (newStatus === 'delivered' && order.item_type === 'digital_gift_card' && order.users?.email) {
+                try {
+                    await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'gift_card_sent',
+                            to: order.users.email,
+                            data: {
+                                first_name: order.users.first_name || order.users.username,
+                                item_name: order.item_name,
+                                gift_card_code: orderForm.gift_card_code || 'Check your order details'
+                            }
+                        })
+                    })
+                } catch (emailError) {
+                    console.error('Gift card email error:', emailError)
+                }
+            }
+
             setMessage({ type: 'success', text: `Order marked as ${newStatus}!` })
             setProcessingOrder(null)
             setOrderForm({ tracking_number: '', gift_card_code: '', notes: '' })

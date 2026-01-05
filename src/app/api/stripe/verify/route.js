@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { sendTemplateEmail } from '@/lib/email'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'placeholder')
 const supabase = createClient(
@@ -64,6 +65,26 @@ export async function POST(request) {
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', order.item_id)
+            }
+
+            // Send order confirmation email
+            try {
+                const { data: user } = await supabase
+                    .from('users')
+                    .select('email, username, first_name')
+                    .eq('id', order.user_id)
+                    .single()
+
+                if (user?.email) {
+                    await sendTemplateEmail('merch_order_confirmed', user.email, {
+                        first_name: user.first_name || user.username,
+                        item_name: order.item_name,
+                        bb_cost: order.bb_cost > 0 ? `${order.bb_cost} BB` : `$${order.cash_cost}`,
+                        order_number: order.id.slice(0, 8).toUpperCase()
+                    })
+                }
+            } catch (emailError) {
+                console.error('Order confirmation email error:', emailError)
             }
         }
 
