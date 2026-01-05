@@ -174,7 +174,7 @@ export default function RegisterPage() {
                     <p className={`text-${currentTheme.textMuted} text-sm`}>Join ImagineThat and start winning!</p>
                 </div>
 
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} autoComplete="off">
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm mb-3">
                             {error}
@@ -189,6 +189,7 @@ export default function RegisterPage() {
                                     name="firstName"
                                     type="text"
                                     required
+                                    autoComplete="off"
                                     className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="First"
                                     value={formData.firstName}
@@ -201,6 +202,7 @@ export default function RegisterPage() {
                                     name="lastName"
                                     type="text"
                                     required
+                                    autoComplete="off"
                                     className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="Last"
                                     value={formData.lastName}
@@ -216,6 +218,7 @@ export default function RegisterPage() {
                                     name="username"
                                     type="text"
                                     required
+                                    autoComplete="off"
                                     className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="username"
                                     value={formData.username}
@@ -228,6 +231,7 @@ export default function RegisterPage() {
                                     name="phone"
                                     type="tel"
                                     required
+                                    autoComplete="off"
                                     className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="(555) 123-4567"
                                     value={formData.phone}
@@ -242,6 +246,7 @@ export default function RegisterPage() {
                                 name="email"
                                 type="email"
                                 required
+                                autoComplete="off"
                                 className={`w-full px-3 py-2 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                 placeholder="your.email@example.com"
                                 value={formData.email}
@@ -256,6 +261,7 @@ export default function RegisterPage() {
                                     name="password"
                                     type={showPassword ? 'text' : 'password'}
                                     required
+                                    autoComplete="new-password"
                                     className={`w-full px-3 py-2 pr-10 text-sm bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent}`}
                                     placeholder="At least 6 characters"
                                     value={formData.password}
