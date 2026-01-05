@@ -12,6 +12,7 @@ export default function DashboardPage() {
     const [userData, setUserData] = useState(null)
     const [campaigns, setCampaigns] = useState([])
     const [matrix, setMatrix] = useState(null)
+    const [placedUnder, setPlacedUnder] = useState(null)
     const [notifications, setNotifications] = useState([])
     const [loading, setLoading] = useState(true)
     const [settings, setSettings] = useState({
@@ -110,6 +111,22 @@ export default function DashboardPage() {
                 .maybeSingle()
 
             setMatrix(matrixData)
+
+            // Find who the user is placed under (which matrix they're IN as a spot)
+            const { data: placedUnderData } = await supabase
+                .from('matrix_entries')
+                .select(`
+                    id,
+                    owner:users!matrix_entries_user_id_fkey (id, username)
+                `)
+                .or(`spot_2.eq.${authUser.id},spot_3.eq.${authUser.id},spot_4.eq.${authUser.id},spot_5.eq.${authUser.id},spot_6.eq.${authUser.id},spot_7.eq.${authUser.id}`)
+                .neq('user_id', authUser.id)
+                .limit(1)
+                .maybeSingle()
+
+            if (placedUnderData?.owner) {
+                setPlacedUnder(placedUnderData.owner.username)
+            }
 
             const { data: notifData } = await supabase
                 .from('notifications')
@@ -1206,7 +1223,7 @@ export default function DashboardPage() {
 
                 {matrix && (
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4 mb-4`}>
-                        <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center justify-between mb-2">
                             <h2 className={`text-base font-bold text-${currentTheme.text}`}>🔷 Your Matrix</h2>
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.is_completed
                                 ? 'bg-green-500/20 text-green-400'
@@ -1215,6 +1232,12 @@ export default function DashboardPage() {
                                 {matrix.is_completed ? 'Complete!' : `${getFilledSpots()}/6`}
                             </span>
                         </div>
+
+                        {placedUnder && (
+                            <p className={`text-${currentTheme.textMuted} text-xs mb-3`}>
+                                You were placed under: <span className={`text-${currentTheme.accent} font-medium`}>{placedUnder}</span>
+                            </p>
+                        )}
 
                         <div className={`bg-${currentTheme.border}/30 rounded-lg p-3`}>
                             <div className="flex justify-center mb-2">
