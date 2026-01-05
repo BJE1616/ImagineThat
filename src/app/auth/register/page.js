@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
@@ -18,8 +18,19 @@ export default function RegisterPage() {
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
-    const [message, setMessage] = useState(null)
+    const [registrationComplete, setRegistrationComplete] = useState(false)
+    const [countdown, setCountdown] = useState(5)
     const [showPassword, setShowPassword] = useState(false)
+
+    // Countdown and redirect after successful registration
+    useEffect(() => {
+        if (registrationComplete && countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+            return () => clearTimeout(timer)
+        } else if (registrationComplete && countdown === 0) {
+            router.push('/auth/login')
+        }
+    }, [registrationComplete, countdown, router])
 
     const formatPhone = (value) => {
         const numbers = value.replace(/\D/g, '')
@@ -40,7 +51,6 @@ export default function RegisterPage() {
         e.preventDefault()
         setLoading(true)
         setError(null)
-        setMessage(null)
 
         try {
             const { data: existingUser } = await supabase
@@ -105,13 +115,52 @@ export default function RegisterPage() {
                     console.error('Welcome email error:', emailError)
                 }
 
-                setMessage('Account created! Check your email to verify, then log in.')
+                // Sign out so they can't access anything until verified
+                await supabase.auth.signOut()
+
+                setRegistrationComplete(true)
             }
         } catch (error) {
             setError(error.message || 'Error creating account')
         } finally {
             setLoading(false)
         }
+    }
+
+    // Success screen after registration
+    if (registrationComplete) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg} py-6 px-4`}>
+                <div className="max-w-md w-full text-center">
+                    <div className={`inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4`}>
+                        <span className="text-4xl">✉️</span>
+                    </div>
+                    <h2 className={`text-2xl font-bold text-${currentTheme.text} mb-2`}>Check Your Email!</h2>
+                    <p className={`text-${currentTheme.textMuted} mb-6`}>
+                        We sent a verification link to <span className={`text-${currentTheme.accent} font-medium`}>{formData.email}</span>
+                        <br /><br />
+                        Click the link in that email to verify your account, then you can log in.
+                    </p>
+
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 mb-4`}>
+                        <p className={`text-${currentTheme.textMuted} text-sm`}>
+                            Redirecting to login in <span className={`text-${currentTheme.accent} font-bold`}>{countdown}</span> seconds...
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={() => router.push('/auth/login')}
+                        className={`w-full py-2.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all`}
+                    >
+                        Go to Login Now
+                    </button>
+
+                    <p className={`text-${currentTheme.textMuted} text-xs mt-4`}>
+                        Didn't get the email? Check your spam folder.
+                    </p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -129,12 +178,6 @@ export default function RegisterPage() {
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm mb-3">
                             {error}
-                        </div>
-                    )}
-
-                    {message && (
-                        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-3 py-2 rounded-lg text-sm mb-3">
-                            {message}
                         </div>
                     )}
 
