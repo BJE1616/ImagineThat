@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function CardsPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const returnTo = searchParams.get('returnTo')
     const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [cards, setCards] = useState([])
@@ -264,9 +266,13 @@ export default function CardsPage() {
 
             if (error) throw error
 
-            if (!hasActiveCampaign) {
+            if (returnTo === 'campaign') {
+                // Coming from campaign flow - go back to continue
+                router.push('/advertise/start')
+                return
+            } else if (!hasActiveCampaign) {
                 if (confirm('Business card created! Ready to start advertising?')) {
-                    router.push('/advertise')
+                    router.push('/advertise/start')
                     return
                 }
             } else {

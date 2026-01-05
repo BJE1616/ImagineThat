@@ -17,7 +17,7 @@ export default function AdvertisePage() {
         ad_price: '100',
         matrix_payout: '200'
     })
-    const [paymentMethod, setPaymentMethod] = useState('stripe')
+    const [paymentMethod, setPaymentMethod] = useState('')
     const [paymentHandle, setPaymentHandle] = useState('')
     const [payoutMethod, setPayoutMethod] = useState('')
     const [payoutHandle, setPayoutHandle] = useState('')
@@ -59,6 +59,7 @@ export default function AdvertisePage() {
 
             setUserData(userDataResult)
 
+            // Pre-fill payout method from profile if exists
             if (userDataResult?.payout_method) {
                 setPayoutMethod(userDataResult.payout_method)
                 setPayoutHandle(userDataResult.payout_handle || '')
@@ -335,32 +336,16 @@ export default function AdvertisePage() {
     }
 
     const handlePurchase = async () => {
-        if (!selectedCardId) {
-            setMessage('Error: Please select a card for this campaign')
-            return
-        }
-
-        const finalPayoutMethod = paymentMethod === 'stripe' ? payoutMethod : paymentMethod
-        const finalPayoutHandle = paymentMethod === 'stripe' ? payoutHandle : paymentHandle
-
-        if (!finalPayoutMethod) {
-            setMessage('Error: Please select a payout method')
-            return
-        }
-        if (!finalPayoutHandle) {
-            setMessage('Error: Please enter your payout handle')
-            return
-        }
-
         setProcessing(true)
         setMessage('')
 
         try {
+            // Save payout preferences to user profile
             await supabase
                 .from('users')
                 .update({
-                    payout_method: finalPayoutMethod,
-                    payout_handle: finalPayoutHandle
+                    payout_method: payoutMethod,
+                    payout_handle: payoutHandle
                 })
                 .eq('id', user.id)
 
@@ -435,7 +420,7 @@ export default function AdvertisePage() {
                 }
             }
 
-            setStep(2)
+            setStep(5) // Go to matrix choice
 
         } catch (error) {
             setMessage('Error: ' + error.message)
@@ -447,7 +432,7 @@ export default function AdvertisePage() {
     const handleMatrixChoice = (wantsMatrix) => {
         setJoinMatrix(wantsMatrix)
         if (wantsMatrix) {
-            setStep(3)
+            setStep(6)
         } else {
             finishWithoutMatrix()
         }
@@ -488,6 +473,16 @@ export default function AdvertisePage() {
         }
     }
 
+    // Calculate dynamic font size based on text length
+    const getDynamicFontSize = (text, maxSize, minSize, maxLength) => {
+        if (!text) return maxSize
+        const length = text.length
+        if (length <= maxLength * 0.5) return maxSize
+        if (length >= maxLength) return minSize
+        const ratio = (length - maxLength * 0.5) / (maxLength * 0.5)
+        return maxSize - (ratio * (maxSize - minSize))
+    }
+
     // Render card preview (works for both image and text-based cards)
     const renderCardPreview = (card, size = 'large') => {
         if (card.image_url) {
@@ -495,15 +490,17 @@ export default function AdvertisePage() {
                 <img
                     src={card.image_url}
                     alt={card.business_name}
-                    className={`${size === 'large' ? 'w-full' : 'w-full h-full'} object-cover rounded-lg`}
+                    className={`${size === 'large' ? 'w-full h-full' : 'w-full h-full'} object-cover rounded-lg`}
+                    style={{ transform: `rotate(${card.image_rotation || 0}deg)` }}
                 />
             )
         }
 
         // Text-based card
+        const displayName = card.display_name || card.business_name || card.title || 'Card'
         return (
             <div
-                className={`${size === 'large' ? 'w-full p-4' : 'w-full h-full p-2'} rounded-lg flex flex-col justify-center`}
+                className={`${size === 'large' ? 'w-full h-full p-4' : 'w-full h-full p-1'} rounded-lg flex flex-col justify-center items-center`}
                 style={{
                     backgroundColor: card.card_color || '#1e293b',
                     color: card.text_color || '#ffffff'
@@ -511,27 +508,56 @@ export default function AdvertisePage() {
             >
                 {size === 'large' ? (
                     <>
-                        {card.business_name && (
-                            <h4 className="font-bold text-lg mb-1">{card.business_name}</h4>
-                        )}
-                        {card.tagline && (
-                            <p className="text-sm opacity-80 mb-2">{card.tagline}</p>
-                        )}
-                        {card.title && (
-                            <p className="font-medium">{card.title}</p>
-                        )}
-                        {card.message && (
-                            <p className="text-sm opacity-90 mt-2">{card.message}</p>
-                        )}
-                        <div className="mt-3 text-xs opacity-70 space-y-1">
+                        {card.full_business_name || card.business_name ? (
+                            <h4 className="font-bold text-lg mb-1 text-center">{card.full_business_name || card.business_name}</h4>
+                        ) : null}
+                        {card.tagline || card.message ? (
+                            <p className="text-sm opacity-80 mb-2 text-center">{card.tagline || card.message}</p>
+                        ) : null}
+                        <div className="mt-3 text-xs opacity-70 space-y-1 text-center">
                             {card.phone && <p>📞 {card.phone}</p>}
                             {card.email && <p>✉️ {card.email}</p>}
                             {card.website_url && <p>🌐 {card.website_url}</p>}
                         </div>
                     </>
                 ) : (
-                    <span className="text-xs font-bold text-center truncate">{card.business_name || card.title || '🃏'}</span>
+                    <span
+                        className="font-bold text-center leading-tight"
+                        style={{ fontSize: `${getDynamicFontSize(displayName, 11, 7, 20)}px` }}
+                    >
+                        {displayName}
+                    </span>
                 )}
+            </div>
+        )
+    }
+
+    // Step indicator component
+    const StepIndicator = () => {
+        const steps = [
+            { num: 1, label: 'Card' },
+            { num: 2, label: 'Pay' },
+            { num: 3, label: 'Payout' },
+            { num: 4, label: 'Review' }
+        ]
+
+        return (
+            <div className="flex items-center justify-center gap-1 mb-6">
+                {steps.map((s, idx) => (
+                    <div key={s.num} className="flex items-center">
+                        <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all ${step === s.num
+                                ? `bg-${currentTheme.accent} text-white`
+                                : step > s.num
+                                    ? 'bg-green-500 text-white'
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+                            }`}>
+                            {step > s.num ? '✓' : s.num}
+                        </div>
+                        {idx < steps.length - 1 && (
+                            <div className={`w-8 h-0.5 mx-1 ${step > s.num ? 'bg-green-500' : `bg-${currentTheme.border}`}`} />
+                        )}
+                    </div>
+                ))}
             </div>
         )
     }
@@ -544,6 +570,7 @@ export default function AdvertisePage() {
         )
     }
 
+    // No cards - prompt to create one
     if (businessCards.length === 0) {
         return (
             <div className={`min-h-screen bg-${currentTheme.bg} py-8 px-4`}>
@@ -554,7 +581,7 @@ export default function AdvertisePage() {
                         Before you can start advertising, you need to create your business card.
                     </p>
                     <button
-                        onClick={() => router.push('/cards')}
+                        onClick={() => router.push('/cards?returnTo=campaign')}
                         className={`px-6 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg`}
                     >
                         Create Business Card
@@ -564,7 +591,441 @@ export default function AdvertisePage() {
         )
     }
 
+    // ==================== STEP 1: SELECT CARD ====================
+    if (step === 1) {
+        return (
+            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
+                <div className="max-w-lg mx-auto">
+                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
+                    <StepIndicator />
+
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 1: Select Your Card</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
+                            Choose which business card to use for this campaign.
+                        </p>
+
+                        {/* Selected Card Preview */}
+                        <div className="mb-4">
+                            <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Selected Card:</p>
+                            <div
+                                className={`aspect-[3/2] max-w-xs mx-auto rounded-lg overflow-hidden border-2 border-${currentTheme.accent} cursor-pointer hover:opacity-90 transition-opacity`}
+                                onClick={() => selectedCard && setPreviewCard(selectedCard)}
+                            >
+                                {selectedCard ? renderCardPreview(selectedCard, 'large') : (
+                                    <div className={`w-full h-full bg-${currentTheme.border} flex items-center justify-center`}>
+                                        <span className="text-4xl">🃏</span>
+                                    </div>
+                                )}
+                            </div>
+                            {selectedCard && (
+                                <p className={`text-center text-${currentTheme.accent} text-xs mt-2 cursor-pointer hover:underline`} onClick={() => setPreviewCard(selectedCard)}>
+                                    👁 Click to preview full card
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Card Selector (if multiple) */}
+                        {businessCards.length > 1 && (
+                            <div className="mb-4">
+                                <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Your Cards ({businessCards.length}/5):</p>
+                                <div className="flex gap-2 flex-wrap justify-center">
+                                    {businessCards.map((card) => (
+                                        <button
+                                            key={card.id}
+                                            onClick={() => setSelectedCardId(card.id)}
+                                            className={`w-16 h-12 rounded-lg border-2 overflow-hidden transition-all ${selectedCardId === card.id
+                                                    ? `border-${currentTheme.accent} ring-2 ring-${currentTheme.accent}/50`
+                                                    : `border-${currentTheme.border} opacity-60 hover:opacity-100`
+                                                }`}
+                                        >
+                                            {renderCardPreview(card, 'small')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Info text */}
+                        <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
+                            <p className={`text-xs text-${currentTheme.textMuted}`}>
+                                📝 You can have up to <strong>5 card designs</strong>. You can delete inactive cards to make room for new ones.
+                            </p>
+                        </div>
+
+                        {/* Create new card option */}
+                        <button
+                            onClick={() => router.push('/cards?returnTo=campaign')}
+                            className={`w-full py-2 mb-4 border border-dashed border-${currentTheme.border} rounded-lg text-${currentTheme.textMuted} text-sm hover:border-${currentTheme.accent} hover:text-${currentTheme.text} transition-all`}
+                        >
+                            + Create New Card
+                        </button>
+
+                        {/* Continue button */}
+                        <button
+                            onClick={() => setStep(2)}
+                            disabled={!selectedCardId}
+                            className={`w-full py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
+                        >
+                            Use This Card →
+                        </button>
+                    </div>
+                </div>
+
+                {/* Card Preview Modal */}
+                {previewCard && (
+                    <div
+                        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                        onClick={() => setPreviewCard(null)}
+                    >
+                        <div
+                            className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 max-w-sm w-full`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className={`font-bold text-${currentTheme.text}`}>Full Card Preview</h3>
+                                <button
+                                    onClick={() => setPreviewCard(null)}
+                                    className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-xl`}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="aspect-[3/2] rounded-lg overflow-hidden">
+                                {renderCardPreview(previewCard, 'large')}
+                            </div>
+                            <button
+                                onClick={() => { setSelectedCardId(previewCard.id); setPreviewCard(null); }}
+                                className={`w-full mt-4 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm`}
+                            >
+                                Use This Card
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // ==================== STEP 2: PAYMENT METHOD ====================
     if (step === 2) {
+        return (
+            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
+                <div className="max-w-lg mx-auto">
+                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
+                    <StepIndicator />
+
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 2: Payment Method</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
+                            How would you like to pay for this campaign?
+                        </p>
+
+                        {/* Package Summary */}
+                        <div className={`bg-gradient-to-br from-${currentTheme.accent}/20 to-orange-500/20 border border-${currentTheme.accent}/30 rounded-lg p-3 mb-4`}>
+                            <div className="flex justify-between items-center">
+                                <span className={`text-${currentTheme.text} font-medium`}>Standard Campaign</span>
+                                <span className={`text-${currentTheme.accent} font-bold text-xl`}>${settings.ad_price}</span>
+                            </div>
+                            <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
+                                {parseInt(settings.guaranteed_views).toLocaleString()} guaranteed views
+                            </p>
+                        </div>
+
+                        {/* Payment Options */}
+                        <div className="space-y-2 mb-4">
+                            <button
+                                onClick={() => { setPaymentMethod('stripe'); setPaymentHandle(''); }}
+                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'stripe'
+                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    }`}
+                            >
+                                <span className="text-2xl">💳</span>
+                                <div>
+                                    <p className={`font-medium text-${currentTheme.text}`}>Credit Card</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay securely with Stripe</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => setPaymentMethod('venmo')}
+                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'venmo'
+                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    }`}
+                            >
+                                <span className="text-2xl">📱</span>
+                                <div>
+                                    <p className={`font-medium text-${currentTheme.text}`}>Venmo</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay with your Venmo account</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => setPaymentMethod('cashapp')}
+                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'cashapp'
+                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    }`}
+                            >
+                                <span className="text-2xl">💵</span>
+                                <div>
+                                    <p className={`font-medium text-${currentTheme.text}`}>CashApp</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay with your CashApp account</p>
+                                </div>
+                            </button>
+                        </div>
+
+                        {/* Handle input for Venmo/CashApp */}
+                        {(paymentMethod === 'venmo' || paymentMethod === 'cashapp') && (
+                            <div className="mb-4">
+                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                    Your {paymentMethod === 'venmo' ? '@username' : '$cashtag'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={paymentHandle}
+                                    onChange={(e) => setPaymentHandle(e.target.value)}
+                                    placeholder={paymentMethod === 'venmo' ? '@username' : '$cashtag'}
+                                    className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                />
+                            </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setStep(1)}
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
+                            >
+                                ← Back
+                            </button>
+                            <button
+                                onClick={() => setStep(3)}
+                                disabled={!paymentMethod || ((paymentMethod === 'venmo' || paymentMethod === 'cashapp') && !paymentHandle)}
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
+                            >
+                                Continue →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // ==================== STEP 3: PAYOUT PREFERENCE ====================
+    if (step === 3) {
+        return (
+            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
+                <div className="max-w-lg mx-auto">
+                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
+                    <StepIndicator />
+
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 3: Payout Preference</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
+                            How do you want to receive prize winnings or matrix earnings?
+                        </p>
+
+                        {/* Info */}
+                        <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
+                            <p className={`text-xs text-${currentTheme.textMuted}`}>
+                                💵 We only pay out via <strong>Venmo</strong> or <strong>CashApp</strong>. You can update this anytime in your Profile.
+                            </p>
+                        </div>
+
+                        {/* Payout Options */}
+                        <div className="space-y-2 mb-4">
+                            <button
+                                onClick={() => setPayoutMethod('venmo')}
+                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'venmo'
+                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    }`}
+                            >
+                                <span className="text-2xl">📱</span>
+                                <div>
+                                    <p className={`font-medium text-${currentTheme.text}`}>Venmo</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Receive payments to your Venmo</p>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => setPayoutMethod('cashapp')}
+                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'cashapp'
+                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    }`}
+                            >
+                                <span className="text-2xl">💵</span>
+                                <div>
+                                    <p className={`font-medium text-${currentTheme.text}`}>CashApp</p>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Receive payments to your CashApp</p>
+                                </div>
+                            </button>
+                        </div>
+
+                        {/* Handle input */}
+                        {payoutMethod && (
+                            <div className="mb-4">
+                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                    Your {payoutMethod === 'venmo' ? '@username' : '$cashtag'}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={payoutHandle}
+                                    onChange={(e) => setPayoutHandle(e.target.value)}
+                                    placeholder={payoutMethod === 'venmo' ? '@username' : '$cashtag'}
+                                    className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
+                                />
+                            </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setStep(2)}
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
+                            >
+                                ← Back
+                            </button>
+                            <button
+                                onClick={() => setStep(4)}
+                                disabled={!payoutMethod || !payoutHandle}
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
+                            >
+                                Continue →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // ==================== STEP 4: REVIEW & PAY ====================
+    if (step === 4) {
+        return (
+            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
+                <div className="max-w-lg mx-auto">
+                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
+                    <StepIndicator />
+
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 4: Review & Pay</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
+                            Please confirm your campaign details.
+                        </p>
+
+                        {/* Card Preview */}
+                        <div className="mb-4">
+                            <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Your Card (as shown in games):</p>
+                            <div
+                                className={`w-24 h-16 mx-auto rounded-lg overflow-hidden border border-${currentTheme.border} cursor-pointer hover:opacity-80`}
+                                onClick={() => selectedCard && setPreviewCard(selectedCard)}
+                            >
+                                {selectedCard && renderCardPreview(selectedCard, 'small')}
+                            </div>
+                            <p className={`text-center text-${currentTheme.accent} text-xs mt-1 cursor-pointer hover:underline`} onClick={() => selectedCard && setPreviewCard(selectedCard)}>
+                                👁 Click to preview full card
+                            </p>
+                        </div>
+
+                        {/* Summary */}
+                        <div className={`bg-${currentTheme.bg} rounded-lg p-4 mb-4 space-y-3`}>
+                            <div className="flex justify-between">
+                                <span className={`text-${currentTheme.textMuted}`}>Package</span>
+                                <span className={`text-${currentTheme.text} font-medium`}>Standard Campaign</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className={`text-${currentTheme.textMuted}`}>Guaranteed Views</span>
+                                <span className={`text-${currentTheme.text} font-medium`}>{parseInt(settings.guaranteed_views).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className={`text-${currentTheme.textMuted}`}>Payment Method</span>
+                                <span className={`text-${currentTheme.text} font-medium capitalize`}>
+                                    {paymentMethod === 'stripe' ? 'Credit Card' : paymentMethod}
+                                    {paymentHandle && ` (${paymentHandle})`}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className={`text-${currentTheme.textMuted}`}>Payout Method</span>
+                                <span className={`text-${currentTheme.text} font-medium capitalize`}>
+                                    {payoutMethod} ({payoutHandle})
+                                </span>
+                            </div>
+                            <div className={`border-t border-${currentTheme.border} pt-3 flex justify-between`}>
+                                <span className={`text-${currentTheme.text} font-bold`}>Total</span>
+                                <span className={`text-${currentTheme.accent} font-bold text-xl`}>${settings.ad_price}</span>
+                            </div>
+                        </div>
+
+                        {/* Error message */}
+                        {message && (
+                            <div className={`mb-4 px-4 py-2 rounded-lg text-center text-sm ${message.includes('Error')
+                                    ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                                    : 'bg-green-500/10 border border-green-500/30 text-green-400'
+                                }`}>
+                                {message}
+                            </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setStep(3)}
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
+                            >
+                                ← Back
+                            </button>
+                            <button
+                                onClick={handlePurchase}
+                                disabled={processing}
+                                className={`flex-1 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
+                            >
+                                {processing ? 'Processing...' : `Pay $${settings.ad_price}`}
+                            </button>
+                        </div>
+
+                        <p className={`text-${currentTheme.textMuted} text-xs text-center mt-3`}>
+                            By purchasing, you agree to our terms of service.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Card Preview Modal */}
+                {previewCard && (
+                    <div
+                        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                        onClick={() => setPreviewCard(null)}
+                    >
+                        <div
+                            className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 max-w-sm w-full`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className={`font-bold text-${currentTheme.text}`}>Full Card Preview</h3>
+                                <button
+                                    onClick={() => setPreviewCard(null)}
+                                    className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-xl`}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="aspect-[3/2] rounded-lg overflow-hidden">
+                                {renderCardPreview(previewCard, 'large')}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // ==================== STEP 5: JOIN MATRIX? ====================
+    if (step === 5) {
         return (
             <div className={`min-h-screen bg-${currentTheme.bg} py-8 px-4`}>
                 <div className="max-w-md mx-auto">
@@ -572,39 +1033,50 @@ export default function AdvertisePage() {
                         <div className="w-14 h-14 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
                             <span className="text-2xl">✓</span>
                         </div>
-                        <h2 className="text-xl font-bold text-green-400 mb-1">Payment Verified!</h2>
-                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>Your ad campaign is now active.</p>
+                        <h2 className="text-xl font-bold text-green-400 mb-1">Payment Successful!</h2>
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-5`}>Your ad campaign is now active.</p>
 
-                        <div className={`bg-${currentTheme.border}/50 rounded-lg p-3 mb-4`}>
-                            <h3 className={`font-bold text-${currentTheme.text} mb-1`}>🔷 Join the Referral Matrix?</h3>
-                            <p className={`text-${currentTheme.textMuted} text-xs mb-3`}>
-                                Fill 6 spots → earn <span className="text-green-400 font-bold">${settings.matrix_payout}</span> back!
+                        <div className={`bg-${currentTheme.bg} rounded-lg p-4 mb-5 text-left`}>
+                            <h3 className={`font-bold text-${currentTheme.text} mb-2 text-center`}>🔷 Want to Earn ${settings.matrix_payout} Back?</h3>
+                            <p className={`text-${currentTheme.textMuted} text-sm mb-3`}>
+                                Join the <strong>Referral Matrix</strong> and fill 6 spots to earn ${settings.matrix_payout}!
                             </p>
-                            <div className="flex justify-center gap-1 mb-1">
-                                <div className={`w-10 h-6 bg-${currentTheme.accent}/30 border border-${currentTheme.accent} rounded text-xs flex items-center justify-center text-${currentTheme.accent}`}>You</div>
+
+                            {/* Matrix Visual */}
+                            <div className="flex flex-col items-center gap-1 mb-3">
+                                <div className={`w-12 h-8 bg-${currentTheme.accent}/30 border border-${currentTheme.accent} rounded text-xs flex items-center justify-center text-${currentTheme.accent} font-bold`}>You</div>
+                                <div className="flex gap-1">
+                                    <div className={`w-10 h-6 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>2</div>
+                                    <div className={`w-10 h-6 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>3</div>
+                                </div>
+                                <div className="flex gap-1">
+                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>4</div>
+                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>5</div>
+                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>6</div>
+                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>7</div>
+                                </div>
                             </div>
-                            <div className="flex justify-center gap-1 mb-1">
-                                <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>2</div>
-                                <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>3</div>
-                            </div>
-                            <div className="flex justify-center gap-1">
-                                <div className={`w-6 h-4 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>4</div>
-                                <div className={`w-6 h-4 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>5</div>
-                                <div className={`w-6 h-4 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>6</div>
-                                <div className={`w-6 h-4 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>7</div>
-                            </div>
+                            <p className={`text-${currentTheme.textMuted} text-xs text-center`}>
+                                Refer friends or get auto-filled by new advertisers!
+                            </p>
                         </div>
+
+                        {message && (
+                            <div className="mb-4 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 text-center text-sm">
+                                {message}
+                            </div>
+                        )}
 
                         <div className="flex gap-3">
                             <button
                                 onClick={() => handleMatrixChoice(false)}
-                                className={`flex-1 py-2 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg text-sm`}
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
                             >
                                 No Thanks
                             </button>
                             <button
                                 onClick={() => handleMatrixChoice(true)}
-                                className={`flex-1 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm`}
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg`}
                             >
                                 Yes, Join!
                             </button>
@@ -615,14 +1087,15 @@ export default function AdvertisePage() {
         )
     }
 
-    if (step === 3) {
+    // ==================== STEP 6: REFERRER ====================
+    if (step === 6) {
         return (
             <div className={`min-h-screen bg-${currentTheme.bg} py-8 px-4`}>
                 <div className="max-w-md mx-auto">
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
                         <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1 text-center`}>Who Referred You?</h2>
-                        <p className={`text-${currentTheme.textMuted} text-xs mb-4 text-center`}>
-                            Enter their username or skip to be auto-placed.
+                        <p className={`text-${currentTheme.textMuted} text-sm mb-4 text-center`}>
+                            Enter their username to be placed under them.
                         </p>
 
                         <div className="mb-4">
@@ -630,19 +1103,25 @@ export default function AdvertisePage() {
                                 type="text"
                                 value={referredBy}
                                 onChange={handleReferralChange}
-                                className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} text-sm`}
+                                className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
                                 placeholder="Referrer's username (optional)"
                             />
                             {referrerName && (
-                                <p className="text-green-400 text-xs mt-1">✓ Placing under {referrerName}</p>
+                                <p className="text-green-400 text-sm mt-2">✓ You'll be placed under {referrerName}</p>
                             )}
                             {referrerNotFound && referredBy.length >= 2 && (
-                                <p className="text-orange-400 text-xs mt-1">⚠ User not found</p>
+                                <p className="text-orange-400 text-sm mt-2">⚠ User not found</p>
                             )}
                         </div>
 
+                        <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>
+                                💡 You'll be placed under this person. If no Referrer, no problem, you'll be placed in the next available spot.
+                            </p>
+                        </div>
+
                         {message && (
-                            <div className="mb-3 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 text-center text-sm">
+                            <div className="mb-4 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 text-center text-sm">
                                 {message}
                             </div>
                         )}
@@ -651,14 +1130,14 @@ export default function AdvertisePage() {
                             <button
                                 onClick={handleJoinMatrix}
                                 disabled={processing}
-                                className={`flex-1 py-2 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg text-sm disabled:opacity-50`}
+                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg disabled:opacity-50`}
                             >
-                                {processing ? '...' : 'Skip'}
+                                {processing ? '...' : 'Skip (Auto-place me)'}
                             </button>
                             <button
                                 onClick={handleJoinMatrix}
                                 disabled={processing || (referredBy && !referrerName)}
-                                className={`flex-1 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm disabled:opacity-50`}
+                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg disabled:opacity-50`}
                             >
                                 {processing ? '...' : 'Join Matrix'}
                             </button>
@@ -669,257 +1148,6 @@ export default function AdvertisePage() {
         )
     }
 
-    return (
-        <div className={`min-h-screen bg-${currentTheme.bg} py-4 px-4`}>
-            <div className="max-w-4xl mx-auto">
-                <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-4`}>Start Advertising</h1>
-
-                {/* Two Column Layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-
-                    {/* Left: Card Selection */}
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className={`text-sm font-bold text-${currentTheme.text}`}>🃏 Your Ad Card</h2>
-                            <button
-                                onClick={() => router.push('/cards')}
-                                className={`px-3 py-1 bg-${currentTheme.accent} text-white text-xs font-medium rounded-lg hover:opacity-90`}
-                            >
-                                + New Card
-                            </button>
-                        </div>
-
-                        {/* Selected Card Preview */}
-                        <div
-                            className={`p-3 bg-${currentTheme.bg} rounded-lg mb-3 cursor-pointer hover:opacity-80`}
-                            onClick={() => selectedCard && setPreviewCard(selectedCard)}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden">
-                                    {selectedCard ? renderCardPreview(selectedCard, 'small') : (
-                                        <div className={`w-full h-full bg-${currentTheme.border} flex items-center justify-center`}>
-                                            <span className="text-2xl">🃏</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <p className={`text-${currentTheme.text} font-medium truncate`}>{selectedCard?.business_name || selectedCard?.title || 'No card selected'}</p>
-                                    <p className={`text-${currentTheme.textMuted} text-sm truncate`}>{selectedCard?.tagline || ''}</p>
-                                    <p className={`text-${currentTheme.accent} text-xs mt-1`}>👁 Click to preview</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Card Selector (if multiple) */}
-                        {businessCards.length > 1 && (
-                            <div className="flex gap-2 overflow-x-auto pb-1">
-                                {businessCards.map((card) => (
-                                    <div key={card.id} className="relative flex-shrink-0">
-                                        <button
-                                            onClick={() => setSelectedCardId(card.id)}
-                                            className={`w-12 h-12 rounded-lg border-2 overflow-hidden ${selectedCardId === card.id
-                                                ? `border-${currentTheme.accent}`
-                                                : `border-${currentTheme.border} opacity-60`
-                                                }`}
-                                        >
-                                            {renderCardPreview(card, 'small')}
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setPreviewCard(card); }}
-                                            className={`absolute -top-1 -right-1 w-5 h-5 bg-${currentTheme.card} border border-${currentTheme.border} rounded-full flex items-center justify-center text-xs hover:bg-${currentTheme.accent} transition-all`}
-                                            title="Preview card"
-                                        >
-                                            👁
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <p className={`text-${currentTheme.textMuted} text-xs mt-2`}>
-                            {businessCards.length}/5 cards • <span className={`text-${currentTheme.accent} cursor-pointer hover:underline`} onClick={() => router.push('/cards')}>Click Here to Manage Cards</span>
-                        </p>
-                    </div>
-
-                    {/* Right: Ad Package */}
-                    <div className={`bg-gradient-to-br from-${currentTheme.accent}/20 to-orange-500/20 border border-${currentTheme.accent}/30 rounded-xl p-4`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📦 Ad Package</h2>
-                            <span className={`text-${currentTheme.accent} font-bold text-xl`}>${settings.ad_price}</span>
-                        </div>
-                        <div className="space-y-1.5 text-sm">
-                            <div className={`flex justify-between text-${currentTheme.textMuted}`}>
-                                <span>Guaranteed Views</span>
-                                <span className={`text-${currentTheme.text} font-medium`}>{parseInt(settings.guaranteed_views).toLocaleString()}</span>
-                            </div>
-                            <div className={`flex justify-between text-${currentTheme.textMuted}`}>
-                                <span>Card in Memory Game</span>
-                                <span className="text-green-400">✓</span>
-                            </div>
-                            <div className={`flex justify-between text-${currentTheme.textMuted}`}>
-                                <span>Bonus Views Possible</span>
-                                <span className="text-green-400">✓</span>
-                            </div>
-                            <div className={`flex justify-between text-${currentTheme.textMuted}`}>
-                                <span>View Tracking</span>
-                                <span className="text-green-400">✓</span>
-                            </div>
-                            <div className={`flex justify-between text-${currentTheme.textMuted}`}>
-                                <span>Referral Matrix</span>
-                                <span className="text-green-400">✓</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Payment Method */}
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 mb-4`}>
-                    <div className="flex flex-wrap items-center gap-3 mb-3">
-                        <span className={`text-sm font-bold text-${currentTheme.text}`}>💳 Pay with:</span>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => { setPaymentMethod('stripe'); setPaymentHandle(''); }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-sm ${paymentMethod === 'stripe'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10 text-${currentTheme.text}`
-                                    : `border-${currentTheme.border} text-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                💳 Card
-                            </button>
-                            <button
-                                onClick={() => { setPaymentMethod('venmo'); setPayoutMethod(''); setPayoutHandle(''); }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-sm ${paymentMethod === 'venmo'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10 text-${currentTheme.text}`
-                                    : `border-${currentTheme.border} text-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                📱 Venmo
-                            </button>
-                            <button
-                                onClick={() => { setPaymentMethod('cashapp'); setPayoutMethod(''); setPayoutHandle(''); }}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-sm ${paymentMethod === 'cashapp'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10 text-${currentTheme.text}`
-                                    : `border-${currentTheme.border} text-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                💵 CashApp
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Venmo/CashApp handle */}
-                    {(paymentMethod === 'venmo' || paymentMethod === 'cashapp') && (
-                        <input
-                            type="text"
-                            value={paymentHandle}
-                            onChange={(e) => setPaymentHandle(e.target.value)}
-                            placeholder={paymentMethod === 'cashapp' ? 'Your $cashtag (for payment & payouts)' : 'Your @username (for payment & payouts)'}
-                            className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} text-sm`}
-                        />
-                    )}
-
-                    {/* Stripe payout selection */}
-                    {paymentMethod === 'stripe' && (
-                        <div className="flex flex-wrap items-center gap-3">
-                            <span className={`text-sm text-${currentTheme.textMuted}`}>💰 Get Paid via:</span>
-                            <button
-                                type="button"
-                                onClick={() => setPayoutMethod('venmo')}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-sm ${payoutMethod === 'venmo'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10 text-${currentTheme.text}`
-                                    : `border-${currentTheme.border} text-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                📱 Venmo
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPayoutMethod('cashapp')}
-                                className={`px-3 py-1.5 rounded-lg border-2 text-sm ${payoutMethod === 'cashapp'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10 text-${currentTheme.text}`
-                                    : `border-${currentTheme.border} text-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                💵 CashApp
-                            </button>
-                            {payoutMethod && (
-                                <input
-                                    type="text"
-                                    value={payoutHandle}
-                                    onChange={(e) => setPayoutHandle(e.target.value)}
-                                    placeholder={payoutMethod === 'cashapp' ? '$cashtag' : '@username'}
-                                    className={`flex-1 min-w-[150px] px-3 py-1.5 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text} text-sm`}
-                                />
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Purchase Button */}
-                {message && (
-                    <div className={`mb-3 px-4 py-2 rounded-lg text-center text-sm ${message.includes('Error')
-                        ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                        : 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        }`}>
-                        {message}
-                    </div>
-                )}
-
-                <button
-                    onClick={handlePurchase}
-                    disabled={processing || !selectedCardId}
-                    className={`w-full py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold text-lg rounded-xl hover:opacity-90 transition-all disabled:opacity-50`}
-                >
-                    {processing ? 'Processing...' : `Pay $${settings.ad_price} & Start Campaign`}
-                </button>
-
-                <p className={`text-${currentTheme.textMuted} text-xs text-center mt-2`}>
-                    By purchasing, you agree to our terms of service.
-                </p>
-            </div>
-
-            {/* Card Preview Modal */}
-            {previewCard && (
-                <div
-                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-                    onClick={() => setPreviewCard(null)}
-                >
-                    <div
-                        className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 max-w-sm w-full max-h-[90vh] overflow-auto`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className={`font-bold text-${currentTheme.text}`}>Card Preview</h3>
-                            <button
-                                onClick={() => setPreviewCard(null)}
-                                className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-xl leading-none`}
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <div className="mb-3">
-                            {renderCardPreview(previewCard, 'large')}
-                        </div>
-
-                        {previewCard.image_url && (
-                            <>
-                                <h4 className={`font-bold text-${currentTheme.text} text-lg`}>{previewCard.business_name}</h4>
-                                {previewCard.tagline && (
-                                    <p className={`text-${currentTheme.textMuted} text-sm mb-2`}>{previewCard.tagline}</p>
-                                )}
-                            </>
-                        )}
-
-                        <button
-                            onClick={() => { setSelectedCardId(previewCard.id); setPreviewCard(null); }}
-                            className={`w-full mt-4 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm`}
-                        >
-                            Use This Card
-                        </button>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
+    // Fallback (shouldn't reach here)
+    return null
 }
