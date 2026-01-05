@@ -33,25 +33,18 @@ export async function GET(request) {
 
         const totalAmount = pendingPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
 
-        // Get admin user_ids
-        const { data: admins } = await supabase
-            .from('admin_users')
-            .select('user_id')
-            .in('role', ['super_admin', 'admin'])
-
-        if (!admins || admins.length === 0) {
-            return Response.json({ success: false, error: 'No admins found' }, { status: 500 })
-        }
-
-        const adminUserIds = admins.map(a => a.user_id)
-
-        // Get emails for those users
-        const { data: users } = await supabase
+        // Get admin emails directly from users table
+        const { data: admins, error: adminError } = await supabase
             .from('users')
             .select('email')
-            .in('id', adminUserIds)
+            .eq('is_admin', true)
 
-        const adminEmails = users?.filter(u => u.email).map(u => u.email) || []
+        if (adminError) {
+            console.error('Error fetching admins:', adminError)
+            return Response.json({ error: 'Failed to fetch admins' }, { status: 500 })
+        }
+
+        const adminEmails = admins?.filter(u => u.email).map(u => u.email) || []
 
         if (adminEmails.length === 0) {
             return Response.json({ success: false, error: 'No admin emails found' }, { status: 500 })
