@@ -33,11 +33,12 @@ export async function GET(request) {
 
         const totalAmount = pendingPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
 
-        // Get admin emails directly from users table
+        // Get admin emails - only super_admin and admin roles
         const { data: admins, error: adminError } = await supabase
             .from('users')
             .select('email')
             .eq('is_admin', true)
+            .in('role', ['super_admin', 'admin'])
 
         if (adminError) {
             console.error('Error fetching admins:', adminError)
