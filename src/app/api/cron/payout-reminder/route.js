@@ -33,13 +33,25 @@ export async function GET(request) {
 
         const totalAmount = pendingPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
 
-        // Get admin emails by joining admin_users with users
+        // Get admin user_ids
         const { data: admins } = await supabase
             .from('admin_users')
-            .select('user_id, role, users(email)')
+            .select('user_id')
             .in('role', ['super_admin', 'admin'])
 
-        const adminEmails = admins?.filter(a => a.users?.email).map(a => a.users.email) || []
+        if (!admins || admins.length === 0) {
+            return Response.json({ success: false, error: 'No admins found' }, { status: 500 })
+        }
+
+        const adminUserIds = admins.map(a => a.user_id)
+
+        // Get emails for those users
+        const { data: users } = await supabase
+            .from('users')
+            .select('email')
+            .in('id', adminUserIds)
+
+        const adminEmails = users?.filter(u => u.email).map(u => u.email) || []
 
         if (adminEmails.length === 0) {
             return Response.json({ success: false, error: 'No admin emails found' }, { status: 500 })
