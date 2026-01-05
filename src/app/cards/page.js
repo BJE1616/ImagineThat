@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
 
-export default function CardsPage() {
+// Inner component that uses useSearchParams
+function CardsContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const returnTo = searchParams.get('returnTo')
@@ -825,5 +826,26 @@ export default function CardsPage() {
                 </div>
             </main>
         </div>
+    )
+}
+
+// Loading fallback component
+function CardsLoading() {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-slate-400 font-medium">Loading...</p>
+            </div>
+        </div>
+    )
+}
+
+// Main export wraps content in Suspense
+export default function CardsPage() {
+    return (
+        <Suspense fallback={<CardsLoading />}>
+            <CardsContent />
+        </Suspense>
     )
 }
