@@ -269,16 +269,6 @@ export default function DashboardPage() {
 
             if (error) throw error
 
-            // Deactivate matrix entry if one exists for this campaign
-            await supabase
-                .from('matrix_entries')
-                .update({
-                    is_active: false,
-                    payout_status: 'forfeited',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('campaign_id', cancellingCampaign.id)
-
             await checkUser()
             closeCancelModal()
 

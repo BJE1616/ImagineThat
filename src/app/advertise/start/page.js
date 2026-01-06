@@ -122,6 +122,26 @@ export default function AdvertisePage() {
                 return
             }
 
+            // Check if referrer has an active, incomplete matrix with open spots
+            const { data: matrices } = await supabase
+                .from('matrix_entries')
+                .select('*')
+                .eq('user_id', userResult.id)
+                .eq('is_active', true)
+                .eq('is_completed', false)
+
+            // Check if any matrix has at least one open spot
+            const hasOpenSpot = matrices?.some(matrix =>
+                !matrix.spot_2 || !matrix.spot_3 || !matrix.spot_4 ||
+                !matrix.spot_5 || !matrix.spot_6 || !matrix.spot_7
+            )
+
+            if (!matrices || matrices.length === 0 || !hasOpenSpot) {
+                setReferrerName(null)
+                setReferrerNotFound(true)
+                return
+            }
+
             setReferrerName(userResult.first_name || userResult.username)
             setReferrerNotFound(false)
         } catch (error) {
@@ -203,57 +223,61 @@ export default function AdvertisePage() {
             }
 
             if (referrerId) {
-                const { data: referrerMatrix } = await supabase
+                // Get all active incomplete matrices for referrer (oldest first)
+                const { data: referrerMatrices } = await supabase
                     .from('matrix_entries')
                     .select('*')
                     .eq('user_id', referrerId)
                     .eq('is_active', true)
                     .eq('is_completed', false)
-                    .single()
+                    .order('created_at', { ascending: true })
 
-                if (referrerMatrix) {
-                    if (!referrerMatrix.spot_2) {
-                        await supabase
-                            .from('matrix_entries')
-                            .update({ spot_2: newUserId, updated_at: new Date().toISOString() })
-                            .eq('id', referrerMatrix.id)
+                if (referrerMatrices && referrerMatrices.length > 0) {
+                    // Check each matrix for open spots 2-7
+                    for (const referrerMatrix of referrerMatrices) {
+                        const spots = [
+                            { key: 'spot_2', num: 2 },
+                            { key: 'spot_3', num: 3 },
+                            { key: 'spot_4', num: 4 },
+                            { key: 'spot_5', num: 5 },
+                            { key: 'spot_6', num: 6 },
+                            { key: 'spot_7', num: 7 }
+                        ]
 
-                        await supabase
-                            .from('notifications')
-                            .insert([{
-                                user_id: referrerId,
-                                type: 'referral_joined',
-                                title: '🎉 Your referral became an advertiser!',
-                                message: 'They\'ve been added to your matrix in spot 2!'
-                            }])
+                        for (const spot of spots) {
+                            if (!referrerMatrix[spot.key]) {
+                                await supabase
+                                    .from('matrix_entries')
+                                    .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
+                                    .eq('id', referrerMatrix.id)
 
-                        // Send email to matrix owner
-                        await sendSpotFilledEmail(referrerId, newUserId, 2, referrerMatrix)
+                                const notifType = spot.num <= 3 ? 'referral_joined' : 'matrix_growth'
+                                const notifTitle = spot.num <= 3
+                                    ? '🎉 Your referral became an advertiser!'
+                                    : '🔷 Your matrix is growing!'
+                                const notifMessage = spot.num <= 3
+                                    ? `They've been added to your matrix in spot ${spot.num}!`
+                                    : `Spot ${spot.num} has been filled in your matrix!`
 
-                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
-                        await checkMatrixCompletion(referrerMatrix.id)
-                        return { placed: true, spot: 2 }
-                    } else if (!referrerMatrix.spot_3) {
-                        await supabase
-                            .from('matrix_entries')
-                            .update({ spot_3: newUserId, updated_at: new Date().toISOString() })
-                            .eq('id', referrerMatrix.id)
+                                await supabase
+                                    .from('notifications')
+                                    .insert([{
+                                        user_id: referrerId,
+                                        type: notifType,
+                                        title: notifTitle,
+                                        message: notifMessage
+                                    }])
 
-                        await supabase
-                            .from('notifications')
-                            .insert([{
-                                user_id: referrerId,
-                                type: 'referral_joined',
-                                title: '🎉 Your referral became an advertiser!',
-                                message: 'They\'ve been added to your matrix in spot 3!'
-                            }])
+                                // Send email to matrix owner
+                                await sendSpotFilledEmail(referrerId, newUserId, spot.num, referrerMatrix)
 
-                        // Send email to matrix owner
-                        await sendSpotFilledEmail(referrerId, newUserId, 3, referrerMatrix)
-
-                        await supabase.rpc('increment_referral_count', { user_id: referrerId })
-                        await checkMatrixCompletion(referrerMatrix.id)
-                        return { placed: true, spot: 3 }
+                                if (spot.num <= 3) {
+                                    await supabase.rpc('increment_referral_count', { user_id: referrerId })
+                                }
+                                await checkMatrixCompletion(referrerMatrix.id)
+                                return { placed: true, spot: spot.num }
+                            }
+                        }
                     }
                 }
             }
@@ -500,6 +524,22 @@ export default function AdvertisePage() {
         setProcessing(true)
 
         try {
+            // Check if user already has 3 active incomplete matrices
+            const { data: existingMatrices, error: countError } = await supabase
+                .from('matrix_entries')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('is_active', true)
+                .eq('is_completed', false)
+
+            if (countError) throw countError
+
+            if (existingMatrices && existingMatrices.length >= 3) {
+                setMessage('You already have 3 active matrices. Complete one to start another!')
+                setProcessing(false)
+                return
+            }
+
             const { error: matrixError } = await supabase
                 .from('matrix_entries')
                 .insert([{
