@@ -28,7 +28,8 @@ export default function AdminFAQsPage() {
     const categories = [
         { value: 'general', label: 'General' },
         { value: 'players', label: 'Players' },
-        { value: 'advertisers', label: 'Advertisers' }
+        { value: 'advertisers', label: 'Advertisers' },
+        { value: 'matrix', label: 'Matrix' }
     ]
 
     useEffect(() => { checkAdmin() }, [])
@@ -121,6 +122,7 @@ export default function AdminFAQsPage() {
         switch (category) {
             case 'players': return 'bg-blue-500'
             case 'advertisers': return 'bg-green-500'
+            case 'matrix': return 'bg-orange-500'
             default: return 'bg-purple-500'
         }
     }
