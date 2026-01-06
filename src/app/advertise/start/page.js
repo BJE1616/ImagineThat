@@ -142,6 +142,50 @@ export default function AdvertisePage() {
         }
     }
 
+    // Helper function to send spot filled email
+    const sendSpotFilledEmail = async (matrixOwnerId, newUserId, spotNumber, matrix) => {
+        try {
+            // Get matrix owner info
+            const { data: ownerData } = await supabase
+                .from('users')
+                .select('email, first_name, username')
+                .eq('id', matrixOwnerId)
+                .single()
+
+            // Get new member info
+            const { data: newMemberData } = await supabase
+                .from('users')
+                .select('first_name, username')
+                .eq('id', newUserId)
+                .single()
+
+            if (ownerData && newMemberData) {
+                // Count filled spots
+                const filledCount = [matrix.spot_2, matrix.spot_3, matrix.spot_4, matrix.spot_5, matrix.spot_6, matrix.spot_7]
+                    .filter(spot => spot !== null).length + 1 // +1 for the spot we just filled
+
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'matrix_spot_filled',
+                        to: ownerData.email,
+                        data: {
+                            first_name: ownerData.first_name || ownerData.username,
+                            new_member_name: newMemberData.first_name || newMemberData.username,
+                            spot_number: spotNumber,
+                            filled_count: filledCount,
+                            spots_remaining: 6 - filledCount,
+                            payout_amount: matrix.payout_amount || settings.matrix_payout
+                        }
+                    })
+                })
+            }
+        } catch (emailError) {
+            console.error('Spot filled email error:', emailError)
+        }
+    }
+
     const findMatrixSpotForUser = async (newUserId, referrerUsername) => {
         try {
             let referrerId = null
@@ -183,6 +227,9 @@ export default function AdvertisePage() {
                                 message: 'They\'ve been added to your matrix in spot 2!'
                             }])
 
+                        // Send email to matrix owner
+                        await sendSpotFilledEmail(referrerId, newUserId, 2, referrerMatrix)
+
                         await supabase.rpc('increment_referral_count', { user_id: referrerId })
                         await checkMatrixCompletion(referrerMatrix.id)
                         return { placed: true, spot: 2 }
@@ -200,6 +247,9 @@ export default function AdvertisePage() {
                                 title: '🎉 Your referral became an advertiser!',
                                 message: 'They\'ve been added to your matrix in spot 3!'
                             }])
+
+                        // Send email to matrix owner
+                        await sendSpotFilledEmail(referrerId, newUserId, 3, referrerMatrix)
 
                         await supabase.rpc('increment_referral_count', { user_id: referrerId })
                         await checkMatrixCompletion(referrerMatrix.id)
@@ -254,6 +304,9 @@ export default function AdvertisePage() {
                                         message: `Spot ${spot.num} has been filled in your matrix!`
                                     }])
                             }
+
+                            // Send email to matrix owner
+                            await sendSpotFilledEmail(matrix.user_id, newUserId, spot.num, matrix)
 
                             await checkMatrixCompletion(matrix.id)
                             return { placed: true, spot: spot.num, wasAutoPlaced: true }
@@ -461,6 +514,25 @@ export default function AdvertisePage() {
 
             if (matrixError) throw matrixError
 
+            // Send matrix_joined email to user
+            try {
+                await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'matrix_joined',
+                        to: userData.email,
+                        data: {
+                            first_name: userData.first_name || userData.username,
+                            username: userData.username,
+                            payout_amount: settings.matrix_payout
+                        }
+                    })
+                })
+            } catch (emailError) {
+                console.error('Matrix joined email error:', emailError)
+            }
+
             await findMatrixSpotForUser(user.id, referredBy)
 
             setMessage('✓ You joined the matrix! Redirecting to dashboard...')
@@ -546,10 +618,10 @@ export default function AdvertisePage() {
                 {steps.map((s, idx) => (
                     <div key={s.num} className="flex items-center">
                         <div className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all ${step === s.num
-                                ? `bg-${currentTheme.accent} text-white`
-                                : step > s.num
-                                    ? 'bg-green-500 text-white'
-                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+                            ? `bg-${currentTheme.accent} text-white`
+                            : step > s.num
+                                ? 'bg-green-500 text-white'
+                                : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
                             }`}>
                             {step > s.num ? '✓' : s.num}
                         </div>
@@ -635,8 +707,8 @@ export default function AdvertisePage() {
                                             key={card.id}
                                             onClick={() => setSelectedCardId(card.id)}
                                             className={`w-16 h-12 rounded-lg border-2 overflow-hidden transition-all ${selectedCardId === card.id
-                                                    ? `border-${currentTheme.accent} ring-2 ring-${currentTheme.accent}/50`
-                                                    : `border-${currentTheme.border} opacity-60 hover:opacity-100`
+                                                ? `border-${currentTheme.accent} ring-2 ring-${currentTheme.accent}/50`
+                                                : `border-${currentTheme.border} opacity-60 hover:opacity-100`
                                                 }`}
                                         >
                                             {renderCardPreview(card, 'small')}
@@ -737,8 +809,8 @@ export default function AdvertisePage() {
                             <button
                                 onClick={() => { setPaymentMethod('stripe'); setPaymentHandle(''); }}
                                 className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'stripe'
-                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <span className="text-2xl">💳</span>
@@ -751,8 +823,8 @@ export default function AdvertisePage() {
                             <button
                                 onClick={() => setPaymentMethod('venmo')}
                                 className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'venmo'
-                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <span className="text-2xl">📱</span>
@@ -765,8 +837,8 @@ export default function AdvertisePage() {
                             <button
                                 onClick={() => setPaymentMethod('cashapp')}
                                 className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'cashapp'
-                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <span className="text-2xl">💵</span>
@@ -841,8 +913,8 @@ export default function AdvertisePage() {
                             <button
                                 onClick={() => setPayoutMethod('venmo')}
                                 className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'venmo'
-                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <span className="text-2xl">📱</span>
@@ -855,8 +927,8 @@ export default function AdvertisePage() {
                             <button
                                 onClick={() => setPayoutMethod('cashapp')}
                                 className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'cashapp'
-                                        ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                        : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
+                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
+                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                     }`}
                             >
                                 <span className="text-2xl">💵</span>
@@ -965,8 +1037,8 @@ export default function AdvertisePage() {
                         {/* Error message */}
                         {message && (
                             <div className={`mb-4 px-4 py-2 rounded-lg text-center text-sm ${message.includes('Error')
-                                    ? 'bg-red-500/10 border border-red-500/30 text-red-400'
-                                    : 'bg-green-500/10 border border-green-500/30 text-green-400'
+                                ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                                : 'bg-green-500/10 border border-green-500/30 text-green-400'
                                 }`}>
                                 {message}
                             </div>
