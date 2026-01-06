@@ -730,7 +730,7 @@ export default function DashboardPage() {
                                                 closeSwapModal()
                                                 router.push('/cards')
                                             }}
-                                            className={`px-3 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-sm rounded-lg`}
+                                            className={`px-3 py-1.5 bg-${currentTheme.accent} text-white font-bold text-sm rounded-lg`}
                                         >
                                             Create a Card
                                         </button>
@@ -853,7 +853,7 @@ export default function DashboardPage() {
                                     <button
                                         onClick={handleSwapCard}
                                         disabled={swapProcessing}
-                                        className={`flex-1 py-1.5 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-sm rounded-lg hover:bg-${currentTheme.accentHover} disabled:opacity-50`}
+                                        className={`flex-1 py-1.5 bg-${currentTheme.accent} text-white font-bold text-sm rounded-lg hover:bg-${currentTheme.accentHover} disabled:opacity-50`}
                                     >
                                         {swapProcessing ? 'Swapping...' : 'Confirm Swap'}
                                     </button>
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                             <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📢 Your Ad Campaigns</h2>
                             <button
                                 onClick={() => router.push('/advertise')}
-                                className={`px-2 py-1 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-[10px] rounded-lg hover:bg-${currentTheme.accentHover}`}
+                                className={`px-2 py-1 bg-${currentTheme.accent} text-white font-bold text-[10px] rounded-lg hover:bg-${currentTheme.accentHover}`}
                             >
                                 + Buy Another
                             </button>
@@ -1094,7 +1094,7 @@ export default function DashboardPage() {
                             </div>
                             <button
                                 onClick={() => router.push('/advertise')}
-                                className={`px-3 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-xs rounded-lg`}
+                                className={`px-3 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold text-xs rounded-lg`}
                             >
                                 Start
                             </button>
@@ -1197,7 +1197,7 @@ export default function DashboardPage() {
                             <button
                                 onClick={handleJoinMatrix}
                                 disabled={joiningMatrix || !agreedToTerms}
-                                className={`flex-1 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold text-sm rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+                                className={`flex-1 py-1.5 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold text-sm rounded-lg hover:from-${currentTheme.accentHover} hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                                 {joiningMatrix ? 'Joining...' : 'Join Matrix'}
                             </button>
