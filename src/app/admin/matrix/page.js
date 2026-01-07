@@ -20,7 +20,8 @@ const TIPS = {
 
     // Detail panel
     matrixStructure: "Visual of the 7 referral spots. Green = filled, gray = empty. Owner is at top.",
-    markAsPaid: "Click after you've sent the $200 payment via Zelle, Venmo, etc."
+    markAsPaid: "Click after you've sent the $200 payment via Zelle, Venmo, etc.",
+    placedUnder: "The user whose matrix this owner joined. Shows who referred them to the matrix system."
 }
 
 export default function AdminMatrixPage() {
@@ -37,10 +38,52 @@ export default function AdminMatrixPage() {
     const [selectedMatrix, setSelectedMatrix] = useState(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [sortBy, setSortBy] = useState('recent')
+    const [placedUnder, setPlacedUnder] = useState(null)
 
     useEffect(() => {
         loadMatrices()
     }, [filter])
+
+    // Look up who the selected matrix owner is placed under
+    useEffect(() => {
+        const lookupPlacedUnder = async () => {
+            if (!selectedMatrix?.user_id) {
+                setPlacedUnder(null)
+                return
+            }
+
+            try {
+                const userId = selectedMatrix.user_id
+                const { data, error } = await supabase
+                    .from('matrix_entries')
+                    .select(`
+                        id,
+                        owner:users!matrix_entries_user_id_fkey (id, username)
+                    `)
+                    .or(`spot_2.eq.${userId},spot_3.eq.${userId},spot_4.eq.${userId},spot_5.eq.${userId},spot_6.eq.${userId},spot_7.eq.${userId}`)
+                    .neq('user_id', userId)
+                    .limit(1)
+                    .maybeSingle()
+
+                if (error) {
+                    console.error('Error looking up placed under:', error)
+                    setPlacedUnder(null)
+                    return
+                }
+
+                if (data?.owner) {
+                    setPlacedUnder(data.owner.username)
+                } else {
+                    setPlacedUnder(null)
+                }
+            } catch (error) {
+                console.error('Error in lookupPlacedUnder:', error)
+                setPlacedUnder(null)
+            }
+        }
+
+        lookupPlacedUnder()
+    }, [selectedMatrix])
 
     const loadMatrices = async () => {
         setLoading(true)
@@ -365,6 +408,16 @@ export default function AdminMatrixPage() {
                             <p className={`text-${currentTheme.textMuted} text-[10px] mb-0.5`}>Owner</p>
                             <p className={`text-${currentTheme.text} font-medium text-sm`}>{selectedMatrix.users?.username}</p>
                             <p className={`text-${currentTheme.textMuted} text-xs`}>{selectedMatrix.users?.email}</p>
+                        </div>
+
+                        {/* Placed Under Info */}
+                        <div className="mb-3">
+                            <p className={`text-${currentTheme.textMuted} text-[10px] mb-0.5`}>
+                                <Tooltip text={TIPS.placedUnder}>Placed Under</Tooltip>
+                            </p>
+                            <p className={`text-${currentTheme.text} font-medium text-sm`}>
+                                {placedUnder ? placedUnder : <span className={`text-${currentTheme.textMuted} italic`}>Original Member</span>}
+                            </p>
                         </div>
 
                         {/* Matrix Visualization */}
