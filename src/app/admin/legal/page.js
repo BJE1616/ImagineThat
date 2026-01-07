@@ -1,0 +1,424 @@
+'use client'
+
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { useTheme } from '@/lib/ThemeContext'
+import dynamic from 'next/dynamic'
+
+// Dynamically import ReactQuill to avoid SSR issues
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false })
+import 'react-quill/dist/quill.snow.css'
+
+export default function AdminLegalPage() {
+    const router = useRouter()
+    const { currentTheme } = useTheme()
+    const [loading, setLoading] = useState(true)
+    const [isAuthorized, setIsAuthorized] = useState(false)
+    const [documents, setDocuments] = useState([])
+    const [selectedDoc, setSelectedDoc] = useState(null)
+    const [saving, setSaving] = useState(false)
+    const [message, setMessage] = useState(null)
+    const [previewMode, setPreviewMode] = useState(false)
+
+    const [formData, setFormData] = useState({
+        title: '',
+        content: '',
+        is_active: true
+    })
+
+    // Quill editor modules/toolbar configuration
+    const modules = useMemo(() => ({
+        toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            [{ 'indent': '-1' }, { 'indent': '+1' }],
+            ['clean']
+        ],
+    }), [])
+
+    const formats = [
+        'header',
+        'bold', 'italic', 'underline', 'strike',
+        'list', 'bullet', 'indent'
+    ]
+
+    useEffect(() => {
+        checkAuthorization()
+    }, [])
+
+    const checkAuthorization = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) { router.push('/auth/login'); return }
+
+            const { data: userData } = await supabase
+                .from('users')
+                .select('is_admin, is_super_admin, role')
+                .eq('id', user.id)
+                .single()
+
+            // Only allow admin or super_admin
+            const hasAccess = userData?.is_admin || userData?.is_super_admin ||
+                userData?.role === 'admin' || userData?.role === 'super_admin'
+
+            if (!hasAccess) { router.push('/dashboard'); return }
+
+            setIsAuthorized(true)
+            await loadDocuments()
+        } catch (error) {
+            console.error('Error:', error)
+            router.push('/auth/login')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const loadDocuments = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('legal_documents')
+                .select('*')
+                .order('title', { ascending: true })
+
+            if (error) throw error
+            setDocuments(data || [])
+
+            // Auto-select first document if available
+            if (data && data.length > 0) {
+                selectDocument(data[0])
+            }
+        } catch (error) {
+            console.error('Error loading documents:', error)
+            setMessage({ type: 'error', text: 'Failed to load documents' })
+        }
+    }
+
+    const selectDocument = (doc) => {
+        setSelectedDoc(doc)
+        setFormData({
+            title: doc.title,
+            content: doc.content,
+            is_active: doc.is_active
+        })
+        setPreviewMode(false)
+        setMessage(null)
+    }
+
+    const handleSave = async () => {
+        if (!selectedDoc) return
+
+        setSaving(true)
+        setMessage(null)
+
+        try {
+            const { error } = await supabase
+                .from('legal_documents')
+                .update({
+                    title: formData.title,
+                    content: formData.content,
+                    is_active: formData.is_active,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', selectedDoc.id)
+
+            if (error) throw error
+
+            setMessage({ type: 'success', text: 'Document saved successfully!' })
+            await loadDocuments()
+
+            // Re-select the document to refresh data
+            const { data: updatedDoc } = await supabase
+                .from('legal_documents')
+                .select('*')
+                .eq('id', selectedDoc.id)
+                .single()
+
+            if (updatedDoc) {
+                setSelectedDoc(updatedDoc)
+            }
+        } catch (error) {
+            console.error('Error saving:', error)
+            setMessage({ type: 'error', text: 'Failed to save document' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleCreateNew = async () => {
+        const docKey = prompt('Enter a unique document key (e.g., privacy_policy):')
+        if (!docKey) return
+
+        const title = prompt('Enter document title:')
+        if (!title) return
+
+        try {
+            const { data, error } = await supabase
+                .from('legal_documents')
+                .insert({
+                    document_key: docKey.toLowerCase().replace(/\s+/g, '_'),
+                    title: title,
+                    content: '<p>Enter your content here...</p>',
+                    is_active: true
+                })
+                .select()
+                .single()
+
+            if (error) throw error
+
+            setMessage({ type: 'success', text: 'Document created!' })
+            await loadDocuments()
+            if (data) selectDocument(data)
+        } catch (error) {
+            console.error('Error creating document:', error)
+            setMessage({ type: 'error', text: error.message || 'Failed to create document' })
+        }
+    }
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '—'
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    }
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="animate-pulse space-y-4">
+                    <div className={`h-8 bg-${currentTheme.border} rounded w-48`}></div>
+                    <div className={`h-64 bg-${currentTheme.card} rounded`}></div>
+                </div>
+            </div>
+        )
+    }
+
+    if (!isAuthorized) {
+        return null
+    }
+
+    return (
+        <div className="p-6">
+            {/* Custom styles for Quill editor */}
+            <style jsx global>{`
+                .quill-dark .ql-toolbar {
+                    background: #1e293b;
+                    border-color: #334155 !important;
+                    border-radius: 8px 8px 0 0;
+                }
+                .quill-dark .ql-container {
+                    background: #1e293b;
+                    border-color: #334155 !important;
+                    border-radius: 0 0 8px 8px;
+                    color: #f1f5f9;
+                    font-size: 14px;
+                }
+                .quill-dark .ql-editor {
+                    min-height: 400px;
+                    color: #f1f5f9;
+                }
+                .quill-dark .ql-editor.ql-blank::before {
+                    color: #64748b;
+                }
+                .quill-dark .ql-stroke {
+                    stroke: #94a3b8 !important;
+                }
+                .quill-dark .ql-fill {
+                    fill: #94a3b8 !important;
+                }
+                .quill-dark .ql-picker {
+                    color: #94a3b8 !important;
+                }
+                .quill-dark .ql-picker-options {
+                    background: #1e293b !important;
+                    border-color: #334155 !important;
+                }
+                .quill-dark .ql-picker-item:hover {
+                    color: #f1f5f9 !important;
+                }
+                .quill-dark .ql-toolbar button:hover .ql-stroke,
+                .quill-dark .ql-toolbar button.ql-active .ql-stroke {
+                    stroke: #38bdf8 !important;
+                }
+                .quill-dark .ql-toolbar button:hover .ql-fill,
+                .quill-dark .ql-toolbar button.ql-active .ql-fill {
+                    fill: #38bdf8 !important;
+                }
+                .quill-light .ql-toolbar {
+                    background: #f8fafc;
+                    border-color: #e2e8f0 !important;
+                    border-radius: 8px 8px 0 0;
+                }
+                .quill-light .ql-container {
+                    background: #ffffff;
+                    border-color: #e2e8f0 !important;
+                    border-radius: 0 0 8px 8px;
+                    font-size: 14px;
+                }
+                .quill-light .ql-editor {
+                    min-height: 400px;
+                }
+            `}</style>
+
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>Legal Documents</h1>
+                    <p className={`text-${currentTheme.textMuted} text-sm`}>Manage terms of service and legal content</p>
+                </div>
+                <button
+                    onClick={handleCreateNew}
+                    className={`px-4 py-2 bg-${currentTheme.accent} text-white rounded-lg hover:opacity-90 transition-all text-sm font-medium`}
+                >
+                    + New Document
+                </button>
+            </div>
+
+            {message && (
+                <div className={`mb-4 p-3 rounded-lg ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {message.text}
+                </div>
+            )}
+
+            <div className="flex gap-6">
+                {/* Document List */}
+                <div className={`w-1/4 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
+                    <h3 className={`text-sm font-semibold text-${currentTheme.text} mb-3`}>Documents</h3>
+                    <div className="space-y-2">
+                        {documents.map(doc => (
+                            <div
+                                key={doc.id}
+                                onClick={() => selectDocument(doc)}
+                                className={`p-3 rounded-lg cursor-pointer transition-all ${selectedDoc?.id === doc.id
+                                        ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}/50`
+                                        : `bg-${currentTheme.border}/30 hover:bg-${currentTheme.border}/50`
+                                    }`}
+                            >
+                                <p className={`text-sm font-medium text-${currentTheme.text}`}>{doc.title}</p>
+                                <p className={`text-xs text-${currentTheme.textMuted}`}>{doc.document_key}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${doc.is_active
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-red-500/20 text-red-400'
+                                        }`}>
+                                        {doc.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                        {documents.length === 0 && (
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>No documents found</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Editor */}
+                <div className={`flex-1 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4`}>
+                    {selectedDoc ? (
+                        <>
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <h3 className={`text-lg font-semibold text-${currentTheme.text}`}>
+                                        {previewMode ? 'Preview' : 'Edit Document'}
+                                    </h3>
+                                    <p className={`text-xs text-${currentTheme.textMuted}`}>
+                                        Last updated: {formatDate(selectedDoc.updated_at)}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setPreviewMode(!previewMode)}
+                                        className={`px-3 py-1.5 rounded text-sm font-medium ${previewMode
+                                                ? `bg-${currentTheme.accent} text-white`
+                                                : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+                                            }`}
+                                    >
+                                        {previewMode ? 'Edit' : 'Preview'}
+                                    </button>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving}
+                                        className={`px-4 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-500 disabled:opacity-50`}
+                                    >
+                                        {saving ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {previewMode ? (
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-6 max-h-[600px] overflow-y-auto`}>
+                                    <h2 className={`text-xl font-bold text-${currentTheme.text} mb-4`}>{formData.title}</h2>
+                                    <div
+                                        className={`text-${currentTheme.text} text-sm leading-relaxed prose prose-sm max-w-none ${currentTheme.mode === 'dark' ? 'prose-invert' : ''}`}
+                                        dangerouslySetInnerHTML={{ __html: formData.content }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                            Document Title
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.title}
+                                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                            className={`w-full bg-${currentTheme.border} border border-${currentTheme.border} rounded-lg px-4 py-2 text-${currentTheme.text} focus:outline-none focus:border-${currentTheme.accent}`}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                            Content
+                                        </label>
+                                        <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>
+                                            Tip: You can copy and paste from Google Docs and formatting will be preserved!
+                                        </p>
+                                        <div className={currentTheme.mode === 'dark' ? 'quill-dark' : 'quill-light'}>
+                                            <ReactQuill
+                                                theme="snow"
+                                                value={formData.content}
+                                                onChange={(content) => setFormData({ ...formData, content })}
+                                                modules={modules}
+                                                formats={formats}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 mt-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.is_active}
+                                                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                                                className="w-4 h-4 rounded"
+                                            />
+                                            <span className={`text-sm text-${currentTheme.text}`}>Document is active</span>
+                                        </label>
+                                    </div>
+
+                                    <div className={`p-3 bg-${currentTheme.border}/30 rounded-lg mt-4`}>
+                                        <p className={`text-xs text-${currentTheme.textMuted}`}>
+                                            <strong>Document Key:</strong> {selectedDoc.document_key}
+                                        </p>
+                                        <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                            This key is used to reference this document in the purchase flow.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className={`flex items-center justify-center h-64 text-${currentTheme.textMuted}`}>
+                            Select a document to edit
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}

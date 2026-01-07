@@ -295,10 +295,11 @@ export default function AdminLayout({ children }) {
             label: 'Content',
             icon: '📝',
             items: [
-                { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
                 { href: '/admin/email-templates', label: 'Email Templates', icon: '✉️' },
                 { href: '/admin/email-testing', label: 'Email Testing', icon: '📧' },
+                { href: '/admin/faqs', label: 'FAQs', icon: '❓' },
                 { href: '/admin/merch-store', label: 'Merch Store', icon: '🛍️' },
+                { href: '/admin/legal', label: 'Terms of Service', icon: '⚖️' },
             ]
         },
         {
