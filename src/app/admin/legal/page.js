@@ -1,14 +1,150 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
-import dynamic from 'next/dynamic'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 
-// Dynamically import ReactQuill to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false })
-import 'react-quill/dist/quill.snow.css'
+// Toolbar Button Component
+const ToolbarButton = ({ onClick, isActive, children, title }) => {
+    const { currentTheme } = useTheme()
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={title}
+            className={`px-2 py-1 rounded text-sm font-medium transition-all ${isActive
+                    ? `bg-${currentTheme.accent} text-white`
+                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.border}/70`
+                }`}
+        >
+            {children}
+        </button>
+    )
+}
+
+// Tiptap Editor Component
+const TiptapEditor = ({ content, onChange }) => {
+    const { currentTheme } = useTheme()
+
+    const editor = useEditor({
+        extensions: [StarterKit],
+        content: content,
+        onUpdate: ({ editor }) => {
+            onChange(editor.getHTML())
+        },
+        editorProps: {
+            attributes: {
+                class: `prose prose-sm max-w-none focus:outline-none min-h-[400px] p-4 ${currentTheme.mode === 'dark' ? 'prose-invert' : ''}`
+            }
+        }
+    })
+
+    // Update editor content when prop changes
+    useEffect(() => {
+        if (editor && content !== editor.getHTML()) {
+            editor.commands.setContent(content)
+        }
+    }, [content, editor])
+
+    if (!editor) {
+        return <div className="h-[400px] animate-pulse bg-gray-200 rounded"></div>
+    }
+
+    return (
+        <div className={`border border-${currentTheme.border} rounded-lg overflow-hidden`}>
+            {/* Toolbar */}
+            <div className={`flex flex-wrap gap-1 p-2 border-b border-${currentTheme.border} bg-${currentTheme.border}/30`}>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleBold().run()}
+                    isActive={editor.isActive('bold')}
+                    title="Bold"
+                >
+                    <strong>B</strong>
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                    isActive={editor.isActive('italic')}
+                    title="Italic"
+                >
+                    <em>I</em>
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleStrike().run()}
+                    isActive={editor.isActive('strike')}
+                    title="Strikethrough"
+                >
+                    <s>S</s>
+                </ToolbarButton>
+
+                <div className={`w-px h-6 bg-${currentTheme.border} mx-1`}></div>
+
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                    isActive={editor.isActive('heading', { level: 1 })}
+                    title="Heading 1"
+                >
+                    H1
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                    isActive={editor.isActive('heading', { level: 2 })}
+                    title="Heading 2"
+                >
+                    H2
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                    isActive={editor.isActive('heading', { level: 3 })}
+                    title="Heading 3"
+                >
+                    H3
+                </ToolbarButton>
+
+                <div className={`w-px h-6 bg-${currentTheme.border} mx-1`}></div>
+
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleBulletList().run()}
+                    isActive={editor.isActive('bulletList')}
+                    title="Bullet List"
+                >
+                    • List
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                    isActive={editor.isActive('orderedList')}
+                    title="Numbered List"
+                >
+                    1. List
+                </ToolbarButton>
+
+                <div className={`w-px h-6 bg-${currentTheme.border} mx-1`}></div>
+
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().undo().run()}
+                    isActive={false}
+                    title="Undo"
+                >
+                    ↩
+                </ToolbarButton>
+                <ToolbarButton
+                    onClick={() => editor.chain().focus().redo().run()}
+                    isActive={false}
+                    title="Redo"
+                >
+                    ↪
+                </ToolbarButton>
+            </div>
+
+            {/* Editor Content */}
+            <div className={`bg-${currentTheme.mode === 'dark' ? 'slate-800' : 'white'}`}>
+                <EditorContent editor={editor} />
+            </div>
+        </div>
+    )
+}
 
 export default function AdminLegalPage() {
     const router = useRouter()
@@ -27,23 +163,6 @@ export default function AdminLegalPage() {
         is_active: true
     })
 
-    // Quill editor modules/toolbar configuration
-    const modules = useMemo(() => ({
-        toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            [{ 'indent': '-1' }, { 'indent': '+1' }],
-            ['clean']
-        ],
-    }), [])
-
-    const formats = [
-        'header',
-        'bold', 'italic', 'underline', 'strike',
-        'list', 'bullet', 'indent'
-    ]
-
     useEffect(() => {
         checkAuthorization()
     }, [])
@@ -60,7 +179,7 @@ export default function AdminLegalPage() {
                 .single()
 
             // Only allow admin or super_admin
-            const hasAccess = userData?.is_admin || userData?.is_super_admin ||
+            const hasAccess = userData?.is_admin ||
                 userData?.role === 'admin' || userData?.role === 'super_admin'
 
             if (!hasAccess) { router.push('/dashboard'); return }
@@ -204,67 +323,6 @@ export default function AdminLegalPage() {
 
     return (
         <div className="p-6">
-            {/* Custom styles for Quill editor */}
-            <style jsx global>{`
-                .quill-dark .ql-toolbar {
-                    background: #1e293b;
-                    border-color: #334155 !important;
-                    border-radius: 8px 8px 0 0;
-                }
-                .quill-dark .ql-container {
-                    background: #1e293b;
-                    border-color: #334155 !important;
-                    border-radius: 0 0 8px 8px;
-                    color: #f1f5f9;
-                    font-size: 14px;
-                }
-                .quill-dark .ql-editor {
-                    min-height: 400px;
-                    color: #f1f5f9;
-                }
-                .quill-dark .ql-editor.ql-blank::before {
-                    color: #64748b;
-                }
-                .quill-dark .ql-stroke {
-                    stroke: #94a3b8 !important;
-                }
-                .quill-dark .ql-fill {
-                    fill: #94a3b8 !important;
-                }
-                .quill-dark .ql-picker {
-                    color: #94a3b8 !important;
-                }
-                .quill-dark .ql-picker-options {
-                    background: #1e293b !important;
-                    border-color: #334155 !important;
-                }
-                .quill-dark .ql-picker-item:hover {
-                    color: #f1f5f9 !important;
-                }
-                .quill-dark .ql-toolbar button:hover .ql-stroke,
-                .quill-dark .ql-toolbar button.ql-active .ql-stroke {
-                    stroke: #38bdf8 !important;
-                }
-                .quill-dark .ql-toolbar button:hover .ql-fill,
-                .quill-dark .ql-toolbar button.ql-active .ql-fill {
-                    fill: #38bdf8 !important;
-                }
-                .quill-light .ql-toolbar {
-                    background: #f8fafc;
-                    border-color: #e2e8f0 !important;
-                    border-radius: 8px 8px 0 0;
-                }
-                .quill-light .ql-container {
-                    background: #ffffff;
-                    border-color: #e2e8f0 !important;
-                    border-radius: 0 0 8px 8px;
-                    font-size: 14px;
-                }
-                .quill-light .ql-editor {
-                    min-height: 400px;
-                }
-            `}</style>
-
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className={`text-2xl font-bold text-${currentTheme.text}`}>Legal Documents</h1>
@@ -294,16 +352,16 @@ export default function AdminLegalPage() {
                                 key={doc.id}
                                 onClick={() => selectDocument(doc)}
                                 className={`p-3 rounded-lg cursor-pointer transition-all ${selectedDoc?.id === doc.id
-                                    ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}/50`
-                                    : `bg-${currentTheme.border}/30 hover:bg-${currentTheme.border}/50`
+                                        ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}/50`
+                                        : `bg-${currentTheme.border}/30 hover:bg-${currentTheme.border}/50`
                                     }`}
                             >
                                 <p className={`text-sm font-medium text-${currentTheme.text}`}>{doc.title}</p>
                                 <p className={`text-xs text-${currentTheme.textMuted}`}>{doc.document_key}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${doc.is_active
-                                        ? 'bg-green-500/20 text-green-400'
-                                        : 'bg-red-500/20 text-red-400'
+                                            ? 'bg-green-500/20 text-green-400'
+                                            : 'bg-red-500/20 text-red-400'
                                         }`}>
                                         {doc.is_active ? 'Active' : 'Inactive'}
                                     </span>
@@ -333,8 +391,8 @@ export default function AdminLegalPage() {
                                     <button
                                         onClick={() => setPreviewMode(!previewMode)}
                                         className={`px-3 py-1.5 rounded text-sm font-medium ${previewMode
-                                            ? `bg-${currentTheme.accent} text-white`
-                                            : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+                                                ? `bg-${currentTheme.accent} text-white`
+                                                : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
                                             }`}
                                     >
                                         {previewMode ? 'Edit' : 'Preview'}
@@ -378,15 +436,10 @@ export default function AdminLegalPage() {
                                         <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>
                                             Tip: You can copy and paste from Google Docs and formatting will be preserved!
                                         </p>
-                                        <div className={currentTheme.mode === 'dark' ? 'quill-dark' : 'quill-light'}>
-                                            <ReactQuill
-                                                theme="snow"
-                                                value={formData.content}
-                                                onChange={(content) => setFormData({ ...formData, content })}
-                                                modules={modules}
-                                                formats={formats}
-                                            />
-                                        </div>
+                                        <TiptapEditor
+                                            content={formData.content}
+                                            onChange={(content) => setFormData({ ...formData, content })}
+                                        />
                                     </div>
 
                                     <div className="flex items-center gap-3 mt-4">
