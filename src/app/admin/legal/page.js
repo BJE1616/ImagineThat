@@ -55,7 +55,7 @@ export default function AdminLegalPage() {
 
             const { data: userData } = await supabase
                 .from('users')
-                .select('is_admin, is_super_admin, role')
+                .select('is_admin, role')
                 .eq('id', user.id)
                 .single()
 
@@ -294,16 +294,16 @@ export default function AdminLegalPage() {
                                 key={doc.id}
                                 onClick={() => selectDocument(doc)}
                                 className={`p-3 rounded-lg cursor-pointer transition-all ${selectedDoc?.id === doc.id
-                                        ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}/50`
-                                        : `bg-${currentTheme.border}/30 hover:bg-${currentTheme.border}/50`
+                                    ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}/50`
+                                    : `bg-${currentTheme.border}/30 hover:bg-${currentTheme.border}/50`
                                     }`}
                             >
                                 <p className={`text-sm font-medium text-${currentTheme.text}`}>{doc.title}</p>
                                 <p className={`text-xs text-${currentTheme.textMuted}`}>{doc.document_key}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className={`text-[10px] px-2 py-0.5 rounded-full ${doc.is_active
-                                            ? 'bg-green-500/20 text-green-400'
-                                            : 'bg-red-500/20 text-red-400'
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-red-500/20 text-red-400'
                                         }`}>
                                         {doc.is_active ? 'Active' : 'Inactive'}
                                     </span>
@@ -333,8 +333,8 @@ export default function AdminLegalPage() {
                                     <button
                                         onClick={() => setPreviewMode(!previewMode)}
                                         className={`px-3 py-1.5 rounded text-sm font-medium ${previewMode
-                                                ? `bg-${currentTheme.accent} text-white`
-                                                : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
+                                            ? `bg-${currentTheme.accent} text-white`
+                                            : `bg-${currentTheme.border} text-${currentTheme.textMuted}`
                                             }`}
                                     >
                                         {previewMode ? 'Edit' : 'Preview'}
