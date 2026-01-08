@@ -1161,30 +1161,22 @@ export default function DashboardPage() {
                     {statsExpanded && (
                         <div className={`px-2.5 pb-2.5 border-t border-${currentTheme.border}/50 pt-2`}>
                             {/* Money Row */}
-                            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Earned</p>
-                                    <p className="text-green-400 font-bold text-sm">${totalEarned.toFixed(0)}</p>
-                                </div>
+                            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
                                     <p className={`text-${currentTheme.textMuted} text-[10px]`}>Spent on Ads</p>
                                     <p className={`text-${currentTheme.text} font-bold text-sm`}>${totalSpent.toFixed(0)}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>🎉 Profit</p>
-                                    <p className="text-green-400 font-bold text-sm">${profit.toFixed(0)}</p>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Referral Profits</p>
+                                    <p className="text-green-400 font-bold text-sm">${parseFloat(userData?.total_earned_matrices || 0).toFixed(0)}</p>
                                 </div>
                             </div>
 
                             {/* Campaigns & Matrices Row */}
-                            <div className="grid grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-2 gap-1.5">
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
                                     <p className={`text-${currentTheme.textMuted} text-[10px]`}>Campaigns</p>
-                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{userData?.total_campaigns_run || campaigns.length}</p>
-                                </div>
-                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Campaigns Completed</p>
-                                    <p className="text-green-400 font-bold text-sm">{completedCampaigns}</p>
+                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{completedCampaigns} of {userData?.total_campaigns_run || campaigns.length}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
                                     <p className={`text-${currentTheme.textMuted} text-[10px]`}>Matrices Completed</p>
