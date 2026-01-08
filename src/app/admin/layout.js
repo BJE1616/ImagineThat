@@ -242,41 +242,8 @@ export default function AdminLayout({ children }) {
         return null
     }
 
-    const navGroups = [
-        {
-            key: 'analytics',
-            label: 'Analytics',
-            icon: '📊',
-            items: [
-                { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
-                { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
-            ]
-        },
-        {
-            key: 'finances',
-            label: 'Finances',
-            icon: '💰',
-            items: [
-                { href: '/admin/health', label: 'Health Dashboard', icon: '🏥', permissionKey: 'health_dashboard_access' },
-                { href: '/admin/accounting', label: 'Accounting', icon: '📒', superAdminOnly: true },
-                { href: '/admin/payout-queue', label: 'Payout Queue', icon: '💸' },
-                { href: '/admin/partner-withdrawals', label: 'Partner Withdrawals', icon: '🤝' },
-                { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
-                { href: '/admin/payments', label: 'Payment History', icon: '🧾' },
-            ]
-        },
-        {
-            key: 'games',
-            label: 'Games',
-            icon: '🎮',
-            items: [
-                { href: '/admin/game-settings', label: 'Game Token Settings', icon: '🪙' },
-                { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
-                { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
-                { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
-                { href: '/admin/winners', label: 'Winners Management', icon: '🏆' },
-            ]
-        },
+    // Main nav groups in alphabetical order
+    const mainNavGroups = [
         {
             key: 'advertisers',
             label: 'Advertisers',
@@ -288,6 +255,15 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/promo-cards', label: 'Promo Cards', icon: '🎴' },
                 { href: '/admin/promo-stats', label: 'Promo Stats', icon: '📊' },
                 { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
+            ]
+        },
+        {
+            key: 'analytics',
+            label: 'Analytics',
+            icon: '📊',
+            items: [
+                { href: '/admin/dashboard', label: 'Dashboard', icon: '📈' },
+                { href: '/admin/geography', label: 'User Geography', icon: '🌍', superAdminOnly: true },
             ]
         },
         {
@@ -303,18 +279,44 @@ export default function AdminLayout({ children }) {
             ]
         },
         {
-            key: 'system',
-            label: 'System',
-            icon: '⚙️',
+            key: 'finances',
+            label: 'Finances',
+            icon: '💰',
             items: [
-                { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
-                { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
-                { href: '/admin/users', label: 'User Management', icon: '👤' },
-                { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
-                { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
+                { href: '/admin/health', label: 'Health Dashboard', icon: '🏥', permissionKey: 'health_dashboard_access' },
+                { href: '/admin/accounting', label: 'Accounting', icon: '📒', superAdminOnly: true },
+                { href: '/admin/payout-queue', label: 'Payout Queue', icon: '💸' },
+                { href: '/admin/partner-withdrawals', label: 'Partner Withdrawals', icon: '🤝' },
+                { href: '/admin/payment-processors', label: 'Payment Processors', icon: '💳' },
+            ]
+        },
+        {
+            key: 'games',
+            label: 'Games',
+            icon: '🎮',
+            items: [
+                { href: '/admin/game-settings', label: 'Game Token Settings', icon: '🪙' },
+                { href: '/admin/economy', label: 'Economy Settings', icon: '💹' },
+                { href: '/admin/prizes', label: 'Prize Settings', icon: '🎁' },
+                { href: '/admin/bonus', label: 'Bonus Views', icon: '👀' },
+                { href: '/admin/winners', label: 'Winners Management', icon: '🏆' },
             ]
         },
     ]
+
+    // System group separate
+    const systemNavGroup = {
+        key: 'system',
+        label: 'System',
+        icon: '⚙️',
+        items: [
+            { href: '/admin/settings', label: 'Platform Settings', icon: '🔧' },
+            { href: '/admin/team', label: 'Team Management', icon: '👥', superAdminOnly: true },
+            { href: '/admin/users', label: 'User Management', icon: '👤' },
+            { href: '/admin/audit-log', label: 'Audit Log', icon: '📋', permissionKey: 'audit_log_access' },
+            { href: '/admin/reports', label: 'Report Subscriptions', icon: '📧' },
+        ]
+    }
 
     const isItemActive = (href) => pathname === href
     const isGroupActive = (group) => group.items.some(item => pathname === item.href)
@@ -330,6 +332,76 @@ export default function AdminLayout({ children }) {
     }
 
     const roleBadge = getRoleBadge()
+
+    const renderNavGroup = (group) => {
+        // Hide super admin only groups from other roles
+        if (group.superAdminOnly && userRole !== 'super_admin') {
+            return null
+        }
+
+        // Filter items based on access
+        const accessibleItems = group.items.filter(item => {
+            // Check superAdminOnly flag
+            if (item.superAdminOnly && userRole !== 'super_admin') return false
+
+            // Check permission-based access (like health dashboard and audit log)
+            if (item.permissionKey === 'health_dashboard_access') {
+                return hasHealthAccess
+            }
+            if (item.permissionKey === 'audit_log_access') {
+                return hasAuditLogAccess
+            }
+
+            return canAccessPage(item.href)
+        })
+
+        // Don't show empty groups
+        if (accessibleItems.length === 0) return null
+
+        return (
+            <div key={group.key} className="mb-1">
+                <button
+                    onClick={() => toggleGroup(group.key)}
+                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${isGroupActive(group)
+                        ? `text-${currentTheme.accent}`
+                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text}`
+                        } hover:bg-${currentTheme.border}/50`}
+                >
+                    <div className="flex items-center gap-2">
+                        <span>{group.icon}</span>
+                        {sidebarOpen && <span className="font-medium">{group.label}</span>}
+                    </div>
+                    {sidebarOpen && (
+                        <span className={`text-xs transition-transform ${expandedGroups.includes(group.key) ? 'rotate-90' : ''}`}>
+                            ▶
+                        </span>
+                    )}
+                </button>
+
+                {sidebarOpen && expandedGroups.includes(group.key) && (
+                    <ul className="ml-4 mt-0.5 space-y-0.5">
+                        {accessibleItems.map((item) => (
+                            <li key={item.href}>
+                                <Link
+                                    href={item.href}
+                                    className={`flex items-center gap-2 px-2 py-1 rounded transition-all text-xs ${isItemActive(item.href)
+                                        ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border-l-2 border-${currentTheme.accent}`
+                                        : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
+                                        }`}
+                                >
+                                    <span>{item.icon}</span>
+                                    <span>{item.label}</span>
+                                    {(item.superAdminOnly || item.permissionKey) && (
+                                        <span className="text-yellow-400 text-[8px]">🔒</span>
+                                    )}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        )
+    }
 
     return (
         <AdminRoleContext.Provider value={{ role: userRole, permissions: financialPermissions, hasHealthAccess, hasAuditLogAccess }}>
@@ -392,93 +464,35 @@ export default function AdminLayout({ children }) {
                     </div>
 
                     <nav className="flex-1 p-2 overflow-y-auto">
-                        {navGroups.map((group) => {
-                            // Hide super admin only groups from other roles
-                            if (group.superAdminOnly && userRole !== 'super_admin') {
-                                return null
-                            }
+                        {/* Main nav groups (alphabetical) */}
+                        {mainNavGroups.map(group => renderNavGroup(group))}
 
-                            // Filter items based on access
-                            const accessibleItems = group.items.filter(item => {
-                                // Check superAdminOnly flag
-                                if (item.superAdminOnly && userRole !== 'super_admin') return false
+                        {/* Separator */}
+                        <div className={`my-2 border-t border-${currentTheme.border}`}></div>
 
-                                // Check permission-based access (like health dashboard and audit log)
-                                if (item.permissionKey === 'health_dashboard_access') {
-                                    return hasHealthAccess
-                                }
-                                if (item.permissionKey === 'audit_log_access') {
-                                    return hasAuditLogAccess
-                                }
+                        {/* System group */}
+                        {renderNavGroup(systemNavGroup)}
+                        {/* Spacer before Collapse/Logout */}
+                        <div className="mt-4 pt-3 border-t border-${currentTheme.border}">
+                            <button
+                                onClick={() => setSidebarOpen(!sidebarOpen)}
+                                className={`w-full flex items-center justify-center gap-2 px-2 py-1.5 text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50 rounded transition-all text-sm`}
+                            >
+                                <span>{sidebarOpen ? '◀' : '▶'}</span>
+                                {sidebarOpen && <span>Collapse</span>}
+                            </button>
 
-                                return canAccessPage(item.href)
-                            })
+                            <div className="h-2"></div>
 
-                            // Don't show empty groups
-                            if (accessibleItems.length === 0) return null
-
-                            return (
-                                <div key={group.key} className="mb-1">
-                                    <button
-                                        onClick={() => toggleGroup(group.key)}
-                                        className={`w-full flex items-center justify-between px-2 py-1.5 rounded transition-all text-sm ${isGroupActive(group)
-                                            ? `text-${currentTheme.accent}`
-                                            : `text-${currentTheme.textMuted} hover:text-${currentTheme.text}`
-                                            } hover:bg-${currentTheme.border}/50`}
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <span>{group.icon}</span>
-                                            {sidebarOpen && <span className="font-medium">{group.label}</span>}
-                                        </div>
-                                        {sidebarOpen && (
-                                            <span className={`text-xs transition-transform ${expandedGroups.includes(group.key) ? 'rotate-90' : ''}`}>
-                                                ▶
-                                            </span>
-                                        )}
-                                    </button>
-
-                                    {sidebarOpen && expandedGroups.includes(group.key) && (
-                                        <ul className="ml-4 mt-0.5 space-y-0.5">
-                                            {accessibleItems.map((item) => (
-                                                <li key={item.href}>
-                                                    <Link
-                                                        href={item.href}
-                                                        className={`flex items-center gap-2 px-2 py-1 rounded transition-all text-xs ${isItemActive(item.href)
-                                                            ? `bg-${currentTheme.accent}/20 text-${currentTheme.accent} border-l-2 border-${currentTheme.accent}`
-                                                            : `text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50`
-                                                            }`}
-                                                    >
-                                                        <span>{item.icon}</span>
-                                                        <span>{item.label}</span>
-                                                        {(item.superAdminOnly || item.permissionKey) && (
-                                                            <span className="text-yellow-400 text-[8px]">🔒</span>
-                                                        )}
-                                                    </Link>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            )
-                        })}
+                            <button
+                                onClick={handleLogout}
+                                className="w-full flex items-center justify-center gap-2 px-2 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all text-sm"
+                            >
+                                <span>🚪</span>
+                                {sidebarOpen && <span>Logout</span>}
+                            </button>
+                        </div>
                     </nav>
-
-                    <div className={`p-2 border-t border-${currentTheme.border}`}>
-                        <button
-                            onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className={`w-full flex items-center justify-center gap-2 px-2 py-1.5 text-${currentTheme.textMuted} hover:text-${currentTheme.text} hover:bg-${currentTheme.border}/50 rounded transition-all text-sm mb-1`}
-                        >
-                            <span>{sidebarOpen ? '◀' : '▶'}</span>
-                            {sidebarOpen && <span>Collapse</span>}
-                        </button>
-                        <button
-                            onClick={handleLogout}
-                            className="w-full flex items-center justify-center gap-2 px-2 py-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all text-sm"
-                        >
-                            <span>🚪</span>
-                            {sidebarOpen && <span>Logout</span>}
-                        </button>
-                    </div>
                 </aside>
 
                 <main className="flex-1 overflow-auto">
