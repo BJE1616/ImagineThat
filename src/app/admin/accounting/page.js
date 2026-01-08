@@ -1178,8 +1178,8 @@ export default function AccountingDashboardPage() {
                                     onClick={sendTaxSummaries}
                                     disabled={!taxConfirmed || sendingTax}
                                     className={`w-full py-2 rounded-lg font-medium transition-all ${taxConfirmed && !sendingTax
-                                            ? 'bg-yellow-500 text-slate-900 hover:bg-yellow-400'
-                                            : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                        ? 'bg-yellow-500 text-slate-900 hover:bg-yellow-400'
+                                        : 'bg-slate-700 text-slate-500 cursor-not-allowed'
                                         }`}
                                 >
                                     {sendingTax ? 'Sending...' : `Send ${taxYear} Tax Summaries`}
@@ -1198,4 +1198,3 @@ export default function AccountingDashboardPage() {
         </div>
     )
 }
-ENDOFFILE

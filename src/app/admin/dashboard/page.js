@@ -227,12 +227,12 @@ export default function AdminDashboardPage() {
 
     if (loading) {
         return (
-            <div className="p-4">
-                <div className="animate-pulse space-y-3">
-                    <div className={`h-6 bg-${currentTheme.border} rounded w-36`}></div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="p-2">
+                <div className="animate-pulse space-y-2">
+                    <div className={`h-5 bg-${currentTheme.border} rounded w-32`}></div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1">
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className={`h-16 bg-${currentTheme.card} rounded`}></div>
+                            <div key={i} className={`h-14 bg-${currentTheme.card} rounded`}></div>
                         ))}
                     </div>
                 </div>
@@ -252,9 +252,9 @@ export default function AdminDashboardPage() {
 
     function StatRow({ label, value, even }) {
         return (
-            <div className={`flex justify-between px-3 py-1.5 ${even ? `bg-${currentTheme.card}` : `bg-${currentTheme.border}/50`}`}>
-                <span className={`text-${currentTheme.textMuted}`}>{label}</span>
-                <span className={`text-${currentTheme.text} font-medium`}>{value}</span>
+            <div className={`flex justify-between px-2 py-1 ${even ? `bg-${currentTheme.card}` : `bg-${currentTheme.border}/50`}`}>
+                <span className={`text-${currentTheme.textMuted} text-xs`}>{label}</span>
+                <span className={`text-${currentTheme.text} font-medium text-xs`}>{value}</span>
             </div>
         )
     }
@@ -262,19 +262,19 @@ export default function AdminDashboardPage() {
     function DetailedSection({ title, sectionKey, summary, children }) {
         const isOpen = detailedOpen[sectionKey]
         return (
-            <div className="mb-2">
+            <div className="mb-1">
                 <button
                     onClick={() => toggleDetailedSection(sectionKey)}
-                    className={`w-full flex items-center justify-between px-3 py-2 bg-${currentTheme.card} hover:bg-${currentTheme.border} rounded border border-${currentTheme.border} transition`}
+                    className={`w-full flex items-center justify-between px-2 py-1.5 bg-${currentTheme.card} hover:bg-${currentTheme.border} rounded border border-${currentTheme.border} transition`}
                 >
-                    <div className="flex items-center gap-2">
-                        <span className={`text-${currentTheme.accent} text-xs`}>{isOpen ? '▼' : '▶'}</span>
-                        <span className={`text-sm font-semibold text-${currentTheme.text}`}>{title}</span>
+                    <div className="flex items-center gap-1.5">
+                        <span className={`text-${currentTheme.accent} text-[10px]`}>{isOpen ? '▼' : '▶'}</span>
+                        <span className={`text-xs font-semibold text-${currentTheme.text}`}>{title}</span>
                     </div>
-                    <span className={`text-xs text-${currentTheme.textMuted}`}>{summary}</span>
+                    <span className={`text-[10px] text-${currentTheme.textMuted}`}>{summary}</span>
                 </button>
                 {isOpen && (
-                    <div className={`mt-1 rounded overflow-hidden border border-${currentTheme.border}`}>
+                    <div className={`mt-0.5 rounded overflow-hidden border border-${currentTheme.border}`}>
                         {children}
                     </div>
                 )}
@@ -283,74 +283,74 @@ export default function AdminDashboardPage() {
     }
 
     return (
-        <div className="p-4">
-            <div className="mb-4">
-                <h1 className={`text-lg font-bold text-${currentTheme.text}`}>Dashboard</h1>
-                <p className={`text-${currentTheme.textMuted} text-xs`}>Welcome to the ImagineThat admin panel</p>
+        <div className="p-2">
+            <div className="mb-2">
+                <h1 className={`text-base font-bold text-${currentTheme.text}`}>Dashboard</h1>
+                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Welcome to the ImagineThat admin panel</p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-1 mb-2">
                 {statCards.map((stat, index) => (
-                    <div key={index} className={`${stat.bgColor} ${stat.borderColor} border rounded p-3 relative`}>
-                        {stat.alert && <div className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>}
+                    <div key={index} className={`${stat.bgColor} ${stat.borderColor} border rounded p-2 relative`}>
+                        {stat.alert && <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse"></div>}
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>{stat.label}</p>
-                                <p className={`text-xl font-bold ${stat.textColor}`}>
+                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>{stat.label}</p>
+                                <p className={`text-lg font-bold ${stat.textColor}`}>
                                     {typeof stat.value === 'number' && stat.value.toLocaleString ? stat.value.toLocaleString() : stat.value}
                                 </p>
                             </div>
-                            <span className="text-xl">{stat.icon}</span>
+                            <span className="text-lg">{stat.icon}</span>
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
-                    <h2 className={`text-sm font-bold text-${currentTheme.text} mb-3`}>Quick Actions</h2>
-                    <div className="grid grid-cols-2 gap-2">
-                        <Link href="/admin/winners" className={`flex items-center gap-2 p-2 bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded hover:bg-${currentTheme.accent}/20 transition-all group`}>
-                            <span className="text-lg">🏆</span>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-2">
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <h2 className={`text-xs font-bold text-${currentTheme.text} mb-2`}>Quick Actions</h2>
+                    <div className="grid grid-cols-2 gap-1">
+                        <Link href="/admin/winners" className={`flex items-center gap-1.5 p-1.5 bg-${currentTheme.accent}/10 border border-${currentTheme.accent}/20 rounded hover:bg-${currentTheme.accent}/20 transition-all group`}>
+                            <span className="text-base">🏆</span>
                             <div>
-                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-${currentTheme.accent} transition-colors`}>View Winners</p>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage weekly prizes</p>
+                                <p className={`text-${currentTheme.text} text-xs font-medium group-hover:text-${currentTheme.accent} transition-colors`}>View Winners</p>
+                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Manage weekly prizes</p>
                             </div>
                         </Link>
-                        <Link href="/admin/payout-queue" className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded hover:bg-green-500/20 transition-all group">
-                            <span className="text-lg">💰</span>
+                        <Link href="/admin/payout-queue" className="flex items-center gap-1.5 p-1.5 bg-green-500/10 border border-green-500/20 rounded hover:bg-green-500/20 transition-all group">
+                            <span className="text-base">💰</span>
                             <div>
-                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-green-400 transition-colors`}>Payout Queue</p>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>Process payments</p>
+                                <p className={`text-${currentTheme.text} text-xs font-medium group-hover:text-green-400 transition-colors`}>Payout Queue</p>
+                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Process payments</p>
                             </div>
                         </Link>
-                        <Link href="/admin/users" className="flex items-center gap-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded hover:bg-blue-500/20 transition-all group">
-                            <span className="text-lg">👥</span>
+                        <Link href="/admin/users" className="flex items-center gap-1.5 p-1.5 bg-blue-500/10 border border-blue-500/20 rounded hover:bg-blue-500/20 transition-all group">
+                            <span className="text-base">👥</span>
                             <div>
-                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-blue-400 transition-colors`}>Users</p>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>Manage accounts</p>
+                                <p className={`text-${currentTheme.text} text-xs font-medium group-hover:text-blue-400 transition-colors`}>Users</p>
+                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Manage accounts</p>
                             </div>
                         </Link>
-                        <Link href="/admin/campaigns" className="flex items-center gap-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded hover:bg-purple-500/20 transition-all group">
-                            <span className="text-lg">📋</span>
+                        <Link href="/admin/campaigns" className="flex items-center gap-1.5 p-1.5 bg-purple-500/10 border border-purple-500/20 rounded hover:bg-purple-500/20 transition-all group">
+                            <span className="text-base">📋</span>
                             <div>
-                                <p className={`text-${currentTheme.text} text-sm font-medium group-hover:text-purple-400 transition-colors`}>Campaigns</p>
-                                <p className={`text-${currentTheme.textMuted} text-xs`}>Ad management</p>
+                                <p className={`text-${currentTheme.text} text-xs font-medium group-hover:text-purple-400 transition-colors`}>Campaigns</p>
+                                <p className={`text-${currentTheme.textMuted} text-[10px]`}>Ad management</p>
                             </div>
                         </Link>
                     </div>
                 </div>
 
-                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-3`}>
-                    <div className="flex items-center justify-between mb-3">
-                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>This Week's Leaders</h2>
-                        <Link href="/admin/winners" className={`text-${currentTheme.accent} hover:text-${currentTheme.accentHover} text-xs font-medium transition-colors`}>View all →</Link>
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded p-2`}>
+                    <div className="flex items-center justify-between mb-2">
+                        <h2 className={`text-xs font-bold text-${currentTheme.text}`}>This Week's Leaders</h2>
+                        <Link href="/admin/winners" className={`text-${currentTheme.accent} hover:text-${currentTheme.accentHover} text-[10px] font-medium transition-colors`}>View all →</Link>
                     </div>
                     {recentWinners.length > 0 ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             {recentWinners.map((winner, index) => (
-                                <div key={winner.id} className={`flex items-center gap-2 p-2 bg-${currentTheme.border}/50 rounded`}>
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs ${index === 0 ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` :
+                                <div key={winner.id} className={`flex items-center gap-1.5 p-1.5 bg-${currentTheme.border}/50 rounded`}>
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${index === 0 ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}` :
                                         index === 1 ? 'bg-slate-400 text-slate-900' :
                                             index === 2 ? 'bg-amber-700 text-white' :
                                                 `bg-${currentTheme.border} text-${currentTheme.textMuted}`
@@ -358,19 +358,19 @@ export default function AdminDashboardPage() {
                                         {index + 1}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className={`text-${currentTheme.text} text-sm font-medium truncate`}>{winner.user.username}</p>
-                                        <p className={`text-${currentTheme.textMuted} text-xs`}>{winner.moves} moves • {winner.time_seconds}s</p>
+                                        <p className={`text-${currentTheme.text} text-xs font-medium truncate`}>{winner.user.username}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>{winner.moves} moves • {winner.time_seconds}s</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className={`text-${currentTheme.accent} text-sm font-bold`}>{winner.score}</p>
-                                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>score</p>
+                                        <p className={`text-${currentTheme.accent} text-xs font-bold`}>{winner.score}</p>
+                                        <p className={`text-${currentTheme.textMuted} text-[9px]`}>score</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <div className="text-center py-4">
-                            <p className={`text-${currentTheme.textMuted} text-sm`}>No games played this week yet</p>
+                        <div className="text-center py-3">
+                            <p className={`text-${currentTheme.textMuted} text-xs`}>No games played this week yet</p>
                         </div>
                     )}
                 </div>
@@ -380,35 +380,35 @@ export default function AdminDashboardPage() {
             <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded overflow-hidden`}>
                 <button
                     onClick={toggleDetailedStats}
-                    className={`w-full flex items-center justify-between p-3 hover:bg-${currentTheme.border}/50 transition`}
+                    className={`w-full flex items-center justify-between p-2 hover:bg-${currentTheme.border}/50 transition`}
                 >
-                    <div className="flex items-center gap-2">
-                        <span className={`text-${currentTheme.accent} text-sm`}>{showDetailedStats ? '▼' : '▶'}</span>
-                        <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📊 Detailed Platform Stats</h2>
+                    <div className="flex items-center gap-1.5">
+                        <span className={`text-${currentTheme.accent} text-xs`}>{showDetailedStats ? '▼' : '▶'}</span>
+                        <h2 className={`text-xs font-bold text-${currentTheme.text}`}>📊 Detailed Platform Stats</h2>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                         {detailedLoading && (
-                            <div className={`w-4 h-4 border-2 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                            <div className={`w-3 h-3 border-2 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
                         )}
-                        <span className={`text-xs text-${currentTheme.textMuted}`}>
+                        <span className={`text-[10px] text-${currentTheme.textMuted}`}>
                             {showDetailedStats ? 'Click to collapse' : 'Click to expand'}
                         </span>
                     </div>
                 </button>
 
                 {showDetailedStats && (
-                    <div className={`p-3 border-t border-${currentTheme.border}`}>
+                    <div className={`p-2 border-t border-${currentTheme.border}`}>
                         {detailedLoading ? (
-                            <div className="flex items-center justify-center h-32">
-                                <div className={`animate-spin rounded-full h-6 w-6 border-b-2 border-${currentTheme.accent}`}></div>
+                            <div className="flex items-center justify-center h-24">
+                                <div className={`animate-spin rounded-full h-5 w-5 border-b-2 border-${currentTheme.accent}`}></div>
                             </div>
                         ) : (
                             <div className="max-w-md">
-                                <div className="flex items-center justify-between mb-3">
-                                    <p className={`text-${currentTheme.textMuted} text-xs`}>Detailed breakdowns by category</p>
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Detailed breakdowns by category</p>
                                     <button
                                         onClick={loadDetailedStats}
-                                        className={`text-xs bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.textMuted} px-2 py-1 rounded transition`}
+                                        className={`text-[10px] bg-${currentTheme.border} hover:bg-${currentTheme.card} text-${currentTheme.textMuted} px-1.5 py-0.5 rounded transition`}
                                     >
                                         Refresh
                                     </button>

@@ -383,9 +383,9 @@ export default function HealthDashboardPage() {
                         <div className="h-10 w-px bg-slate-600"></div>
                         <div><p className="text-white font-semibold text-xs">Overall Health</p><p className="text-slate-400 text-[10px]">5 weighted factors</p></div>
                     </div>
-                    <div className="flex gap-1">
-                        {[{ key: 'financial', label: '💰' }, { key: 'tokenEconomy', label: '🪙' }, { key: 'prizeSustain', label: '🏆' }, { key: 'expenseControl', label: '📊' }, { key: 'configHealth', label: '⚙️' }].map(f => (
-                            <div key={f.key} className="bg-slate-800/50 rounded px-1.5 py-0.5 text-center w-10">
+                    <div className="flex gap-1 flex-wrap justify-end">
+                        {[{ key: 'financial', label: '💰', tooltip: 'Financial Health' }, { key: 'tokenEconomy', label: '🪙', tooltip: 'Token Economy' }, { key: 'prizeSustain', label: '🏆', tooltip: 'Prize Sustainability' }, { key: 'expenseControl', label: '📊', tooltip: 'Expense Control' }, { key: 'configHealth', label: '⚙️', tooltip: 'Config Health' }].map(f => (
+                            <div key={f.key} title={f.tooltip} className="bg-slate-800/50 rounded px-1.5 py-0.5 text-center w-10 cursor-help">
                                 <p className="text-[10px]">{f.label}</p>
                                 <p className={`text-xs font-bold ${getScoreColor(healthScores[f.key]).text}`}>{healthScores[f.key]}</p>
                             </div>
