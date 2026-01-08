@@ -1167,7 +1167,7 @@ export default function DashboardPage() {
                                     <p className="text-green-400 font-bold text-sm">${totalEarned.toFixed(0)}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Spent</p>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Spent on Ads</p>
                                     <p className={`text-${currentTheme.text} font-bold text-sm`}>${totalSpent.toFixed(0)}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
@@ -1183,11 +1183,11 @@ export default function DashboardPage() {
                                     <p className={`text-${currentTheme.text} font-bold text-sm`}>{userData?.total_campaigns_run || campaigns.length}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Completed</p>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Campaigns Completed</p>
                                     <p className="text-green-400 font-bold text-sm">{completedCampaigns}</p>
                                 </div>
                                 <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
-                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Matrices Done</p>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Matrices Completed</p>
                                     <p className={`text-${currentTheme.text} font-bold text-sm`}>{userData?.total_matrices_completed || 0}</p>
                                 </div>
                             </div>
