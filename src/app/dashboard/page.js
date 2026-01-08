@@ -11,7 +11,7 @@ export default function DashboardPage() {
     const [user, setUser] = useState(null)
     const [userData, setUserData] = useState(null)
     const [campaigns, setCampaigns] = useState([])
-    const [matrix, setMatrix] = useState(null)
+    const [matrices, setMatrices] = useState([])
     const [placedUnder, setPlacedUnder] = useState(null)
     const [notifications, setNotifications] = useState([])
     const [loading, setLoading] = useState(true)
@@ -27,6 +27,11 @@ export default function DashboardPage() {
     const [joiningMatrix, setJoiningMatrix] = useState(false)
     const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [bonusHistory, setBonusHistory] = useState([])
+
+    // Collapse/Expand state
+    const [expandedCampaigns, setExpandedCampaigns] = useState({})
+    const [collapsedMatrices, setCollapsedMatrices] = useState({})
+    const [historyExpanded, setHistoryExpanded] = useState(false)
 
     // Cancel campaign state
     const [cancellingCampaign, setCancellingCampaign] = useState(null)
@@ -95,6 +100,7 @@ export default function DashboardPage() {
 
             setBusinessCards(cardsData || [])
 
+            // Fixed: Changed from .maybeSingle() to support multiple matrices
             const { data: matrixData } = await supabase
                 .from('matrix_entries')
                 .select(`
@@ -108,9 +114,10 @@ export default function DashboardPage() {
                 `)
                 .eq('user_id', authUser.id)
                 .eq('is_active', true)
-                .maybeSingle()
+                .eq('is_completed', false)
+                .order('created_at', { ascending: true })
 
-            setMatrix(matrixData)
+            setMatrices(matrixData || [])
 
             // Find who the user is placed under (which matrix they're IN as a spot)
             const { data: placedUnderData } = await supabase
@@ -219,7 +226,8 @@ export default function DashboardPage() {
         }
     }
 
-    const getFilledSpots = () => {
+    // Updated to accept matrix parameter
+    const getFilledSpots = (matrix) => {
         if (!matrix) return 0
         let count = 0
         if (matrix.spot_2) count++
@@ -230,6 +238,62 @@ export default function DashboardPage() {
         if (matrix.spot_7) count++
         return count
     }
+
+    // Toggle campaign expand/collapse
+    const toggleCampaign = (campaignId) => {
+        setExpandedCampaigns(prev => ({
+            ...prev,
+            [campaignId]: !prev[campaignId]
+        }))
+    }
+
+    // Toggle matrix collapse/expand
+    const toggleMatrix = (matrixId) => {
+        setCollapsedMatrices(prev => ({
+            ...prev,
+            [matrixId]: !prev[matrixId]
+        }))
+    }
+
+    // Render card thumbnail - shows actual card preview, not emoji
+    const renderCardThumbnail = (card) => {
+        if (!card) return null
+
+        if (card.card_type === 'uploaded' && card.image_url) {
+            return (
+                <img
+                    src={card.image_url}
+                    alt={card.business_name || card.title || 'Card'}
+                    className="w-10 h-7 object-cover rounded"
+                />
+            )
+        }
+
+        // Text-based card preview
+        return (
+            <div
+                className="w-10 h-7 rounded flex items-center justify-center overflow-hidden"
+                style={{ backgroundColor: card.card_color || '#4F46E5' }}
+            >
+                <span
+                    className="text-[6px] font-bold px-0.5 truncate text-center leading-tight"
+                    style={{ color: card.text_color || '#FFFFFF' }}
+                >
+                    {(card.business_name || card.title || '').substring(0, 10)}
+                </span>
+            </div>
+        )
+    }
+
+    // Get campaign number (permanent, based on creation order)
+    const getCampaignNumber = (campaignId) => {
+        const index = campaigns.findIndex(c => c.id === campaignId)
+        return index + 1
+    }
+
+    // Split campaigns into active/queued vs history
+    const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'queued')
+    const historyCampaigns = campaigns.filter(c => c.status === 'completed' || c.status === 'cancelled')
 
     const openCancelModal = (campaign) => {
         setCancellingCampaign(campaign)
@@ -571,6 +635,151 @@ export default function DashboardPage() {
         } finally {
             setJoiningMatrix(false)
         }
+    }
+
+    // Render a single campaign row (used for both active and history)
+    const renderCampaignRow = (camp, showActions = true) => {
+        const isExpanded = expandedCampaigns[camp.id]
+        const isActive = camp.status === 'active'
+        const campaignNum = getCampaignNumber(camp.id)
+
+        return (
+            <div
+                key={camp.id}
+                className={`bg-${currentTheme.card} border rounded-lg overflow-hidden transition-all ${isActive ? 'border-green-500/50 shadow-[0_0_12px_rgba(34,197,94,0.3)]' :
+                    camp.status === 'queued' ? 'border-yellow-500/50' :
+                        camp.status === 'cancelled' ? 'border-red-500/30' :
+                            camp.status === 'completed' ? 'border-green-500/30' :
+                                `border-${currentTheme.border}`
+                    }`}
+            >
+                {/* Collapsed Header - Always visible */}
+                <button
+                    onClick={() => toggleCampaign(camp.id)}
+                    className="w-full p-2.5 flex items-center gap-2 text-left"
+                >
+                    <span className="text-sm">{getStatusIcon(camp.status)}</span>
+
+                    {/* Card Thumbnail */}
+                    {camp.business_card && renderCardThumbnail(camp.business_card)}
+
+                    {/* Progress bar */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                            <span className={`text-${currentTheme.text} font-medium text-xs`}>
+                                Campaign #{campaignNum}
+                            </span>
+                            <span className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                {Math.round(getViewProgress(camp))}%
+                            </span>
+                        </div>
+                        <div className={`h-1.5 bg-${currentTheme.border} rounded-full overflow-hidden`}>
+                            <div
+                                className={`h-full rounded-full transition-all ${camp.status === 'completed' ? 'bg-green-500' :
+                                    camp.status === 'queued' ? 'bg-yellow-500' :
+                                        camp.status === 'cancelled' ? 'bg-red-500' :
+                                            'bg-blue-500'
+                                    }`}
+                                style={{ width: `${getViewProgress(camp)}%` }}
+                            ></div>
+                        </div>
+                    </div>
+
+                    {/* Expand arrow */}
+                    <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                        ▼
+                    </span>
+                </button>
+
+                {/* Expanded Content */}
+                {isExpanded && (
+                    <div className={`px-3 pb-3 border-t border-${currentTheme.border}/50`}>
+                        {/* Status badge and view count */}
+                        <div className="flex items-center justify-between mt-2 mb-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${camp.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                                camp.status === 'queued' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    camp.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                        camp.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                                            `bg-${currentTheme.textMuted}/20 text-${currentTheme.textMuted}`
+                                }`}>
+                                {getStatusLabel(camp.status)}
+                            </span>
+                            <span className={`text-${currentTheme.textMuted} text-[10px]`}>
+                                {getTotalViews(camp).toLocaleString()} / {camp.views_guaranteed?.toLocaleString()} views
+                            </span>
+                        </div>
+
+                        {camp.status === 'cancelled' ? (
+                            <div className={`text-[10px] text-${currentTheme.textMuted}`}>
+                                <p>{camp.views_remaining_at_cancel?.toLocaleString() || (camp.views_guaranteed - getTotalViews(camp)).toLocaleString()} views forfeited</p>
+                                <p className="mt-0.5">Cancelled: {new Date(camp.cancelled_at).toLocaleDateString()}</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* View sources - for active and completed */}
+                                {(camp.status === 'active' || camp.status === 'completed') && (
+                                    <div className={`p-1.5 bg-${currentTheme.border}/30 rounded-lg mb-2`}>
+                                        <p className={`text-[10px] text-${currentTheme.textMuted} mb-1`}>Views by source:</p>
+                                        <div className="grid grid-cols-3 gap-1 text-[10px] text-center">
+                                            <div className={`bg-${currentTheme.card} rounded p-1`}>
+                                                <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_game || 0}</p>
+                                                <p className={`text-${currentTheme.textMuted}`}>🎮 Games</p>
+                                            </div>
+                                            <div className={`bg-${currentTheme.card} rounded p-1`}>
+                                                <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_flips || 0}</p>
+                                                <p className={`text-${currentTheme.textMuted}`}>👁 Gallery</p>
+                                            </div>
+                                            <div className={`bg-${currentTheme.card} rounded p-1`}>
+                                                <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_card_back || 0}</p>
+                                                <p className={`text-${currentTheme.textMuted}`}>🎰 Slots</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {camp.status === 'queued' && (
+                                    <p className="text-[10px] text-yellow-400/70 mb-2">
+                                        Waiting for current campaign to complete
+                                    </p>
+                                )}
+
+                                {/* Action buttons - only for active/queued */}
+                                {showActions && (camp.status === 'active' || camp.status === 'queued') && (
+                                    <div className="flex items-center justify-between gap-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                openSwapModal(camp)
+                                            }}
+                                            className={`flex-1 px-2 py-1 bg-${currentTheme.border} text-${currentTheme.text} text-[10px] rounded hover:bg-${currentTheme.border}/70`}
+                                        >
+                                            🔄 Swap Card
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                openCancelModal(camp)
+                                            }}
+                                            className="flex-1 px-2 py-1 bg-red-500/20 border border-red-500/50 rounded text-[10px] text-red-400 hover:bg-red-500/30"
+                                        >
+                                            End Early
+                                        </button>
+                                    </div>
+                                )}
+
+                                {getBonusViews(camp) > 0 && (
+                                    <div className="mt-2 text-center">
+                                        <span className="px-1.5 py-0.5 bg-green-500/20 border border-green-500/50 rounded-full text-green-400 text-[10px] font-bold">
+                                            🎁 +{getBonusViews(camp)} bonus views!
+                                        </span>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     if (loading) {
@@ -927,10 +1136,11 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
+                {/* CAMPAIGNS SECTION */}
                 {campaigns.length > 0 ? (
                     <div className="mb-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📢 Your Ad Campaigns</h2>
+                            <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📢 Your Campaigns</h2>
                             <button
                                 onClick={() => router.push('/advertise')}
                                 className={`px-2 py-1 bg-${currentTheme.accent} text-white font-bold text-[10px] rounded-lg hover:bg-${currentTheme.accentHover}`}
@@ -938,129 +1148,36 @@ export default function DashboardPage() {
                                 + Buy Another
                             </button>
                         </div>
-                        <div className="space-y-2">
-                            {campaigns.map((camp, index) => (
-                                <div key={camp.id} className={`bg-${currentTheme.card} border rounded-lg p-3 ${camp.status === 'active' ? 'border-green-500/50' :
-                                    camp.status === 'queued' ? 'border-yellow-500/50' :
-                                        camp.status === 'cancelled' ? 'border-red-500/50' :
-                                            `border-${currentTheme.border}`
-                                    }`}>
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="text-sm">{getStatusIcon(camp.status)}</span>
-                                            <span className={`text-${currentTheme.text} font-medium text-xs`}>Campaign {index + 1}</span>
-                                        </div>
-                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${camp.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                                            camp.status === 'queued' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                camp.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
-                                                    camp.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
-                                                        `bg-${currentTheme.textMuted}/20 text-${currentTheme.textMuted}`
-                                            }`}>
-                                            {getStatusLabel(camp.status)}
-                                        </span>
+
+                        {/* Active/Queued Campaigns */}
+                        {activeCampaigns.length > 0 && (
+                            <div className="space-y-2 mb-2">
+                                {activeCampaigns.map(camp => renderCampaignRow(camp, true))}
+                            </div>
+                        )}
+
+                        {/* Campaign History (Completed/Cancelled) */}
+                        {historyCampaigns.length > 0 && (
+                            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
+                                <button
+                                    onClick={() => setHistoryExpanded(!historyExpanded)}
+                                    className="w-full p-2.5 flex items-center justify-between text-left"
+                                >
+                                    <span className={`text-${currentTheme.text} font-medium text-xs flex items-center gap-2`}>
+                                        📁 Campaign History ({historyCampaigns.length})
+                                    </span>
+                                    <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${historyExpanded ? 'rotate-180' : ''}`}>
+                                        ▼
+                                    </span>
+                                </button>
+
+                                {historyExpanded && (
+                                    <div className={`px-2 pb-2 space-y-2 border-t border-${currentTheme.border}/50 pt-2`}>
+                                        {historyCampaigns.map(camp => renderCampaignRow(camp, false))}
                                     </div>
-
-                                    {camp.business_card && (camp.status === 'active' || camp.status === 'queued') && (
-                                        <div className={`mb-2 p-1.5 bg-${currentTheme.border}/50 rounded-lg`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    {camp.business_card.card_type === 'uploaded' && camp.business_card.image_url ? (
-                                                        <img
-                                                            src={camp.business_card.image_url}
-                                                            alt="Card"
-                                                            className="w-8 h-6 object-cover rounded"
-                                                        />
-                                                    ) : (
-                                                        <div
-                                                            className="w-8 h-6 rounded flex items-center justify-center"
-                                                            style={{ backgroundColor: camp.business_card.card_color || '#4F46E5' }}
-                                                        >
-                                                            <span className="text-[10px]" style={{ color: camp.business_card.text_color || '#FFF' }}>🃏</span>
-                                                        </div>
-                                                    )}
-                                                    <span className={`text-${currentTheme.textMuted} text-[10px]`}>
-                                                        You're Currently Using This Business Card
-                                                    </span>
-                                                </div>
-                                                <button
-                                                    onClick={() => openSwapModal(camp)}
-                                                    className={`text-[10px] text-${currentTheme.accent} hover:text-${currentTheme.accentHover} underline`}
-                                                >
-                                                    Swap
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {camp.status === 'cancelled' ? (
-                                        <div className={`text-[10px] text-${currentTheme.textMuted}`}>
-                                            <p>{getTotalViews(camp).toLocaleString()} / {camp.views_guaranteed?.toLocaleString()} views ({camp.views_remaining_at_cancel?.toLocaleString() || (camp.views_guaranteed - getTotalViews(camp)).toLocaleString()} forfeited)</p>
-                                            <p className="mt-0.5">Cancelled: {new Date(camp.cancelled_at).toLocaleDateString()}</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="mb-1.5">
-                                                <div className="flex justify-between text-[10px] mb-0.5">
-                                                    <span className={`text-${currentTheme.textMuted}`}>
-                                                        {getTotalViews(camp).toLocaleString()} / {camp.views_guaranteed?.toLocaleString()} views
-                                                    </span>
-                                                    <span className={`text-${currentTheme.textMuted}`}>{Math.round(getViewProgress(camp))}%</span>
-                                                </div>
-                                                <div className={`h-1.5 bg-${currentTheme.border} rounded-full overflow-hidden`}>
-                                                    <div
-                                                        className={`h-full rounded-full ${camp.status === 'completed' ? 'bg-green-500' :
-                                                            camp.status === 'queued' ? 'bg-yellow-500' :
-                                                                `bg-${currentTheme.accent}`
-                                                            }`}
-                                                        style={{ width: `${getViewProgress(camp)}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                            {camp.status === 'active' && (
-                                                <div className={`mt-1.5 p-1.5 bg-${currentTheme.border}/30 rounded-lg`}>
-                                                    <p className={`text-[10px] text-${currentTheme.textMuted} mb-1`}>Views by source:</p>
-                                                    <div className="grid grid-cols-3 gap-1 text-[10px] text-center">
-                                                        <div className={`bg-${currentTheme.card} rounded p-1`}>
-                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_game || 0}</p>
-                                                            <p className={`text-${currentTheme.textMuted}`}>🎮 Card Match Games</p>
-                                                        </div>
-                                                        <div className={`bg-${currentTheme.card} rounded p-1`}>
-                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_flips || 0}</p>
-                                                            <p className={`text-${currentTheme.textMuted}`}>👁 Gallery</p>
-                                                        </div>
-                                                        <div className={`bg-${currentTheme.card} rounded p-1`}>
-                                                            <p className={`text-${currentTheme.text} font-bold`}>{camp.views_from_card_back || 0}</p>
-                                                            <p className={`text-${currentTheme.textMuted}`}>🎰 Slots</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {camp.status === 'queued' && (
-                                                <p className="text-[10px] text-yellow-400/70 mt-1">
-                                                    Waiting for current campaign to complete
-                                                </p>
-                                            )}
-
-                                            <div className="flex items-center justify-center gap-8 mt-2">
-                                                {getBonusViews(camp) > 0 && (
-                                                    <span className="px-1.5 py-0.5 bg-green-500/20 border border-green-500/50 rounded-full text-green-400 text-[10px] font-bold">
-                                                        🎁 +{getBonusViews(camp)} bonus!
-                                                    </span>
-                                                )}
-                                                {(camp.status === 'active' || camp.status === 'queued') && (
-                                                    <button
-                                                        onClick={() => openCancelModal(camp)}
-                                                        className="px-2 py-0.5 bg-red-500/20 border border-red-500/50 rounded text-[10px] text-red-400 hover:bg-red-500/30"
-                                                    >
-                                                        End Campaign Early
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                                )}
+                            </div>
+                        )}
 
                         {bonusHistory.length > 0 && (
                             <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
@@ -1102,7 +1219,8 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {getActiveCampaign() && !matrix && !showJoinMatrix && (
+                {/* Join Matrix Banner */}
+                {getActiveCampaign() && matrices.length === 0 && !showJoinMatrix && (
                     <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-3 mb-3">
                         <div className="flex items-center justify-between">
                             <div>
@@ -1121,6 +1239,7 @@ export default function DashboardPage() {
                     </div>
                 )}
 
+                {/* Join Matrix Form */}
                 {showJoinMatrix && (
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3 mb-3`}>
                         <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>🔷 FREE Bonus: Referral Matrix</h2>
@@ -1211,79 +1330,112 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {matrix && (
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-4 mb-4`}>
-                        <div className="flex items-center justify-between mb-2">
-                            <h2 className={`text-base font-bold text-${currentTheme.text}`}>🔷 Your Matrix</h2>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.is_completed
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-blue-500/20 text-blue-400'
-                                }`}>
-                                {matrix.is_completed ? 'Complete!' : `${getFilledSpots()}/6`}
-                            </span>
-                        </div>
+                {/* MATRICES SECTION - Expanded by default, supports multiple */}
+                {matrices.length > 0 && (
+                    <div className="mb-3">
+                        <h2 className={`text-sm font-bold text-${currentTheme.text} mb-2`}>🔷 Your Matrices</h2>
+                        <div className="space-y-2">
+                            {matrices.map((matrix, index) => {
+                                const isCollapsed = collapsedMatrices[matrix.id]
+                                const filledCount = getFilledSpots(matrix)
 
-                        {placedUnder && (
-                            <p className={`text-${currentTheme.textMuted} text-xs mb-3`}>
-                                You were placed under: <span className={`text-${currentTheme.accent} font-medium`}>{placedUnder}</span>
-                            </p>
-                        )}
-
-                        <div className={`bg-${currentTheme.border}/30 rounded-lg p-3`}>
-                            <div className="flex justify-center mb-2">
-                                <div className={`w-16 h-8 bg-${currentTheme.accent}/20 border border-${currentTheme.accent} rounded flex items-center justify-center`}>
-                                    <span className={`text-${currentTheme.accent} font-bold text-xs`}>YOU</span>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-center gap-6 mb-2">
-                                {[2, 3].map(spot => {
-                                    const spotData = matrix[`spot${spot}`]
-                                    return (
-                                        <div
-                                            key={spot}
-                                            className={`w-24 h-7 rounded flex items-center justify-center overflow-hidden ${spotData
-                                                ? 'bg-green-500/20 border border-green-500'
-                                                : `bg-${currentTheme.border}/50 border border-dashed border-${currentTheme.textMuted}`
-                                                }`}
+                                return (
+                                    <div
+                                        key={matrix.id}
+                                        className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}
+                                    >
+                                        {/* Header - Always visible */}
+                                        <button
+                                            onClick={() => toggleMatrix(matrix.id)}
+                                            className="w-full p-3 flex items-center justify-between text-left"
                                         >
-                                            <span className={`text-xs px-1 truncate ${spotData ? 'text-green-400' : `text-${currentTheme.textMuted}`}`}>
-                                                {spotData?.username || spot}
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-${currentTheme.text} font-bold text-sm`}>
+                                                    Matrix #{index + 1}
+                                                </span>
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${matrix.is_completed
+                                                    ? 'bg-green-500/20 text-green-400'
+                                                    : 'bg-blue-500/20 text-blue-400'
+                                                    }`}>
+                                                    {matrix.is_completed ? '✅ Complete!' : `${filledCount}/6`}
+                                                </span>
+                                            </div>
+                                            <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${isCollapsed ? '' : 'rotate-180'}`}>
+                                                ▼
                                             </span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
+                                        </button>
 
-                            <div className="flex justify-center gap-2">
-                                {[4, 5, 6, 7].map(spot => {
-                                    const spotData = matrix[`spot${spot}`]
-                                    return (
-                                        <div
-                                            key={spot}
-                                            className={`w-24 h-6 rounded flex items-center justify-center overflow-hidden ${spotData
-                                                ? 'bg-green-500/20 border border-green-500'
-                                                : `bg-${currentTheme.border}/50 border border-dashed border-${currentTheme.textMuted}`
-                                                }`}
-                                        >
-                                            <span className={`text-xs px-1 truncate ${spotData ? 'text-green-400' : `text-${currentTheme.textMuted}`}`}>
-                                                {spotData?.username || spot}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
+                                        {/* Expanded Content - Matrix diagram */}
+                                        {!isCollapsed && (
+                                            <div className={`px-3 pb-3 border-t border-${currentTheme.border}/50`}>
+                                                {placedUnder && index === 0 && (
+                                                    <p className={`text-${currentTheme.textMuted} text-xs mt-2 mb-2`}>
+                                                        You were placed under: <span className={`text-${currentTheme.accent} font-medium`}>{placedUnder}</span>
+                                                    </p>
+                                                )}
+
+                                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-3 mt-2`}>
+                                                    {/* YOU at top */}
+                                                    <div className="flex justify-center mb-2">
+                                                        <div className={`w-16 h-8 bg-${currentTheme.accent}/20 border border-${currentTheme.accent} rounded flex items-center justify-center`}>
+                                                            <span className={`text-${currentTheme.accent} font-bold text-xs`}>YOU</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Spots 2-3 */}
+                                                    <div className="flex justify-center gap-6 mb-2">
+                                                        {[2, 3].map(spot => {
+                                                            const spotData = matrix[`spot${spot}`]
+                                                            return (
+                                                                <div
+                                                                    key={spot}
+                                                                    className={`w-24 h-7 rounded flex items-center justify-center overflow-hidden ${spotData
+                                                                        ? 'bg-green-500/20 border border-green-500'
+                                                                        : `bg-${currentTheme.border}/50 border border-dashed border-${currentTheme.textMuted}`
+                                                                        }`}
+                                                                >
+                                                                    <span className={`text-xs px-1 truncate ${spotData ? 'text-green-400' : `text-${currentTheme.textMuted}`}`}>
+                                                                        {spotData?.username || spot}
+                                                                    </span>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+
+                                                    {/* Spots 4-7 */}
+                                                    <div className="flex justify-center gap-2">
+                                                        {[4, 5, 6, 7].map(spot => {
+                                                            const spotData = matrix[`spot${spot}`]
+                                                            return (
+                                                                <div
+                                                                    key={spot}
+                                                                    className={`w-20 h-6 rounded flex items-center justify-center overflow-hidden ${spotData
+                                                                        ? 'bg-green-500/20 border border-green-500'
+                                                                        : `bg-${currentTheme.border}/50 border border-dashed border-${currentTheme.textMuted}`
+                                                                        }`}
+                                                                >
+                                                                    <span className={`text-[10px] px-1 truncate ${spotData ? 'text-green-400' : `text-${currentTheme.textMuted}`}`}>
+                                                                        {spotData?.username || spot}
+                                                                    </span>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                {matrix.is_completed && (
+                                                    <div className="mt-3 text-center">
+                                                        <p className="text-green-400 text-sm font-medium">🎉 You earned ${matrix.payout_amount}!</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
-
-                        {matrix.is_completed && (
-                            <div className="mt-3 text-center">
-                                <p className="text-green-400 text-sm font-medium">🎉 You earned ${matrix.payout_amount}!</p>
-                            </div>
-                        )}
                     </div>
                 )}
-
-
             </div>
         </div>
     )
