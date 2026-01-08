@@ -33,6 +33,10 @@ export default function AdvertisePage() {
     const [referrerName, setReferrerName] = useState(null)
     const [referrerNotFound, setReferrerNotFound] = useState(false)
     const [previewCard, setPreviewCard] = useState(null)
+    const [agreedToTerms, setAgreedToTerms] = useState(false)
+    const [termsContent, setTermsContent] = useState(null)
+    const [termsDocId, setTermsDocId] = useState(null)
+    const [termsVersion, setTermsVersion] = useState(null)
 
     useEffect(() => {
         checkUser()
@@ -58,6 +62,20 @@ export default function AdvertisePage() {
                 .single()
 
             setUserData(userDataResult)
+
+            // Fetch advertiser terms
+            const { data: termsData } = await supabase
+                .from('legal_documents')
+                .select('id, content, version')
+                .eq('document_key', 'advertiser_terms')
+                .eq('is_active', true)
+                .single()
+
+            if (termsData) {
+                setTermsContent(termsData.content)
+                setTermsDocId(termsData.id)
+                setTermsVersion(termsData.version)
+            }
 
             // Pre-fill payout method from profile if exists
             if (userDataResult?.payout_method) {
@@ -454,6 +472,23 @@ export default function AdvertisePage() {
             if (campaignError) throw campaignError
 
             setCampaignId(campaign.id)
+
+            // Log terms acceptance
+            if (termsDocId && termsVersion) {
+                try {
+                    await supabase
+                        .from('terms_acceptances')
+                        .insert([{
+                            user_id: user.id,
+                            document_id: termsDocId,
+                            document_key: 'advertiser_terms',
+                            version_accepted: termsVersion,
+                            ip_address: null // Could be captured if needed
+                        }])
+                } catch (termsError) {
+                    console.error('Terms acceptance log error:', termsError)
+                }
+            }
 
             // Send receipt email for all purchases
             try {
@@ -1074,6 +1109,28 @@ export default function AdvertisePage() {
                             </div>
                         </div>
 
+                        {/* Terms of Service */}
+                        {termsContent && (
+                            <div className="mb-4">
+                                <p className={`text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Terms of Service</p>
+                                <div
+                                    className={`bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg p-3 max-h-32 overflow-y-auto text-xs text-${currentTheme.textMuted}`}
+                                    dangerouslySetInnerHTML={{ __html: termsContent }}
+                                />
+                                <label className="flex items-start gap-2 mt-3 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={agreedToTerms}
+                                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                        className={`w-4 h-4 mt-0.5 rounded border-${currentTheme.border} bg-${currentTheme.border} text-${currentTheme.accent} focus:ring-${currentTheme.accent}`}
+                                    />
+                                    <span className={`text-xs text-${currentTheme.text}`}>
+                                        I have read and agree to the Terms of Service
+                                    </span>
+                                </label>
+                            </div>
+                        )}
+
                         {/* Error message */}
                         {message && (
                             <div className={`mb-4 px-4 py-2 rounded-lg text-center text-sm ${message.includes('Error')
@@ -1094,16 +1151,18 @@ export default function AdvertisePage() {
                             </button>
                             <button
                                 onClick={handlePurchase}
-                                disabled={processing}
+                                disabled={processing || (termsContent && !agreedToTerms)}
                                 className={`flex-1 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
                             >
                                 {processing ? 'Processing...' : `Pay $${settings.ad_price}`}
                             </button>
                         </div>
 
-                        <p className={`text-${currentTheme.textMuted} text-xs text-center mt-3`}>
-                            By purchasing, you agree to our terms of service.
-                        </p>
+                        {termsContent && !agreedToTerms && (
+                            <p className={`text-${currentTheme.accent} text-xs text-center mt-2`}>
+                                Please agree to the Terms of Service to continue
+                            </p>
+                        )}
                     </div>
                 </div>
 
