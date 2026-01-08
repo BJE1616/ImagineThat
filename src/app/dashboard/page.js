@@ -27,11 +27,15 @@ export default function DashboardPage() {
     const [joiningMatrix, setJoiningMatrix] = useState(false)
     const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [bonusHistory, setBonusHistory] = useState([])
+    const [tokenBalance, setTokenBalance] = useState({ balance: 0, lifetime_earned: 0, lifetime_spent: 0 })
+    const [statsExpanded, setStatsExpanded] = useState(false)
+    const [campaignsExpanded, setCampaignsExpanded] = useState(false)
+    const [activeExpanded, setActiveExpanded] = useState(true)
+    const [historyExpanded, setHistoryExpanded] = useState(false)
 
     // Collapse/Expand state
     const [expandedCampaigns, setExpandedCampaigns] = useState({})
     const [collapsedMatrices, setCollapsedMatrices] = useState({})
-    const [historyExpanded, setHistoryExpanded] = useState(false)
 
     // Cancel campaign state
     const [cancellingCampaign, setCancellingCampaign] = useState(null)
@@ -152,6 +156,17 @@ export default function DashboardPage() {
                 .order('created_at', { ascending: false })
 
             setBonusHistory(bonusData || [])
+
+            // Fetch token balance
+            const { data: tokenData } = await supabase
+                .from('bb_balances')
+                .select('balance, lifetime_earned, lifetime_spent')
+                .eq('user_id', authUser.id)
+                .maybeSingle()
+
+            if (tokenData) {
+                setTokenBalance(tokenData)
+            }
 
             const { data: settingsData } = await supabase
                 .from('admin_settings')
@@ -294,6 +309,12 @@ export default function DashboardPage() {
     // Split campaigns into active/queued vs history
     const activeCampaigns = campaigns.filter(c => c.status === 'active' || c.status === 'queued')
     const historyCampaigns = campaigns.filter(c => c.status === 'completed' || c.status === 'cancelled')
+
+    // Calculate stats
+    const totalSpent = campaigns.reduce((sum, c) => sum + (parseFloat(c.amount_paid) || 0), 0)
+    const totalEarned = (parseFloat(userData?.total_earned_matrices) || 0) + (parseFloat(userData?.total_earned_referrals) || 0)
+    const profit = Math.max(0, totalEarned - totalSpent)
+    const completedCampaigns = campaigns.filter(c => c.status === 'completed').length
 
     const openCancelModal = (campaign) => {
         setCancellingCampaign(campaign)
@@ -1108,6 +1129,7 @@ export default function DashboardPage() {
                     </div>
                 )}
 
+                {/* Top Stats Row */}
                 <div className="grid grid-cols-3 gap-1.5 mb-3">
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
                         <p className={`text-${currentTheme.textMuted} text-[10px]`}>Your Referral Name</p>
@@ -1119,65 +1141,133 @@ export default function DashboardPage() {
                         <p className="text-green-400 font-bold text-base">{userData?.simple_referral_count || 0}</p>
                     </div>
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-2`}>
-                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>Campaign</p>
-                        {getActiveCampaign() ? (
-                            <p className="font-bold text-xs">
-                                <span className="text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]">Active</span>
-                            </p>
-                        ) : campaigns.some(c => c.status === 'queued') ? (
-                            <p className="font-bold text-xs">
-                                <span className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]">Queued</span>
-                            </p>
-                        ) : (
-                            <p className="font-bold text-xs">
-                                <span className="text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]">None</span>
-                            </p>
-                        )}
+                        <p className={`text-${currentTheme.textMuted} text-[10px]`}>🪙 Tokens</p>
+                        <p className={`text-yellow-400 font-bold text-base`}>{tokenBalance.balance?.toLocaleString() || 0}</p>
                     </div>
                 </div>
 
-                {/* CAMPAIGNS SECTION */}
+                {/* Your Stats Section - Collapsible */}
+                <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg mb-3 overflow-hidden`}>
+                    <button
+                        onClick={() => setStatsExpanded(!statsExpanded)}
+                        className="w-full p-2.5 flex items-center justify-between text-left"
+                    >
+                        <span className={`text-${currentTheme.text} font-bold text-sm`}>📊 Your Stats</span>
+                        <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${statsExpanded ? 'rotate-180' : ''}`}>
+                            ▼
+                        </span>
+                    </button>
+
+                    {statsExpanded && (
+                        <div className={`px-2.5 pb-2.5 border-t border-${currentTheme.border}/50 pt-2`}>
+                            {/* Money Row */}
+                            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Earned</p>
+                                    <p className="text-green-400 font-bold text-sm">${totalEarned.toFixed(0)}</p>
+                                </div>
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Total Spent</p>
+                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>${totalSpent.toFixed(0)}</p>
+                                </div>
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>🎉 Profit</p>
+                                    <p className="text-green-400 font-bold text-sm">${profit.toFixed(0)}</p>
+                                </div>
+                            </div>
+
+                            {/* Campaigns & Matrices Row */}
+                            <div className="grid grid-cols-3 gap-1.5">
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Campaigns</p>
+                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{userData?.total_campaigns_run || campaigns.length}</p>
+                                </div>
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Completed</p>
+                                    <p className="text-green-400 font-bold text-sm">{completedCampaigns}</p>
+                                </div>
+                                <div className={`bg-${currentTheme.border}/30 rounded-lg p-2 text-center`}>
+                                    <p className={`text-${currentTheme.textMuted} text-[10px]`}>Matrices Done</p>
+                                    <p className={`text-${currentTheme.text} font-bold text-sm`}>{userData?.total_matrices_completed || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* CAMPAIGNS SECTION - One dropdown with sub-dropdowns */}
                 {campaigns.length > 0 ? (
                     <div className="mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <h2 className={`text-sm font-bold text-${currentTheme.text}`}>📢 Your Campaigns</h2>
-                            <button
-                                onClick={() => router.push('/advertise')}
-                                className={`px-2 py-1 bg-${currentTheme.accent} text-white font-bold text-[10px] rounded-lg hover:bg-${currentTheme.accentHover}`}
-                            >
-                                + Buy Another
-                            </button>
-                        </div>
-
-                        {/* Active/Queued Campaigns */}
-                        {activeCampaigns.length > 0 && (
-                            <div className="space-y-2 mb-2">
-                                {activeCampaigns.map(camp => renderCampaignRow(camp, true))}
-                            </div>
-                        )}
-
-                        {/* Campaign History (Completed/Cancelled) */}
-                        {historyCampaigns.length > 0 && (
-                            <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
+                        <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg overflow-hidden`}>
+                            {/* Main Campaigns Header */}
+                            <div className="flex items-center justify-between p-2.5">
                                 <button
-                                    onClick={() => setHistoryExpanded(!historyExpanded)}
-                                    className="w-full p-2.5 flex items-center justify-between text-left"
+                                    onClick={() => setCampaignsExpanded(!campaignsExpanded)}
+                                    className="flex items-center gap-2 text-left flex-1"
                                 >
-                                    <span className={`text-${currentTheme.text} font-medium text-xs flex items-center gap-2`}>
-                                        📁 Campaign History ({historyCampaigns.length})
-                                    </span>
-                                    <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${historyExpanded ? 'rotate-180' : ''}`}>
+                                    <span className={`text-${currentTheme.text} font-bold text-sm`}>📢 Your Campaigns ({campaigns.length})</span>
+                                    <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${campaignsExpanded ? 'rotate-180' : ''}`}>
                                         ▼
                                     </span>
                                 </button>
-
-                                {historyExpanded && (
-                                    <div className={`px-2 pb-2 space-y-2 border-t border-${currentTheme.border}/50 pt-2`}>
-                                        {historyCampaigns.map(camp => renderCampaignRow(camp, false))}
-                                    </div>
-                                )}
+                                <button
+                                    onClick={() => router.push('/advertise')}
+                                    className={`px-2 py-1 bg-${currentTheme.accent} text-white font-bold text-[10px] rounded-lg hover:bg-${currentTheme.accentHover}`}
+                                >
+                                    + Buy Another
+                                </button>
                             </div>
-                        )}
+
+                            {campaignsExpanded && (
+                                <div className={`border-t border-${currentTheme.border}/50`}>
+                                    {/* Active/Queued Sub-dropdown */}
+                                    {activeCampaigns.length > 0 && (
+                                        <div className={`border-b border-${currentTheme.border}/30`}>
+                                            <button
+                                                onClick={() => setActiveExpanded(!activeExpanded)}
+                                                className="w-full px-3 py-2 flex items-center justify-between text-left"
+                                            >
+                                                <span className={`text-${currentTheme.text} font-medium text-xs flex items-center gap-2`}>
+                                                    🟢 Active ({activeCampaigns.length})
+                                                </span>
+                                                <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${activeExpanded ? 'rotate-180' : ''}`}>
+                                                    ▼
+                                                </span>
+                                            </button>
+
+                                            {activeExpanded && (
+                                                <div className="px-2 pb-2 space-y-2">
+                                                    {activeCampaigns.map(camp => renderCampaignRow(camp, true))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* History Sub-dropdown */}
+                                    {historyCampaigns.length > 0 && (
+                                        <div>
+                                            <button
+                                                onClick={() => setHistoryExpanded(!historyExpanded)}
+                                                className="w-full px-3 py-2 flex items-center justify-between text-left"
+                                            >
+                                                <span className={`text-${currentTheme.text} font-medium text-xs flex items-center gap-2`}>
+                                                    📁 History ({historyCampaigns.length})
+                                                </span>
+                                                <span className={`text-${currentTheme.textMuted} text-xs transition-transform ${historyExpanded ? 'rotate-180' : ''}`}>
+                                                    ▼
+                                                </span>
+                                            </button>
+
+                                            {historyExpanded && (
+                                                <div className="px-2 pb-2 space-y-2">
+                                                    {historyCampaigns.map(camp => renderCampaignRow(camp, false))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         {bonusHistory.length > 0 && (
                             <div className={`mt-3 bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3`}>
