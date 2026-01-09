@@ -431,6 +431,11 @@ export default function PromoCardsPage() {
                     </button>
                 </div>
 
+                {/* Upload Recommendation */}
+                <p className={`text-${currentTheme.textMuted} text-xs mt-2`}>
+                    📐 Recommended image size: <span className={`text-${currentTheme.accent} font-medium`}>700×400px</span> or any 7:4 ratio (standard business card proportions)
+                </p>
+
                 {/* Template Form */}
                 {showTemplateForm && (
                     <div className={`mt-3 p-3 bg-${currentTheme.bg} rounded-lg border border-${currentTheme.border}`}>
@@ -538,11 +543,11 @@ export default function PromoCardsPage() {
                                     <img
                                         src={card.image_url}
                                         alt={card.title}
-                                        className="w-full aspect-[4/3] object-cover rounded-lg"
+                                        className="w-full aspect-[7/4] object-cover rounded-lg"
                                     />
                                 ) : (
                                     <div
-                                        className="w-full aspect-[4/3] rounded-lg flex flex-col items-center justify-center p-1.5"
+                                        className="w-full aspect-[7/4] rounded-lg flex flex-col items-center justify-center p-1.5"
                                         style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                     >
                                         <p className="font-bold text-[10px] text-center leading-tight" style={{ color: card.text_color || '#FFFFFF' }}>
@@ -810,7 +815,7 @@ export default function PromoCardsPage() {
                             />
                         ) : (
                             <div
-                                className="w-full aspect-[4/3] rounded-xl flex flex-col items-center justify-center p-6 shadow-2xl"
+                                className="w-full aspect-[7/4] rounded-xl flex flex-col items-center justify-center p-6 shadow-2xl"
                                 style={{ backgroundColor: previewCard.card_color || '#4F46E5' }}
                             >
                                 <p className="font-bold text-2xl text-center" style={{ color: previewCard.text_color || '#FFFFFF' }}>

@@ -789,7 +789,7 @@ function CardsContent() {
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className={`bg-${currentTheme.card} border rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
+                                <div className={`bg-${currentTheme.card} border rounded-xl overflow-hidden aspect-[7/4] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
                                     }`}>
                                     <img
                                         src={card.image_url}
@@ -800,7 +800,7 @@ function CardsContent() {
                                 </div>
                             ) : (
                                 <div
-                                    className={`rounded-xl p-2 aspect-[4/3] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
+                                    className={`rounded-xl p-2 aspect-[7/4] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
                                         }`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >

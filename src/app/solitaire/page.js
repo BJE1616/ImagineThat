@@ -1538,7 +1538,7 @@ export default function SolitairePage() {
 
         if (ad.card_type === 'uploaded' && ad.image_url) {
             return (
-                <div className="relative aspect-[4/3] rounded-lg shadow-lg overflow-hidden bg-gray-800">
+                <div className="relative aspect-[7/4] rounded-lg shadow-lg overflow-hidden bg-gray-800">
                     <img
                         src={ad.image_url}
                         alt={ad.title || 'Sponsor'}
@@ -1555,7 +1555,7 @@ export default function SolitairePage() {
         } else {
             return (
                 <div
-                    className="relative aspect-[4/3] rounded-lg shadow-lg flex items-center justify-center p-2"
+                    className="relative aspect-[7/4] rounded-lg shadow-lg flex items-center justify-center p-2"
                     style={{ backgroundColor: ad.card_color || '#4F46E5' }}
                 >
                     <h3 className="font-bold text-xs text-center line-clamp-2" style={{ color: ad.text_color || '#FFFFFF' }}>

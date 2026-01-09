@@ -819,7 +819,7 @@ export default function GamePage() {
 
         if (ad.card_type === 'uploaded' && ad.image_url) {
             return (
-                <div className={`relative aspect-[4/3] rounded-lg shadow-lg overflow-hidden bg-${currentTheme.card}`}>
+                <div className={`relative aspect-[7/4] rounded-lg shadow-lg overflow-hidden bg-${currentTheme.card}`}>
                     <img
                         src={ad.image_url}
                         alt={ad.title || 'Sponsor'}
@@ -836,7 +836,7 @@ export default function GamePage() {
         } else {
             return (
                 <div
-                    className="relative aspect-[4/3] rounded-lg shadow-lg flex items-center justify-center p-2"
+                    className="relative aspect-[7/4] rounded-lg shadow-lg flex items-center justify-center p-2"
                     style={{ backgroundColor: ad.card_color || '#4F46E5' }}
                 >
                     <h3 className="font-bold text-xs text-center line-clamp-2" style={{ color: ad.text_color || '#FFFFFF' }}>
@@ -1261,7 +1261,7 @@ export default function GamePage() {
                                 <div
                                     key={card.uniqueId}
                                     onClick={() => handleCardClick(card)}
-                                    className="relative aspect-[4/3] cursor-pointer"
+                                    className="relative aspect-[7/4] cursor-pointer"
                                 >
                                     {!isCardFlipped(card) ? (
                                         cardBackSetting?.show_advertiser_cards === 'true' && cardBackAdvertiser ? (
