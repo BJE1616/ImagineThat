@@ -53,13 +53,13 @@ export default function CardGalleryPage() {
                 const today = new Date().toISOString().split('T')[0]
                 const { data: activityData } = await supabase
                     .from('user_daily_activity')
-                    .select('count')
+                    .select('play_count')
                     .eq('user_id', authUser.id)
-                    .eq('activity_type', 'card_gallery_view')
+                    .eq('game_key', 'card_gallery')
                     .eq('activity_date', today)
                     .single()
 
-                setViewedToday(activityData?.count || 0)
+                setViewedToday(activityData?.play_count || 0)
 
                 const { data: viewedData } = await supabase
                     .from('card_gallery_views')
@@ -270,23 +270,23 @@ export default function CardGalleryPage() {
                     .from('user_daily_activity')
                     .select('*')
                     .eq('user_id', user.id)
-                    .eq('activity_type', 'card_gallery_view')
+                    .eq('game_key', 'card_gallery')
                     .eq('activity_date', today)
                     .single()
 
                 if (existingActivity) {
                     await supabase
                         .from('user_daily_activity')
-                        .update({ count: existingActivity.count + 1 })
+                        .update({ play_count: existingActivity.play_count + 1 })
                         .eq('id', existingActivity.id)
                 } else {
                     await supabase
                         .from('user_daily_activity')
                         .insert([{
                             user_id: user.id,
-                            activity_type: 'card_gallery_view',
+                            game_key: 'card_gallery',
                             activity_date: today,
-                            count: 1
+                            play_count: 1
                         }])
                 }
 
