@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
 import imageCompression from 'browser-image-compression'
+import Cropper from 'react-easy-crop'
 
 function CardsContent() {
     const router = useRouter()
@@ -34,6 +35,13 @@ function CardsContent() {
     const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
     const [userData, setUserData] = useState(null)
     const [cardsInUse, setCardsInUse] = useState([])
+
+    // Cropper states
+    const [showCropper, setShowCropper] = useState(false)
+    const [cropImage, setCropImage] = useState(null)
+    const [crop, setCrop] = useState({ x: 0, y: 0 })
+    const [zoom, setZoom] = useState(1)
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
 
     const colorOptions = [
         { name: 'Indigo', value: '#4F46E5' },
@@ -176,38 +184,105 @@ function CardsContent() {
         }
     }
 
+    // Handle initial image selection - opens cropper
     const handleImageChange = async (e) => {
         const file = e.target.files[0]
         if (file) {
-            setProcessingImage(true)
-
-            try {
-                let processedFile = file
-
-                // Compress if over 800KB
-                if (file.size > 800 * 1024) {
-                    const options = {
-                        maxSizeMB: 0.8,
-                        maxWidthOrHeight: 1200,
-                        useWebWorker: true
-                    }
-                    processedFile = await imageCompression(file, options)
-                }
-
-                setImageFile(processedFile)
-                setImageRotation(0)
-                const reader = new FileReader()
-                reader.onloadend = () => {
-                    setImagePreview(reader.result)
-                }
-                reader.readAsDataURL(processedFile)
-            } catch (error) {
-                console.error('Error processing image:', error)
-                alert('Error processing image. Please try again.')
-            } finally {
-                setProcessingImage(false)
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setCropImage(reader.result)
+                setShowCropper(true)
+                setCrop({ x: 0, y: 0 })
+                setZoom(1)
             }
+            reader.readAsDataURL(file)
         }
+    }
+
+    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels)
+    }, [])
+
+    // Create cropped image from canvas
+    const getCroppedImg = async (imageSrc, pixelCrop) => {
+        const image = new Image()
+        image.src = imageSrc
+
+        await new Promise((resolve) => {
+            image.onload = resolve
+        })
+
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+
+        canvas.width = pixelCrop.width
+        canvas.height = pixelCrop.height
+
+        ctx.drawImage(
+            image,
+            pixelCrop.x,
+            pixelCrop.y,
+            pixelCrop.width,
+            pixelCrop.height,
+            0,
+            0,
+            pixelCrop.width,
+            pixelCrop.height
+        )
+
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+                resolve(blob)
+            }, 'image/jpeg', 0.95)
+        })
+    }
+
+    // Handle crop confirmation
+    const handleCropConfirm = async () => {
+        setProcessingImage(true)
+        setShowCropper(false)
+
+        try {
+            // Get cropped image blob
+            const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels)
+
+            // Create a File object from the blob
+            let croppedFile = new File([croppedBlob], 'business-card.jpg', { type: 'image/jpeg' })
+
+            // Compress if over 800KB
+            if (croppedFile.size > 800 * 1024) {
+                const options = {
+                    maxSizeMB: 0.8,
+                    maxWidthOrHeight: 1200,
+                    useWebWorker: true
+                }
+                croppedFile = await imageCompression(croppedFile, options)
+            }
+
+            setImageFile(croppedFile)
+            setImageRotation(0)
+
+            // Create preview
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setImagePreview(reader.result)
+            }
+            reader.readAsDataURL(croppedFile)
+        } catch (error) {
+            console.error('Error processing image:', error)
+            alert('Error processing image. Please try again.')
+        } finally {
+            setProcessingImage(false)
+            setCropImage(null)
+        }
+    }
+
+    // Cancel cropping
+    const handleCropCancel = () => {
+        setShowCropper(false)
+        setCropImage(null)
+        setCrop({ x: 0, y: 0 })
+        setZoom(1)
     }
 
     const rotateImage = (direction) => {
@@ -223,7 +298,7 @@ function CardsContent() {
     const uploadImage = async () => {
         if (!imageFile) return null
 
-        const fileExt = imageFile.name.split('.').pop()
+        const fileExt = 'jpg'
         const fileName = `${user.id}-${Date.now()}.${fileExt}`
         const filePath = `${fileName}`
 
@@ -315,6 +390,8 @@ function CardsContent() {
         setImageFile(null)
         setImagePreview(null)
         setImageRotation(0)
+        setCropImage(null)
+        setShowCropper(false)
     }
 
     const isCardInUse = (cardId) => {
@@ -463,6 +540,54 @@ function CardsContent() {
 
     return (
         <div className="min-h-screen bg-slate-900">
+            {/* Crop Modal */}
+            {showCropper && (
+                <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
+                    <div className="flex-1 relative">
+                        <Cropper
+                            image={cropImage}
+                            crop={crop}
+                            zoom={zoom}
+                            aspect={7 / 4}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                        />
+                    </div>
+                    <div className="bg-slate-800 p-4 space-y-4">
+                        <div className="flex items-center gap-4">
+                            <span className="text-white text-sm">Zoom:</span>
+                            <input
+                                type="range"
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                value={zoom}
+                                onChange={(e) => setZoom(Number(e.target.value))}
+                                className="flex-1"
+                            />
+                        </div>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={handleCropCancel}
+                                className="flex-1 py-3 bg-slate-600 text-white rounded-lg font-medium hover:bg-slate-500 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCropConfirm}
+                                className="flex-1 py-3 bg-amber-500 text-slate-900 rounded-lg font-bold hover:bg-amber-400 transition-colors"
+                            >
+                                Crop & Use
+                            </button>
+                        </div>
+                        <p className="text-slate-400 text-xs text-center">
+                            Drag to position • Pinch or use slider to zoom • 7:4 business card ratio
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <main className="max-w-4xl mx-auto px-4 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <div>
@@ -567,7 +692,7 @@ function CardsContent() {
                                             </p>
                                         ) : (
                                             <p className="text-xs text-slate-500 mt-1">
-                                                📸 Take a photo or upload — we'll optimize it automatically
+                                                📸 Take a photo or upload — you'll crop it next
                                             </p>
                                         )}
                                     </div>
