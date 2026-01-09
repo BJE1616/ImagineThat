@@ -368,7 +368,7 @@ export default function CardGalleryPage() {
             )}
 
             {celebration && (
-                <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
+                <div className="fixed inset-0 pointer-events-none z-[60] flex items-center justify-center">
                     <div className="animate-celebration text-center">
                         {celebration.tokens > 0 && (
                             <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
