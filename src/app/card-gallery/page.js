@@ -204,7 +204,6 @@ export default function CardGalleryPage() {
                 .insert([{
                     user_id: user.id,
                     card_id: card.id,
-                    advertiser_id: card.user_id,
                     bb_awarded: wonTokens
                 }])
 
