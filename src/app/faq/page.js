@@ -43,9 +43,19 @@ export default function FAQPage() {
 
     const filteredFaqs = faqs.filter(faq => {
         const matchesCategory = activeCategory === 'all' || faq.category === activeCategory
-        const matchesSearch = searchTerm === '' ||
-            faq.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            faq.answer.toLowerCase().includes(searchTerm.toLowerCase())
+
+        if (searchTerm === '') {
+            return matchesCategory
+        }
+
+        const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(word => word.length > 0)
+        const questionLower = faq.question.toLowerCase()
+        const answerLower = faq.answer.toLowerCase()
+
+        const matchesSearch = searchWords.some(word =>
+            questionLower.includes(word) || answerLower.includes(word)
+        )
+
         return matchesCategory && matchesSearch
     })
 
