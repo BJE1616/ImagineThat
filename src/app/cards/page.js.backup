@@ -4,8 +4,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
-import imageCompression from 'browser-image-compression'
 
+// Inner component that uses useSearchParams
 function CardsContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -30,7 +30,6 @@ function CardsContent() {
     const [imagePreview, setImagePreview] = useState(null)
     const [imageRotation, setImageRotation] = useState(0)
     const [uploading, setUploading] = useState(false)
-    const [processingImage, setProcessingImage] = useState(false)
     const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
     const [userData, setUserData] = useState(null)
     const [cardsInUse, setCardsInUse] = useState([])
@@ -154,8 +153,10 @@ function CardsContent() {
     const handleUrlBlur = (e) => {
         let value = e.target.value.trim()
 
+        // If empty, do nothing
         if (!value) return
 
+        // Check if it looks like an email (contains @ before any /)
         if (value.includes('@') && !value.includes('://')) {
             alert('That looks like an email address. Please enter a website URL instead.')
             setFormData({
@@ -165,6 +166,7 @@ function CardsContent() {
             return
         }
 
+        // Auto-prepend https:// if they entered a domain without protocol
         if (!value.match(/^https?:\/\//i)) {
             if (value.match(/^[a-zA-Z0-9]/) && value.includes('.')) {
                 value = 'https://' + value
@@ -176,37 +178,23 @@ function CardsContent() {
         }
     }
 
-    const handleImageChange = async (e) => {
+    const handleImageChange = (e) => {
         const file = e.target.files[0]
         if (file) {
-            setProcessingImage(true)
-
-            try {
-                let processedFile = file
-
-                // Compress if over 800KB
-                if (file.size > 800 * 1024) {
-                    const options = {
-                        maxSizeMB: 0.8,
-                        maxWidthOrHeight: 1200,
-                        useWebWorker: true
-                    }
-                    processedFile = await imageCompression(file, options)
-                }
-
-                setImageFile(processedFile)
-                setImageRotation(0)
-                const reader = new FileReader()
-                reader.onloadend = () => {
-                    setImagePreview(reader.result)
-                }
-                reader.readAsDataURL(processedFile)
-            } catch (error) {
-                console.error('Error processing image:', error)
-                alert('Error processing image. Please try again.')
-            } finally {
-                setProcessingImage(false)
+            const maxSize = 2 * 1024 * 1024
+            if (file.size > maxSize) {
+                alert('Image is too large. Maximum size is 2MB.')
+                e.target.value = ''
+                return
             }
+
+            setImageFile(file)
+            setImageRotation(0) // Reset rotation when new image selected
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setImagePreview(reader.result)
+            }
+            reader.readAsDataURL(file)
         }
     }
 
@@ -280,6 +268,7 @@ function CardsContent() {
             if (error) throw error
 
             if (returnTo === 'campaign') {
+                // Coming from campaign flow - go back to continue
                 router.push('/advertise/start')
                 return
             } else if (!hasActiveCampaign) {
@@ -346,6 +335,7 @@ function CardsContent() {
         }
     }
 
+    // Calculate dynamic font size based on text length
     const getDynamicFontSize = (text, maxSize, minSize, maxLength) => {
         if (!text) return maxSize
         const length = text.length
@@ -359,20 +349,21 @@ function CardsContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900">
+            <div className={`min-h-screen flex items-center justify-center bg-${currentTheme.bg}`}>
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-slate-400 font-medium">Loading...</p>
+                    <div className={`w-12 h-12 border-4 border-${currentTheme.accent} border-t-transparent rounded-full animate-spin`}></div>
+                    <p className={`text-${currentTheme.textMuted} font-medium`}>Loading...</p>
                 </div>
             </div>
         )
     }
 
+    // Preview Components
     const InGamePreview = () => (
         <div className="text-center">
-            <p className="text-xs text-slate-400 mb-2">In-Game View:</p>
+            <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>In-Game View:</p>
             <div
-                className="w-24 h-16 rounded-lg flex items-center justify-center border border-slate-600 mx-auto"
+                className={`w-24 h-16 rounded-lg flex items-center justify-center border border-${currentTheme.border} mx-auto`}
                 style={{ backgroundColor: formData.card_color }}
             >
                 <p
@@ -385,7 +376,7 @@ function CardsContent() {
                     {formData.display_name || 'Display Name'}
                 </p>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Players see this + 👁 icon</p>
+            <p className={`text-[10px] text-${currentTheme.textMuted} mt-1`}>Players see this + 👁 icon</p>
         </div>
     )
 
@@ -395,9 +386,9 @@ function CardsContent() {
 
         return (
             <div className="text-center">
-                <p className="text-xs text-slate-400 mb-2">Full Card View (👁 click):</p>
+                <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Full Card View (👁 click):</p>
                 {cardType === 'uploaded' && imagePreview ? (
-                    <div className="w-48 h-36 rounded-lg border-2 border-slate-600 mx-auto overflow-hidden bg-slate-800">
+                    <div className={`w-48 h-36 rounded-lg border-2 border-${currentTheme.border} mx-auto overflow-hidden bg-${currentTheme.card}`}>
                         <img
                             src={imagePreview}
                             alt="Preview"
@@ -407,9 +398,10 @@ function CardsContent() {
                     </div>
                 ) : (
                     <div
-                        className="w-48 h-36 rounded-lg p-3 flex flex-col justify-between border-2 border-slate-600 mx-auto"
+                        className={`w-48 h-36 rounded-lg p-3 flex flex-col justify-between border-2 border-${currentTheme.border} mx-auto`}
                         style={{ backgroundColor: formData.card_color }}
                     >
+                        {/* Business Name - largest, bold, centered */}
                         <div className="text-center">
                             <h3
                                 className="font-bold"
@@ -422,6 +414,7 @@ function CardsContent() {
                             </h3>
                         </div>
 
+                        {/* Tagline - medium, centered */}
                         {formData.tagline && (
                             <div className="text-center flex-1 flex items-center justify-center">
                                 <p
@@ -436,6 +429,7 @@ function CardsContent() {
                             </div>
                         )}
 
+                        {/* Contact info - smaller, centered */}
                         {hasContactInfo && (
                             <div className="text-center space-y-0.5">
                                 {formData.phone && (
@@ -462,17 +456,17 @@ function CardsContent() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-900">
+        <div className={`min-h-screen bg-${currentTheme.bg}`}>
             <main className="max-w-4xl mx-auto px-4 py-8">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
-                        <p className="text-slate-400 text-sm mt-1">{cards.length}/{maxCards} cards created</p>
+                        <h1 className={`text-3xl font-bold text-${currentTheme.text}`}>My Business Cards</h1>
+                        <p className={`text-${currentTheme.textMuted} text-sm mt-1`}>{cards.length}/{maxCards} cards created</p>
                     </div>
                     {!showForm && cards.length < maxCards && (
                         <button
                             onClick={() => setShowForm(true)}
-                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                            className={`px-4 py-2 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all`}
                         >
                             + New Card
                         </button>
@@ -480,24 +474,25 @@ function CardsContent() {
                 </div>
 
                 {showForm && (
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
+                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 mb-8`}>
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Create New Card</h2>
+                            <h2 className={`text-xl font-bold text-${currentTheme.text}`}>Create New Card</h2>
                             <button
                                 onClick={resetForm}
-                                className="text-slate-400 hover:text-white"
+                                className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text}`}
                             >
                                 ✕ Cancel
                             </button>
                         </div>
 
+                        {/* Card Type Toggle */}
                         <div className="flex gap-4 mb-6">
                             <button
                                 type="button"
                                 onClick={() => setCardType('template')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'template'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                    ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 Create Card
@@ -506,165 +501,186 @@ function CardsContent() {
                                 type="button"
                                 onClick={() => setCardType('uploaded')}
                                 className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'uploaded'
-                                    ? 'bg-amber-500 text-slate-900'
-                                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                                    ? `bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'}`
+                                    : `bg-${currentTheme.border} text-${currentTheme.textMuted} hover:bg-${currentTheme.card}`
                                     }`}
                             >
                                 Upload Image
                             </button>
                         </div>
 
+                        {/* Main Form Layout - Side by side on desktop */}
                         <div className="flex flex-col lg:flex-row gap-6">
+                            {/* Form Fields */}
                             <form onSubmit={handleSubmit} className="flex-1 space-y-4">
+                                {/* Display Name - Required for both types */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Display Name * <span className="text-xs text-slate-500">(20 chars - shown in games)</span>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                        Display Name * <span className={`text-xs text-${currentTheme.textMuted}`}>(20 chars - shown in games)</span>
                                     </label>
                                     <input
                                         type="text"
                                         name="display_name"
                                         required
                                         maxLength={20}
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                        className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                         placeholder="Short name for games"
                                         value={formData.display_name || ''}
                                         onChange={handleChange}
                                     />
                                 </div>
 
+                                {/* Full Business Name - Optional for both types */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Full Business Name <span className="text-xs text-slate-500">(50 chars - shown on full view)</span>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                        Full Business Name <span className={`text-xs text-${currentTheme.textMuted}`}>(50 chars - shown on full view)</span>
                                     </label>
                                     <input
                                         type="text"
                                         name="full_business_name"
                                         maxLength={50}
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                        className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
                                         placeholder="Your complete business name"
                                         value={formData.full_business_name || ''}
                                         onChange={handleChange}
                                     />
                                 </div>
 
-                                {/* Upload Image Fields - hidden when template selected */}
-                                <div className={cardType === 'uploaded' ? 'space-y-4' : 'hidden'}>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Upload Business Card Image *
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageChange}
-                                            disabled={processingImage}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white disabled:opacity-50"
-                                        />
-                                        {processingImage ? (
-                                            <p className="text-xs text-amber-500 mt-1 flex items-center gap-2">
-                                                <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
-                                                Processing image...
-                                            </p>
-                                        ) : (
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                📸 Take a photo or upload — we'll optimize it automatically
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {imagePreview && (
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-sm text-slate-400">Rotate Image:</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => rotateImage('left')}
-                                                className="px-3 py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
-                                            >
-                                                ↺ 90° Left
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => rotateImage('right')}
-                                                className="px-3 py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
-                                            >
-                                                ↻ 90° Right
-                                            </button>
-                                            <span className="text-xs text-slate-500">({imageRotation}°)</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Template Card Fields - hidden when upload selected */}
-                                <div className={cardType === 'template' ? 'space-y-4' : 'hidden'}>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Tagline / Message <span className="text-xs text-slate-500">(100 chars)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="tagline"
-                                            maxLength={100}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            placeholder="Your catchy tagline"
-                                            value={formData.tagline || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {cardType === 'uploaded' ? (
+                                    <>
+                                        {/* Image Upload */}
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-1">
-                                                Phone
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Upload Business Card Image *
                                             </label>
                                             <input
-                                                type="tel"
-                                                name="phone"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                                placeholder="(555)-555-5555"
-                                                value={formData.phone || ''}
-                                                onChange={handlePhoneChange}
-                                                maxLength={14}
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageChange}
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                required
                                             />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Upload a photo or scan of your business card (max 2MB)
+                                            </p>
                                         </div>
 
+                                        {/* Rotation Controls */}
+                                        {imagePreview && (
+                                            <div className="flex items-center gap-4">
+                                                <span className={`text-sm text-${currentTheme.textMuted}`}>Rotate Image:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => rotateImage('left')}
+                                                    className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.card} transition-colors`}
+                                                >
+                                                    ↺ 90° Left
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => rotateImage('right')}
+                                                    className={`px-3 py-1 bg-${currentTheme.border} text-${currentTheme.text} rounded hover:bg-${currentTheme.card} transition-colors`}
+                                                >
+                                                    ↻ 90° Right
+                                                </button>
+                                                <span className={`text-xs text-${currentTheme.textMuted}`}>({imageRotation}°)</span>
+                                            </div>
+                                        )}
+
+                                        {/* Website URL for uploaded */}
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-1">
-                                                Email
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Website URL <span className={`text-xs text-${currentTheme.textMuted}`}>(optional)</span>
                                             </label>
                                             <input
-                                                type="email"
-                                                name="email"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                                placeholder="your@email.com"
-                                                value={formData.email || ''}
+                                                type="url"
+                                                name="website_url"
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                placeholder="yourwebsite.com"
+                                                value={formData.website_url || ''}
+                                                onChange={handleUrlChange}
+                                                onBlur={handleUrlBlur}
+                                            />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Just enter your domain - we'll add https:// automatically
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Tagline */}
+                                        <div>
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Tagline / Message <span className={`text-xs text-${currentTheme.textMuted}`}>(100 chars)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="tagline"
+                                                maxLength={100}
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                placeholder="Your catchy tagline"
+                                                value={formData.tagline || ''}
                                                 onChange={handleChange}
                                             />
                                         </div>
-                                    </div>
-                                </div>
 
-                                {/* Website URL - shown for both types */}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Website URL <span className="text-xs text-slate-500">(optional)</span>
-                                    </label>
-                                    <input
-                                        type="url"
-                                        name="website_url"
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                        placeholder="yourwebsite.com"
-                                        value={formData.website_url || ''}
-                                        onChange={handleUrlChange}
-                                        onBlur={handleUrlBlur}
-                                    />
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        Just enter your domain - we'll add https:// automatically
-                                    </p>
-                                </div>
+                                        {/* Phone & Email */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                    Phone
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                    placeholder="(555)-555-5555"
+                                                    value={formData.phone}
+                                                    onChange={handlePhoneChange}
+                                                    maxLength={14}
+                                                />
+                                            </div>
 
+                                            <div>
+                                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                    Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                    placeholder="your@email.com"
+                                                    value={formData.email}
+                                                    onChange={handleChange}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Website URL */}
+                                        <div>
+                                            <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
+                                                Website URL <span className={`text-xs text-${currentTheme.textMuted}`}>(optional)</span>
+                                            </label>
+                                            <input
+                                                type="url"
+                                                name="website_url"
+                                                className={`w-full px-3 py-2 bg-${currentTheme.border} border border-${currentTheme.border} rounded-md text-${currentTheme.text}`}
+                                                placeholder="yourwebsite.com"
+                                                value={formData.website_url || ''}
+                                                onChange={handleUrlChange}
+                                                onBlur={handleUrlBlur}
+                                            />
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                Just enter your domain - we'll add https:// automatically
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Color Pickers - Both card types */}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                                        Background Color <span className="text-xs text-slate-500">(for in-game display)</span>
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
+                                        Background Color <span className={`text-xs text-${currentTheme.textMuted}`}>(for in-game display)</span>
                                     </label>
                                     <div className="flex flex-wrap gap-2">
                                         {colorOptions.map((color) => (
@@ -673,8 +689,8 @@ function CardsContent() {
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, card_color: color.value })}
                                                 className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
-                                                    ? 'border-amber-500 scale-110'
-                                                    : 'border-slate-600 hover:border-slate-400'
+                                                    ? `border-${currentTheme.accent} scale-110`
+                                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                                     }`}
                                                 style={{ backgroundColor: color.value }}
                                                 title={color.name}
@@ -684,7 +700,7 @@ function CardsContent() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-2">
+                                    <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-2`}>
                                         Text Color
                                     </label>
                                     <div className="flex flex-wrap gap-2">
@@ -694,8 +710,8 @@ function CardsContent() {
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, text_color: color.value })}
                                                 className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
-                                                    ? 'border-amber-500 scale-110'
-                                                    : 'border-slate-600 hover:border-slate-400'
+                                                    ? `border-${currentTheme.accent} scale-110`
+                                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
                                                     }`}
                                                 style={{ backgroundColor: color.value }}
                                                 title={color.name}
@@ -706,15 +722,16 @@ function CardsContent() {
 
                                 <button
                                     type="submit"
-                                    disabled={uploading || processingImage}
-                                    className="w-full py-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:bg-slate-700 disabled:text-slate-500 font-bold transition-all"
+                                    disabled={uploading}
+                                    className={`w-full py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} rounded-lg hover:bg-${currentTheme.accentHover} disabled:bg-${currentTheme.border} disabled:text-${currentTheme.textMuted} font-bold transition-all`}
                                 >
                                     {uploading ? 'Creating...' : 'Create Business Card'}
                                 </button>
                             </form>
 
-                            <div className="lg:w-72 p-4 bg-slate-700/30 rounded-lg">
-                                <h3 className="text-sm font-bold text-white mb-4 text-center">Live Preview</h3>
+                            {/* Live Preview Panel */}
+                            <div className={`lg:w-72 p-4 bg-${currentTheme.border}/30 rounded-lg`}>
+                                <h3 className={`text-sm font-bold text-${currentTheme.text} mb-4 text-center`}>Live Preview</h3>
                                 <div className="space-y-6">
                                     <InGamePreview />
                                     <FullCardPreview />
@@ -724,13 +741,14 @@ function CardsContent() {
                     </div>
                 )}
 
+                {/* Cards Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {cards.length === 0 && !showForm && (
                         <div className="col-span-full text-center py-12">
-                            <p className="text-slate-400 text-lg mb-4">You haven't created any business cards yet.</p>
+                            <p className={`text-${currentTheme.textMuted} text-lg mb-4`}>You haven't created any business cards yet.</p>
                             <button
                                 onClick={() => setShowForm(true)}
-                                className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                                className={`px-6 py-3 bg-${currentTheme.accent} text-${currentTheme.mode === 'dark' ? 'slate-900' : 'white'} font-bold rounded-lg hover:bg-${currentTheme.accentHover} transition-all`}
                             >
                                 Create Your First Card
                             </button>
@@ -739,7 +757,7 @@ function CardsContent() {
 
                     {cards.length >= maxCards && !showForm && (
                         <div className="col-span-full text-center py-4">
-                            <p className="text-slate-400 text-sm">You've reached the maximum of {maxCards} business cards.</p>
+                            <p className={`text-${currentTheme.textMuted} text-sm`}>You've reached the maximum of {maxCards} business cards.</p>
                         </div>
                     )}
 
@@ -754,7 +772,7 @@ function CardsContent() {
                             <button
                                 onClick={() => handleDelete(card.id)}
                                 className={`absolute -top-2 -right-2 z-10 p-2 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${isCardInUse(card.id)
-                                    ? 'bg-slate-500 text-slate-300 cursor-not-allowed'
+                                    ? `bg-${currentTheme.textMuted} text-${currentTheme.card} cursor-not-allowed`
                                     : 'bg-red-500 text-white hover:bg-red-600'
                                     }`}
                                 title={isCardInUse(card.id) ? 'Cannot delete - card is in use' : 'Delete card'}
@@ -771,7 +789,8 @@ function CardsContent() {
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className={`bg-slate-800 border rounded-xl overflow-hidden aspect-[7/4] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}>
+                                <div className={`bg-${currentTheme.card} border rounded-xl overflow-hidden aspect-[7/4] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
+                                    }`}>
                                     <img
                                         src={card.image_url}
                                         alt="Business Card"
@@ -781,7 +800,8 @@ function CardsContent() {
                                 </div>
                             ) : (
                                 <div
-                                    className={`rounded-xl p-2 aspect-[7/4] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}
+                                    className={`rounded-xl p-2 aspect-[7/4] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : `border-${currentTheme.border}`
+                                        }`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >
                                     <div className="text-center overflow-hidden">
@@ -809,6 +829,7 @@ function CardsContent() {
     )
 }
 
+// Loading fallback component
 function CardsLoading() {
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -820,6 +841,7 @@ function CardsLoading() {
     )
 }
 
+// Main export wraps content in Suspense
 export default function CardsPage() {
     return (
         <Suspense fallback={<CardsLoading />}>
