@@ -15,13 +15,13 @@ export default function CardGalleryPage() {
     const [viewedToday, setViewedToday] = useState(0)
     const [dailyLimit, setDailyLimit] = useState(50)
     const [tokensPerView, setTokensPerView] = useState(1)
+    const [entryChance, setEntryChance] = useState(30)
     const [selectedCard, setSelectedCard] = useState(null)
     const [message, setMessage] = useState(null)
     const [gameSettings, setGameSettings] = useState(null)
     const [celebration, setCelebration] = useState(null)
     const viewedCards = useRef(new Set())
     const [weeklyEntries, setWeeklyEntries] = useState(0)
-    const [totalUniqueViews, setTotalUniqueViews] = useState(0)
     const demoViewedCards = useRef(new Set())
 
     useEffect(() => {
@@ -71,19 +71,16 @@ export default function CardGalleryPage() {
                     viewedData.forEach(v => viewedCards.current.add(v.card_id))
                 }
 
-                // Load weekly entries and unique views
+                // Load weekly entries from user_daily_spins
                 const weekStart = getWeekStart()
-                const { data: weeklyViewsData } = await supabase
-                    .from('card_gallery_views')
-                    .select('card_id')
+                const { data: weeklySpinsData } = await supabase
+                    .from('user_daily_spins')
+                    .select('drawing_entries')
                     .eq('user_id', authUser.id)
-                    .gte('viewed_at', weekStart.toISOString())
+                    .gte('spin_date', weekStart.toISOString().split('T')[0])
 
-                if (weeklyViewsData) {
-                    const uniqueCardIds = new Set(weeklyViewsData.map(v => v.card_id))
-                    setTotalUniqueViews(uniqueCardIds.size)
-                    setWeeklyEntries(Math.floor(uniqueCardIds.size / 10))
-                }
+                const totalEntries = weeklySpinsData?.reduce((sum, day) => sum + (day.drawing_entries || 0), 0) || 0
+                setWeeklyEntries(totalEntries)
             }
         } catch (error) {
             console.error('Error checking user:', error)
@@ -111,6 +108,7 @@ export default function CardGalleryPage() {
                 setGameSettings(data)
                 setDailyLimit(data.daily_bb_cap || 50)
                 setTokensPerView(data.bb_min || 1)
+                setEntryChance(data.entry_award_chance || 30)
             }
         } catch (error) {
             console.log('Using default card gallery settings')
@@ -181,58 +179,23 @@ export default function CardGalleryPage() {
         if (!gameSettings?.is_enabled) return
         if (viewedCards.current.has(card.id)) return
 
-        const todayTokensEarned = viewedToday * tokensPerView
-        if (todayTokensEarned >= dailyLimit) {
-            setMessage({ type: 'info', text: 'Daily Token limit reached (' + dailyLimit + ')' })
-            setTimeout(() => setMessage(null), 3000)
-            return
-        }
-
         viewedCards.current.add(card.id)
 
+        // Check token daily cap
+        const todayTokensEarned = viewedToday * tokensPerView
+        const canEarnTokens = todayTokensEarned < dailyLimit
+
+        // Roll for token win
         const multiplier = gameSettings?.view_multiplier || 2.0
-        const winChance = cards.length > 0
+        const tokenWinChance = cards.length > 0
             ? Math.min((dailyLimit / cards.length / multiplier), 1)
             : 1
+        const wonTokens = canEarnTokens && Math.random() < tokenWinChance
 
-        const won = Math.random() < winChance
+        // Roll for entry win (separate roll)
+        const wonEntry = Math.random() * 100 < entryChance
 
-        if (!won) {
-            try {
-                await supabase
-                    .from('card_gallery_views')
-                    .insert([{
-                        user_id: user.id,
-                        card_id: card.id,
-                        advertiser_id: card.user_id,
-                        bb_awarded: false
-                    }])
-
-                const { data: campaignData } = await supabase
-                    .from('ad_campaigns')
-                    .select('id, views_from_clicks')
-                    .eq('user_id', card.user_id)
-                    .eq('status', 'active')
-                    .limit(1)
-
-                if (campaignData && campaignData.length > 0) {
-                    await supabase
-                        .from('ad_campaigns')
-                        .update({
-                            views_from_clicks: (campaignData[0].views_from_clicks || 0) + 1,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', campaignData[0].id)
-                }
-
-                setMessage({ type: 'info', text: 'Thanks for viewing!' })
-                setTimeout(() => setMessage(null), 2000)
-            } catch (error) {
-                console.error('Error recording view:', error)
-            }
-            return
-        }
-
+        // Record the view
         try {
             await supabase
                 .from('card_gallery_views')
@@ -240,71 +203,10 @@ export default function CardGalleryPage() {
                     user_id: user.id,
                     card_id: card.id,
                     advertiser_id: card.user_id,
-                    bb_awarded: true
+                    bb_awarded: wonTokens
                 }])
 
-            const tokensEarned = tokensPerView
-
-            const { data: existingBalance } = await supabase
-                .from('bb_balances')
-                .select('*')
-                .eq('user_id', user.id)
-                .single()
-
-            if (existingBalance) {
-                await supabase
-                    .from('bb_balances')
-                    .update({
-                        balance: existingBalance.balance + tokensEarned,
-                        total_earned: (existingBalance.total_earned || 0) + tokensEarned,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('user_id', user.id)
-            } else {
-                await supabase
-                    .from('bb_balances')
-                    .insert([{
-                        user_id: user.id,
-                        balance: tokensEarned,
-                        total_earned: tokensEarned
-                    }])
-            }
-
-            await supabase
-                .from('bb_transactions')
-                .insert([{
-                    user_id: user.id,
-                    type: 'earn',
-                    amount: tokensEarned,
-                    source: 'card_gallery',
-                    description: 'Viewed card: ' + (card.title || 'Business Card')
-                }])
-
-            const today = new Date().toISOString().split('T')[0]
-            const { data: existingActivity } = await supabase
-                .from('user_daily_activity')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('activity_type', 'card_gallery_view')
-                .eq('activity_date', today)
-                .single()
-
-            if (existingActivity) {
-                await supabase
-                    .from('user_daily_activity')
-                    .update({ count: existingActivity.count + 1 })
-                    .eq('id', existingActivity.id)
-            } else {
-                await supabase
-                    .from('user_daily_activity')
-                    .insert([{
-                        user_id: user.id,
-                        activity_type: 'card_gallery_view',
-                        activity_date: today,
-                        count: 1
-                    }])
-            }
-
+            // Credit advertiser
             const { data: campaignData } = await supabase
                 .from('ad_campaigns')
                 .select('id, views_from_clicks')
@@ -322,18 +224,76 @@ export default function CardGalleryPage() {
                     .eq('id', campaignData[0].id)
             }
 
-            setTokenBalance(prev => prev + tokensEarned)
-            setViewedToday(prev => prev + 1)
+            // Award tokens if won
+            if (wonTokens) {
+                const tokensEarned = tokensPerView
 
-            // Track unique views and award entries
-            const newTotalViews = totalUniqueViews + 1
-            setTotalUniqueViews(newTotalViews)
-            const newEntries = Math.floor(newTotalViews / 10)
-            const earnedNewEntry = newEntries > weeklyEntries
+                const { data: existingBalance } = await supabase
+                    .from('bb_balances')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single()
 
-            if (earnedNewEntry) {
-                setWeeklyEntries(newEntries)
-                // Save entry to user_daily_spins
+                if (existingBalance) {
+                    await supabase
+                        .from('bb_balances')
+                        .update({
+                            balance: existingBalance.balance + tokensEarned,
+                            lifetime_earned: (existingBalance.lifetime_earned || 0) + tokensEarned,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('user_id', user.id)
+                } else {
+                    await supabase
+                        .from('bb_balances')
+                        .insert([{
+                            user_id: user.id,
+                            balance: tokensEarned,
+                            lifetime_earned: tokensEarned
+                        }])
+                }
+
+                await supabase
+                    .from('bb_transactions')
+                    .insert([{
+                        user_id: user.id,
+                        type: 'earn',
+                        amount: tokensEarned,
+                        source: 'card_gallery',
+                        description: 'Viewed card: ' + (card.title || 'Business Card')
+                    }])
+
+                const today = new Date().toISOString().split('T')[0]
+                const { data: existingActivity } = await supabase
+                    .from('user_daily_activity')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .eq('activity_type', 'card_gallery_view')
+                    .eq('activity_date', today)
+                    .single()
+
+                if (existingActivity) {
+                    await supabase
+                        .from('user_daily_activity')
+                        .update({ count: existingActivity.count + 1 })
+                        .eq('id', existingActivity.id)
+                } else {
+                    await supabase
+                        .from('user_daily_activity')
+                        .insert([{
+                            user_id: user.id,
+                            activity_type: 'card_gallery_view',
+                            activity_date: today,
+                            count: 1
+                        }])
+                }
+
+                setTokenBalance(prev => prev + tokensEarned)
+                setViewedToday(prev => prev + 1)
+            }
+
+            // Award entry if won
+            if (wonEntry) {
                 const today = new Date().toISOString().split('T')[0]
                 const { data: spinData } = await supabase
                     .from('user_daily_spins')
@@ -361,11 +321,21 @@ export default function CardGalleryPage() {
                         }])
                 }
 
-                setCelebration({ amount: tokensEarned, entry: true, id: Date.now() })
-            } else {
-                setCelebration({ amount: tokensEarned, id: Date.now() })
+                setWeeklyEntries(prev => prev + 1)
             }
-            setTimeout(() => setCelebration(null), 2000)
+
+            // Show celebration or message
+            if (wonTokens || wonEntry) {
+                setCelebration({
+                    tokens: wonTokens ? tokensPerView : 0,
+                    entry: wonEntry,
+                    id: Date.now()
+                })
+                setTimeout(() => setCelebration(null), 2000)
+            } else {
+                setMessage({ type: 'info', text: 'Thanks for viewing!' })
+                setTimeout(() => setMessage(null), 2000)
+            }
 
         } catch (error) {
             console.error('Error recording view:', error)
@@ -399,11 +369,13 @@ export default function CardGalleryPage() {
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
                     <div className="animate-celebration text-center">
-                        <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
-                            +{celebration.amount} Tokens!
-                        </div>
+                        {celebration.tokens > 0 && (
+                            <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
+                                +{celebration.tokens} Tokens!
+                            </div>
+                        )}
                         {celebration.entry && (
-                            <div className="text-2xl font-bold text-purple-400 mt-2">
+                            <div className={`text-2xl font-bold text-purple-400 ${celebration.tokens > 0 ? 'mt-2' : ''}`}>
                                 +1 🎟️ Entry!
                             </div>
                         )}
@@ -427,7 +399,7 @@ export default function CardGalleryPage() {
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-xl font-bold text-white">🖼️ Card Gallery</h1>
-                            <p className="text-slate-400 text-sm">Tap the eye to view cards {user ? 'and earn Tokens' : ''}</p>
+                            <p className="text-slate-400 text-sm">Tap the eye to view cards {user ? 'and win prizes' : ''}</p>
                         </div>
                         <div className="flex items-center gap-4">
                             {message && (
@@ -439,7 +411,7 @@ export default function CardGalleryPage() {
                                 <div className="flex items-center gap-2">
                                     <div className="bg-purple-500/20 border border-purple-500/50 rounded-lg px-2 py-2 text-center">
                                         <p className="text-purple-400 font-bold text-sm">🎟️ {weeklyEntries}</p>
-                                        <p className="text-slate-400 text-[10px]">{totalUniqueViews % 10}/10</p>
+                                        <p className="text-slate-400 text-[10px]">entries</p>
                                     </div>
                                     <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg px-3 py-2 text-right">
                                         <p className="text-yellow-400 font-bold text-base sm:text-lg">🪙 {tokenBalance}</p>
@@ -460,8 +432,7 @@ export default function CardGalleryPage() {
                 <div className="max-w-7xl mx-auto px-4 pt-4">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm">
                         <p className="text-yellow-400">
-                            🪙 Earn <strong>{tokensPerView} Tokens</strong> for each new card you view! 🎟️ Every <strong>10 unique views = 1 drawing entry</strong>!
-                            <span className="text-slate-400 ml-2">({totalUniqueViews} viewed this week)</span>
+                            🪙 Every view is a chance to win Tokens! Watch for the celebration! 🎟️ Every <strong>10 unique views daily = 1 drawing entry</strong>!
                         </p>
                     </div>
                 </div>
@@ -477,7 +448,7 @@ export default function CardGalleryPage() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                         {cards.map(card => {
                             const isViewed = user ? viewedCards.current.has(card.id) : demoViewedCards.current.has(card.id)
-                            const canEarn = user && gameSettings?.is_enabled && !isViewed && (viewedToday * tokensPerView < dailyLimit)
+                            const canEarn = user && gameSettings?.is_enabled && !isViewed
 
                             return (
                                 <div
@@ -500,7 +471,7 @@ export default function CardGalleryPage() {
                                     <button
                                         onClick={(e) => viewCard(card, e)}
                                         className={`absolute bottom-1 right-1 w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-full transition-all shadow ${canEarn ? 'bg-yellow-500 hover:bg-yellow-400 hover:scale-110' : 'bg-white/80 hover:bg-white'}`}
-                                        title={canEarn ? `View to earn ${tokensPerView} Tokens` : 'View card'}
+                                        title={canEarn ? 'View for a chance to win!' : 'View card'}
                                     >
                                         <span className="text-lg sm:text-base">👁</span>
                                     </button>

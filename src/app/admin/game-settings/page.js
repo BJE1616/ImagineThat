@@ -16,7 +16,8 @@ const TIPS = {
     daily_play_cap: "Maximum plays allowed per day. Leave blank for unlimited plays.",
     free_plays_per_day: "Free plays given to each user daily. Only applies to slot machines.",
     win_percentage: "Return to player percentage. Higher = players win more often. 85-95% is typical for slots.",
-    is_enabled: "Turn this game on or off. Disabled games won't award tokens."
+    is_enabled: "Turn this game on or off. Disabled games won't award tokens.",
+    entry_award_chance: "Probability of earning a drawing entry per unique daily view. 30% = 30% chance per view. Only applies to Card Gallery."
 }
 
 // ===== WARNING THRESHOLDS =====
@@ -325,6 +326,23 @@ export default function TokenSettingsPage() {
                                                 className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 placeholder-slate-500 ${getFieldWarning(game, 'free_plays_per_day') ? 'border-yellow-500/50' : 'border-slate-600'}`}
                                             />
                                         </div>
+
+                                        {game.game_key === 'card_gallery' && (
+                                            <div>
+                                                <label className="block text-purple-400 text-[10px] mb-0.5">
+                                                    <Tooltip text={TIPS.entry_award_chance}>🎟️ Entry %</Tooltip>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    value={game.entry_award_chance ?? ''}
+                                                    onChange={(e) => handleInputChange(game.id, 'entry_award_chance', e.target.value, true)}
+                                                    onBlur={(e) => handleBlur(game.id, 'entry_award_chance', e.target.value, true)}
+                                                    className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* ----- Slot Machine Extra Settings ----- */}
