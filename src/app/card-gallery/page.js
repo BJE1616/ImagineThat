@@ -193,7 +193,9 @@ export default function CardGalleryPage() {
         const wonTokens = canEarnTokens && Math.random() < tokenWinChance
 
         // Roll for entry win (separate roll)
-        const wonEntry = Math.random() * 100 < entryChance
+        const entryRoll = Math.random() * 100
+        const wonEntry = entryRoll < entryChance
+        console.log('Entry roll:', entryRoll, 'Entry chance:', entryChance, 'Won entry:', wonEntry)
 
         // Record the view
         try {
