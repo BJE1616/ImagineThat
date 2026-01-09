@@ -41,6 +41,7 @@ function CardsContent() {
     const [cropImage, setCropImage] = useState(null)
     const [crop, setCrop] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(1)
+    const [cropRotation, setCropRotation] = useState(0)
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
 
     const colorOptions = [
@@ -194,6 +195,7 @@ function CardsContent() {
                 setShowCropper(true)
                 setCrop({ x: 0, y: 0 })
                 setZoom(1)
+                setCropRotation(0)
             }
             reader.readAsDataURL(file)
         }
@@ -203,23 +205,56 @@ function CardsContent() {
         setCroppedAreaPixels(croppedAreaPixels)
     }, [])
 
-    // Create cropped image from canvas
-    const getCroppedImg = async (imageSrc, pixelCrop) => {
-        const image = new Image()
-        image.src = imageSrc
-
-        await new Promise((resolve) => {
-            image.onload = resolve
+    // Helper to create rotated image
+    const createImage = (url) =>
+        new Promise((resolve, reject) => {
+            const image = new Image()
+            image.addEventListener('load', () => resolve(image))
+            image.addEventListener('error', (error) => reject(error))
+            image.src = url
         })
 
+    const getRadianAngle = (degreeValue) => {
+        return (degreeValue * Math.PI) / 180
+    }
+
+    // Create cropped image from canvas with rotation support
+    const getCroppedImg = async (imageSrc, pixelCrop, rotation = 0) => {
+        const image = await createImage(imageSrc)
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
 
-        canvas.width = pixelCrop.width
-        canvas.height = pixelCrop.height
+        const rotRad = getRadianAngle(rotation)
 
-        ctx.drawImage(
-            image,
+        // Calculate bounding box of the rotated image
+        const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
+            image.width,
+            image.height,
+            rotation
+        )
+
+        // Set canvas size to match the bounding box
+        canvas.width = bBoxWidth
+        canvas.height = bBoxHeight
+
+        // Translate canvas context to center before rotating
+        ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
+        ctx.rotate(rotRad)
+        ctx.translate(-image.width / 2, -image.height / 2)
+
+        // Draw rotated image
+        ctx.drawImage(image, 0, 0)
+
+        // Create a new canvas for the cropped result
+        const croppedCanvas = document.createElement('canvas')
+        const croppedCtx = croppedCanvas.getContext('2d')
+
+        croppedCanvas.width = pixelCrop.width
+        croppedCanvas.height = pixelCrop.height
+
+        // Draw the cropped area
+        croppedCtx.drawImage(
+            canvas,
             pixelCrop.x,
             pixelCrop.y,
             pixelCrop.width,
@@ -231,10 +266,21 @@ function CardsContent() {
         )
 
         return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
+            croppedCanvas.toBlob((blob) => {
                 resolve(blob)
             }, 'image/jpeg', 0.95)
         })
+    }
+
+    // Helper function to calculate rotated image size
+    const rotateSize = (width, height, rotation) => {
+        const rotRad = getRadianAngle(rotation)
+        return {
+            width:
+                Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
+            height:
+                Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
+        }
     }
 
     // Handle crop confirmation
@@ -243,8 +289,8 @@ function CardsContent() {
         setShowCropper(false)
 
         try {
-            // Get cropped image blob
-            const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels)
+            // Get cropped image blob with rotation
+            const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels, cropRotation)
 
             // Create a File object from the blob
             let croppedFile = new File([croppedBlob], 'business-card.jpg', { type: 'image/jpeg' })
@@ -283,6 +329,7 @@ function CardsContent() {
         setCropImage(null)
         setCrop({ x: 0, y: 0 })
         setZoom(1)
+        setCropRotation(0)
     }
 
     const rotateImage = (direction) => {
@@ -392,6 +439,7 @@ function CardsContent() {
         setImageRotation(0)
         setCropImage(null)
         setShowCropper(false)
+        setCropRotation(0)
     }
 
     const isCardInUse = (cardId) => {
@@ -548,15 +596,17 @@ function CardsContent() {
                             image={cropImage}
                             crop={crop}
                             zoom={zoom}
+                            rotation={cropRotation}
                             aspect={7 / 4}
                             onCropChange={setCrop}
                             onCropComplete={onCropComplete}
                             onZoomChange={setZoom}
+                            onRotationChange={setCropRotation}
                         />
                     </div>
-                    <div className="bg-slate-800 p-4 space-y-4">
+                    <div className="bg-slate-800 p-4 space-y-3">
                         <div className="flex items-center gap-4">
-                            <span className="text-white text-sm">Zoom:</span>
+                            <span className="text-white text-sm w-20">Zoom:</span>
                             <input
                                 type="range"
                                 min={1}
@@ -566,6 +616,19 @@ function CardsContent() {
                                 onChange={(e) => setZoom(Number(e.target.value))}
                                 className="flex-1"
                             />
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <span className="text-white text-sm w-20">Straighten:</span>
+                            <input
+                                type="range"
+                                min={-45}
+                                max={45}
+                                step={1}
+                                value={cropRotation}
+                                onChange={(e) => setCropRotation(Number(e.target.value))}
+                                className="flex-1"
+                            />
+                            <span className="text-slate-400 text-xs w-12 text-right">{cropRotation}°</span>
                         </div>
                         <div className="flex gap-4">
                             <button
@@ -582,7 +645,7 @@ function CardsContent() {
                             </button>
                         </div>
                         <p className="text-slate-400 text-xs text-center">
-                            Drag to position • Pinch or use slider to zoom • 7:4 business card ratio
+                            Drag to position • Pinch or slide to zoom • Straighten tilted photos
                         </p>
                     </div>
                 </div>
@@ -692,7 +755,7 @@ function CardsContent() {
                                             </p>
                                         ) : (
                                             <p className="text-xs text-slate-500 mt-1">
-                                                📸 Take a photo or upload — you'll crop it next
+                                                📸 Take a photo or upload — you'll crop & straighten it next
                                             </p>
                                         )}
                                     </div>
