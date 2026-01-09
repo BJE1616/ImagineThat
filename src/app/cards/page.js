@@ -522,7 +522,7 @@ function CardsContent() {
             <div className="text-center">
                 <p className="text-xs text-slate-400 mb-2">Full Card View (👁 click):</p>
                 {cardType === 'uploaded' && imagePreview ? (
-                    <div className="w-48 h-36 rounded-lg border-2 border-slate-600 mx-auto overflow-hidden bg-slate-800">
+                    <div className="w-48 aspect-[7/4] rounded-lg border-2 border-slate-600 mx-auto overflow-hidden bg-slate-800">
                         <img
                             src={imagePreview}
                             alt="Preview"
@@ -532,7 +532,7 @@ function CardsContent() {
                     </div>
                 ) : (
                     <div
-                        className="w-48 h-36 rounded-lg p-3 flex flex-col justify-between border-2 border-slate-600 mx-auto"
+                        className="w-48 aspect-[7/4] rounded-lg p-3 flex flex-col justify-between border-2 border-slate-600 mx-auto"
                         style={{ backgroundColor: formData.card_color }}
                     >
                         <div className="text-center">
