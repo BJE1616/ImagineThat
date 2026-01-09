@@ -46,7 +46,7 @@ export default function CardGalleryPage() {
                     .from('bb_balances')
                     .select('balance')
                     .eq('user_id', authUser.id)
-                    .single()
+                    .maybeSingle()
 
                 setTokenBalance(balanceData?.balance || 0)
 
@@ -57,7 +57,7 @@ export default function CardGalleryPage() {
                     .eq('user_id', authUser.id)
                     .eq('game_key', 'card_gallery')
                     .eq('activity_date', today)
-                    .single()
+                    .maybeSingle()
 
                 setViewedToday(activityData?.play_count || 0)
 
@@ -102,7 +102,7 @@ export default function CardGalleryPage() {
                 .from('game_bb_settings')
                 .select('*')
                 .eq('game_key', 'card_gallery')
-                .single()
+                .maybeSingle()
 
             if (data) {
                 setGameSettings(data)
@@ -225,6 +225,8 @@ export default function CardGalleryPage() {
                     .eq('id', campaignData[0].id)
             }
 
+            const today = new Date().toISOString().split('T')[0]
+
             // Award tokens if won
             if (wonTokens) {
                 const tokensEarned = tokensPerView
@@ -233,7 +235,7 @@ export default function CardGalleryPage() {
                     .from('bb_balances')
                     .select('*')
                     .eq('user_id', user.id)
-                    .single()
+                    .maybeSingle()
 
                 if (existingBalance) {
                     await supabase
@@ -264,14 +266,13 @@ export default function CardGalleryPage() {
                         description: 'Viewed card: ' + (card.title || 'Business Card')
                     }])
 
-                const today = new Date().toISOString().split('T')[0]
                 const { data: existingActivity } = await supabase
                     .from('user_daily_activity')
                     .select('*')
                     .eq('user_id', user.id)
                     .eq('game_key', 'card_gallery')
                     .eq('activity_date', today)
-                    .single()
+                    .maybeSingle()
 
                 if (existingActivity) {
                     await supabase
@@ -295,13 +296,12 @@ export default function CardGalleryPage() {
 
             // Award entry if won
             if (wonEntry) {
-                const today = new Date().toISOString().split('T')[0]
                 const { data: spinData } = await supabase
                     .from('user_daily_spins')
                     .select('*')
                     .eq('user_id', user.id)
                     .eq('spin_date', today)
-                    .single()
+                    .maybeSingle()
 
                 if (spinData) {
                     await supabase
@@ -433,7 +433,7 @@ export default function CardGalleryPage() {
                 <div className="max-w-7xl mx-auto px-4 pt-4">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm">
                         <p className="text-yellow-400">
-                            🪙 Every view is a chance to win Tokens! Watch for the celebration! 🎟️ Every <strong>10 unique views daily = 1 drawing entry</strong>!
+                            🪙 Every view is a chance to win Tokens! Watch for the celebration! 🎟️ Drawing entries awarded randomly too!
                         </p>
                     </div>
                 </div>
