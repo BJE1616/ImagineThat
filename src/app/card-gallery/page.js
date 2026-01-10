@@ -150,7 +150,6 @@ export default function CardGalleryPage() {
             demoViewedCards.current.add(card.id)
 
             try {
-                // Still credit the advertiser
                 const { data: campaignData } = await supabase
                     .from('ad_campaigns')
                     .select('id, views_from_clicks')
@@ -192,10 +191,8 @@ export default function CardGalleryPage() {
             : 1
         const wonTokens = canEarnTokens && Math.random() < tokenWinChance
 
-        // Roll for entry win (separate roll)
-        const entryRoll = Math.random() * 100
-        const wonEntry = entryRoll < entryChance
-        console.log('Entry roll:', entryRoll, 'Entry chance:', entryChance, 'Won entry:', wonEntry)
+        // Roll for entry ONLY if no tokens won (consolation prize)
+        const wonEntry = !wonTokens && (Math.random() * 100 < entryChance)
 
         // Record the view
         try {
@@ -237,11 +234,13 @@ export default function CardGalleryPage() {
                     .eq('user_id', user.id)
                     .maybeSingle()
 
+                const newBalance = (existingBalance?.balance || 0) + tokensEarned
+
                 if (existingBalance) {
                     await supabase
                         .from('bb_balances')
                         .update({
-                            balance: existingBalance.balance + tokensEarned,
+                            balance: newBalance,
                             lifetime_earned: (existingBalance.lifetime_earned || 0) + tokensEarned,
                             updated_at: new Date().toISOString()
                         })
@@ -263,7 +262,8 @@ export default function CardGalleryPage() {
                         type: 'earn',
                         amount: tokensEarned,
                         source: 'card_gallery',
-                        description: 'Viewed card: ' + (card.title || 'Business Card')
+                        description: 'Viewed card: ' + (card.title || 'Business Card'),
+                        balance_after: newBalance
                     }])
 
                 const { data: existingActivity } = await supabase
@@ -290,11 +290,11 @@ export default function CardGalleryPage() {
                         }])
                 }
 
-                setTokenBalance(prev => prev + tokensEarned)
+                setTokenBalance(newBalance)
                 setViewedToday(prev => prev + 1)
             }
 
-            // Award entry if won
+            // Award entry if won (consolation prize)
             if (wonEntry) {
                 const { data: spinData } = await supabase
                     .from('user_daily_spins')
@@ -326,13 +326,12 @@ export default function CardGalleryPage() {
             }
 
             // Show celebration or message
-            if (wonTokens || wonEntry) {
-                setCelebration({
-                    tokens: wonTokens ? tokensPerView : 0,
-                    entry: wonEntry,
-                    id: Date.now()
-                })
-                setTimeout(() => setCelebration(null), 2000)
+            if (wonTokens) {
+                setCelebration({ type: 'tokens', amount: tokensPerView, id: Date.now() })
+                setTimeout(() => setCelebration(null), 2500)
+            } else if (wonEntry) {
+                setCelebration({ type: 'entry', id: Date.now() })
+                setTimeout(() => setCelebration(null), 2500)
             } else {
                 setMessage({ type: 'info', text: 'Thanks for viewing!' })
                 setTimeout(() => setMessage(null), 2000)
@@ -370,17 +369,23 @@ export default function CardGalleryPage() {
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-[60] flex items-center justify-center">
                     <div className="animate-celebration text-center">
-                        {celebration.tokens > 0 && (
-                            <div className="text-4xl sm:text-5xl font-bold text-yellow-400 drop-shadow-lg">
-                                +{celebration.tokens} Tokens!
-                            </div>
+                        {celebration.type === 'tokens' && (
+                            <>
+                                <div className="text-5xl sm:text-6xl font-bold text-yellow-400 drop-shadow-lg">
+                                    🪙 +{celebration.amount} Tokens!
+                                </div>
+                                <div className="text-6xl mt-3">🎉</div>
+                            </>
                         )}
-                        {celebration.entry && (
-                            <div className={`text-2xl font-bold text-purple-400 ${celebration.tokens > 0 ? 'mt-2' : ''}`}>
-                                +1 🎟️ Entry!
-                            </div>
+                        {celebration.type === 'entry' && (
+                            <>
+                                <div className="text-5xl sm:text-6xl font-bold text-fuchsia-400 drop-shadow-lg">
+                                    🎟️ +1 Entry!
+                                </div>
+                                <div className="text-3xl text-white mt-2">Drawing Entry Won!</div>
+                                <div className="text-6xl mt-3">🎊</div>
+                            </>
                         )}
-                        <div className="text-6xl mt-2">🎉</div>
                     </div>
                 </div>
             )}
@@ -392,7 +397,7 @@ export default function CardGalleryPage() {
                     40% { transform: translateY(-10px) scale(1); }
                     100% { opacity: 0; transform: translateY(-60px) scale(0.9); }
                 }
-                .animate-celebration { animation: celebrationFloat 2s ease-out forwards; }
+                .animate-celebration { animation: celebrationFloat 2.5s ease-out forwards; }
             `}</style>
 
             <div className={`bg-slate-800 border-b border-slate-700 sticky ${user ? 'top-0' : 'top-[36px]'} z-10`}>
@@ -433,7 +438,7 @@ export default function CardGalleryPage() {
                 <div className="max-w-7xl mx-auto px-4 pt-4">
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm">
                         <p className="text-yellow-400">
-                            🪙 Every view is a chance to win Tokens! Watch for the celebration! 🎟️ Drawing entries awarded randomly too!
+                            🪙 Every view is a chance to win Tokens! 🎟️ No tokens? You might win a Drawing Entry instead!
                         </p>
                     </div>
                 </div>
