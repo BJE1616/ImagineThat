@@ -3,8 +3,23 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import Tooltip from '@/components/Tooltip'
 
 const WEIGHTS = { financial: 30, tokenEconomy: 25, prizeSustain: 20, expenseControl: 15, configHealth: 10 }
+
+const TIPS = {
+    overallHealth: "Combined score from 5 weighted factors. 80+ is excellent, 60-79 is good, 40-59 needs attention, below 40 is critical.",
+    financial: "Revenue vs obligations. Can you cover what you owe?",
+    tokenEconomy: "Token circulation health and burn rate.",
+    prizeSustain: "Can current revenue sustain prize payouts?",
+    expenseControl: "Are expenses reasonable compared to revenue?",
+    configHealth: "Are game settings configured sustainably?",
+    tokenLiability: "All tokens users currently hold × token value. This is money you owe if everyone redeems.",
+    dailyAwards: "Tokens awarded to daily leaderboard winners based on your configured places × token value.",
+    gameAwards: "Tokens earned from Card Gallery views and Slot machine wins during this period.",
+    payouts: "Matrix payouts and prize winnings waiting to be sent.",
+    trueAvailable: "What's actually safe to take as profit after all obligations are covered."
+}
 
 const getScoreColor = (score) => {
     if (score >= 80) return { text: 'text-green-400', bg: 'bg-green-500/20', border: 'border-green-500/50' }
@@ -73,7 +88,7 @@ export default function HealthDashboardPage() {
     const [financial, setFinancial] = useState({
         grossRevenue: 0, processingFees: 0, netRevenue: 0, recurringExpenses: 0,
         oneTimeExpenses: 0, totalHardCosts: 0, pendingPayouts: 0, weeklyPrizesDue: 0,
-        tokenLiability: 0, dailyTokenCost: 0, dailyTokensAwarded: 0, totalObligations: 0,
+        tokenLiability: 0, dailyTokenCost: 0, dailyTokensAwarded: 0, gameTokenCost: 0, gameTokensAwarded: 0, totalObligations: 0,
         trueAvailable: 0, campaignCount: 0, tokenValue: 0.05, days: 30
     })
 
@@ -180,14 +195,25 @@ export default function HealthDashboardPage() {
         let days = dateRange === 'today' ? 1 : dateRange === 'week' ? 7 : dateRange === 'year' ? 365 : 30
         const dailyTokenCost = dailyTokensAwarded * tokenValue * days
 
+        // Get actual game tokens awarded (Card Gallery + Slots)
+        const { data: gameTokenData } = await supabase
+            .from('bb_transactions')
+            .select('amount')
+            .eq('type', 'earn')
+            .in('source', ['card_gallery', 'slot_machine'])
+            .gte('created_at', dateFilter)
+
+        const gameTokensAwarded = gameTokenData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+        const gameTokenCost = gameTokensAwarded * tokenValue
+
         const now = new Date()
         const { data: prizesDue } = await supabase.from('weekly_prizes').select('total_prize_pool, prize_type').eq('prize_type', 'cash').eq('is_active', true).lte('week_end_time', now.toISOString())
         const weeklyPrizesDue = prizesDue?.reduce((sum, p) => sum + (parseFloat(p.total_prize_pool) || 0), 0) || 0
 
-        const totalObligations = pendingPayouts + weeklyPrizesDue + tokenLiability + dailyTokenCost
+        const totalObligations = pendingPayouts + weeklyPrizesDue + tokenLiability + dailyTokenCost + gameTokenCost
         const trueAvailable = netRevenue - totalHardCosts - totalObligations
 
-        const financialData = { grossRevenue, processingFees, netRevenue, recurringExpenses, oneTimeExpenses, totalHardCosts, pendingPayouts, weeklyPrizesDue, tokenLiability, dailyTokenCost, dailyTokensAwarded, totalObligations, trueAvailable, campaignCount, tokenValue, days }
+        const financialData = { grossRevenue, processingFees, netRevenue, recurringExpenses, oneTimeExpenses, totalHardCosts, pendingPayouts, weeklyPrizesDue, tokenLiability, dailyTokenCost, dailyTokensAwarded, gameTokenCost, gameTokensAwarded, totalObligations, trueAvailable, campaignCount, tokenValue, days }
         setFinancial(financialData)
         calculateHealthScores(financialData)
     }
@@ -384,11 +410,13 @@ export default function HealthDashboardPage() {
                         <div><p className="text-white font-semibold text-xs">Overall Health</p><p className="text-slate-400 text-[10px]">5 weighted factors</p></div>
                     </div>
                     <div className="flex gap-1 flex-wrap justify-end">
-                        {[{ key: 'financial', label: '💰', tooltip: 'Financial Health' }, { key: 'tokenEconomy', label: '🪙', tooltip: 'Token Economy' }, { key: 'prizeSustain', label: '🏆', tooltip: 'Prize Sustainability' }, { key: 'expenseControl', label: '📊', tooltip: 'Expense Control' }, { key: 'configHealth', label: '⚙️', tooltip: 'Config Health' }].map(f => (
-                            <div key={f.key} title={f.tooltip} className="bg-slate-800/50 rounded px-1.5 py-0.5 text-center w-10 cursor-help">
-                                <p className="text-[10px]">{f.label}</p>
-                                <p className={`text-xs font-bold ${getScoreColor(healthScores[f.key]).text}`}>{healthScores[f.key]}</p>
-                            </div>
+                        {[{ key: 'financial', label: '💰', tip: TIPS.financial }, { key: 'tokenEconomy', label: '🪙', tip: TIPS.tokenEconomy }, { key: 'prizeSustain', label: '🏆', tip: TIPS.prizeSustain }, { key: 'expenseControl', label: '📊', tip: TIPS.expenseControl }, { key: 'configHealth', label: '⚙️', tip: TIPS.configHealth }].map(f => (
+                            <Tooltip key={f.key} text={f.tip}>
+                                <div className="bg-slate-800/50 rounded px-1.5 py-0.5 text-center w-10 cursor-help">
+                                    <p className="text-[10px]">{f.label}</p>
+                                    <p className={`text-xs font-bold ${getScoreColor(healthScores[f.key]).text}`}>{healthScores[f.key]}</p>
+                                </div>
+                            </Tooltip>
                         ))}
                     </div>
                 </div>
@@ -731,9 +759,10 @@ export default function HealthDashboardPage() {
                         <div className="bg-red-500/10 border border-red-500/30 rounded p-1.5">
                             <h4 className="text-red-400 font-bold text-[10px] mb-1">⚠️ Obligations</h4>
                             <div className="space-y-0.5 text-[10px]">
-                                <div className="flex justify-between"><span className="text-slate-400">Tokens</span><span className="text-red-400">-{formatCurrency(financial.tokenLiability)}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Daily</span><span className="text-red-400">-{formatCurrency(financial.dailyTokenCost)}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Payouts</span><span className="text-red-400">-{formatCurrency(financial.pendingPayouts + financial.weeklyPrizesDue)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400"><Tooltip text={TIPS.tokenLiability}>Tokens</Tooltip></span><span className="text-red-400">-{formatCurrency(financial.tokenLiability)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400"><Tooltip text={TIPS.dailyAwards}>Daily</Tooltip></span><span className="text-red-400">-{formatCurrency(financial.dailyTokenCost)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400"><Tooltip text={TIPS.gameAwards}>Game Awards</Tooltip></span><span className="text-red-400">-{formatCurrency(financial.gameTokenCost)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400"><Tooltip text={TIPS.payouts}>Payouts</Tooltip></span><span className="text-red-400">-{formatCurrency(financial.pendingPayouts + financial.weeklyPrizesDue)}</span></div>
                                 <div className="flex justify-between font-bold border-t border-slate-600 pt-0.5"><span className="text-white">Total</span><span className="text-red-400">-{formatCurrency(financial.totalObligations)}</span></div>
                             </div>
                         </div>
@@ -743,7 +772,7 @@ export default function HealthDashboardPage() {
                                 <div className="flex justify-between"><span className="text-slate-400">Net</span><span>{formatCurrency(financial.netRevenue)}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Costs</span><span className="text-red-400">-{formatCurrency(financial.totalHardCosts)}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Oblig.</span><span className="text-red-400">-{formatCurrency(financial.totalObligations)}</span></div>
-                                <div className="flex justify-between font-bold border-t border-slate-600 pt-0.5"><span className="text-white">AVAIL</span><span className={financial.trueAvailable >= 0 ? 'text-green-400' : 'text-red-400'}>{formatCurrency(financial.trueAvailable)}</span></div>
+                                <div className="flex justify-between font-bold border-t border-slate-600 pt-0.5"><span className="text-white"><Tooltip text={TIPS.trueAvailable}>AVAIL</Tooltip></span><span className={financial.trueAvailable >= 0 ? 'text-green-400' : 'text-red-400'}>{formatCurrency(financial.trueAvailable)}</span></div>
                             </div>
                         </div>
                     </div>
