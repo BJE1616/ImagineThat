@@ -17,7 +17,11 @@ const TIPS = {
     free_plays_per_day: "Free plays given to each user daily. Only applies to slot machines.",
     win_percentage: "Return to player percentage. Higher = players win more often. 85-95% is typical for slots.",
     is_enabled: "Turn this game on or off. Disabled games won't award tokens.",
-    entry_award_chance: "Probability of earning a drawing entry per unique daily view. 30% = 30% chance per view. Only applies to Card Gallery."
+    entry_award_chance: "Probability of earning a drawing entry per unique daily view. 30% = 30% chance per view. Only applies to Card Gallery.",
+    lucky_view_chance: "The % chance a user wins SOMETHING (token or entry) each time they view a unique card. Example: 40% means roughly 4 out of 10 card views will win a prize.",
+    token_win_split: "When a user wins, this determines WHAT they win. Example: 70% means 70% of wins are tokens (costs you $), 30% are drawing entries (free to you).",
+    daily_entry_cap: "Maximum drawing entries ONE user can earn per day from Card Gallery. Prevents a single user from dominating the weekly prize drawing.",
+    views_per_entry_after_cap: "BONUS ENTRIES: After a user hits their daily token limit, they earn 1 guaranteed entry for every X cards they keep viewing. Rewards engaged users without costing you more tokens."
 }
 
 // ===== WARNING THRESHOLDS =====
@@ -46,6 +50,22 @@ const getWarnings = (game) => {
 
     if (game.win_percentage !== null && game.win_percentage < 80) {
         warnings.push({ field: 'win_percentage', message: 'Low RTP may frustrate players' })
+    }
+
+    // Card Gallery specific warnings
+    if (game.game_key === 'card_gallery') {
+        if (game.lucky_view_chance !== null && game.lucky_view_chance > 70) {
+            warnings.push({ field: 'lucky_view_chance', message: 'High win chance increases token giveaway costs' })
+        }
+        if (game.lucky_view_chance !== null && game.lucky_view_chance < 20) {
+            warnings.push({ field: 'lucky_view_chance', message: 'Low win chance may feel unrewarding to users' })
+        }
+        if (game.token_win_split !== null && game.token_win_split > 85) {
+            warnings.push({ field: 'token_win_split', message: 'High token split increases costs - consider more entries' })
+        }
+        if (game.daily_entry_cap !== null && game.daily_entry_cap > 50) {
+            warnings.push({ field: 'daily_entry_cap', message: 'High entry cap could let one user dominate drawings' })
+        }
     }
 
     return warnings
@@ -285,7 +305,7 @@ export default function TokenSettingsPage() {
 
                                         <div>
                                             <label className="block text-slate-400 text-[10px] mb-0.5">
-                                                <Tooltip text={TIPS.daily_bb_cap}>Daily Cap</Tooltip>
+                                                <Tooltip text={TIPS.daily_bb_cap}>Daily Token Cap</Tooltip>
                                             </label>
                                             <input
                                                 type="number"
@@ -328,20 +348,88 @@ export default function TokenSettingsPage() {
                                         </div>
 
                                         {game.game_key === 'card_gallery' && (
-                                            <div>
-                                                <label className="block text-purple-400 text-[10px] mb-0.5">
-                                                    <Tooltip text={TIPS.entry_award_chance}>🎟️ Entry %</Tooltip>
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    value={game.entry_award_chance ?? ''}
-                                                    onChange={(e) => handleInputChange(game.id, 'entry_award_chance', e.target.value, true)}
-                                                    onBlur={(e) => handleBlur(game.id, 'entry_award_chance', e.target.value, true)}
-                                                    className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
-                                                />
-                                            </div>
+                                            <>
+                                                {/* Card Gallery Lucky View System */}
+                                                <div className="col-span-3 md:col-span-6 mt-2 pt-2 border-t border-purple-500/30">
+                                                    <p className="text-purple-400 text-[10px] mb-2 font-medium">🎴 Card Gallery Win System</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-purple-400 text-[10px] mb-0.5">
+                                                        <Tooltip text={TIPS.lucky_view_chance}>🍀 Win Chance %</Tooltip>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        value={game.lucky_view_chance ?? ''}
+                                                        onChange={(e) => handleInputChange(game.id, 'lucky_view_chance', e.target.value, true)}
+                                                        onBlur={(e) => handleBlur(game.id, 'lucky_view_chance', e.target.value, true)}
+                                                        className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                    />
+                                                    <p className="text-slate-500 text-[9px] mt-0.5">% chance to win per view</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-purple-400 text-[10px] mb-0.5">
+                                                        <Tooltip text={TIPS.token_win_split}>🪙 Token vs Entry %</Tooltip>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        value={game.token_win_split ?? ''}
+                                                        onChange={(e) => handleInputChange(game.id, 'token_win_split', e.target.value, true)}
+                                                        onBlur={(e) => handleBlur(game.id, 'token_win_split', e.target.value, true)}
+                                                        className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                    />
+                                                    <p className="text-slate-500 text-[9px] mt-0.5">% of wins that are tokens</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-purple-400 text-[10px] mb-0.5">
+                                                        <Tooltip text={TIPS.daily_entry_cap}>🎟️ Max Drawing Entries/Day</Tooltip>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={game.daily_entry_cap ?? ''}
+                                                        onChange={(e) => handleInputChange(game.id, 'daily_entry_cap', e.target.value, true)}
+                                                        onBlur={(e) => handleBlur(game.id, 'daily_entry_cap', e.target.value, true)}
+                                                        className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                    />
+                                                    <p className="text-slate-500 text-[9px] mt-0.5">Cap per user per day</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-purple-400 text-[10px] mb-0.5">
+                                                        <Tooltip text={TIPS.views_per_entry_after_cap}>👁️ Bonus Entry Views</Tooltip>
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={game.views_per_entry_after_cap ?? ''}
+                                                        onChange={(e) => handleInputChange(game.id, 'views_per_entry_after_cap', e.target.value, true)}
+                                                        onBlur={(e) => handleBlur(game.id, 'views_per_entry_after_cap', e.target.value, true)}
+                                                        className="w-full px-2 py-1 bg-slate-700 border border-purple-500/50 rounded text-white text-xs focus:outline-none focus:border-purple-500"
+                                                    />
+                                                    <p className="text-slate-500 text-[9px] mt-0.5">Views per bonus entry (after token cap)</p>
+                                                </div>
+
+                                                {/* How It Works Box - At Bottom */}
+                                                <div className="col-span-3 md:col-span-6 mt-3">
+                                                    <div className="bg-purple-500/10 border border-purple-500/30 rounded p-2">
+                                                        <p className="text-purple-300 text-[10px] font-medium mb-1">📖 How It Works:</p>
+                                                        <ol className="text-slate-400 text-[10px] space-y-0.5 list-decimal list-inside">
+                                                            <li><span className="text-purple-300">🍀 Win Chance %</span> — Each card view rolls for a win (e.g., 40 = 4 in 10 views win)</li>
+                                                            <li><span className="text-purple-300">🪙 Token vs Entry %</span> — If they win, it's tokens OR entry (e.g., 70 = 70% tokens / 30% entries)</li>
+                                                            <li><span className="text-purple-300">🎟️ Max Drawing Entries/Day</span> — Maximum entries one user can earn per day</li>
+                                                            <li><span className="text-purple-300">👁️ Bonus Entry Views</span> — After token cap hit, user earns 1 entry per this many views</li>
+                                                        </ol>
+                                                        <p className="text-slate-500 text-[9px] mt-1.5 italic">💡 Note: "Daily Token Cap" (above) controls max tokens per day. Tokens cost you money. Entries are free.</p>
+                                                    </div>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
 
