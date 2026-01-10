@@ -368,7 +368,7 @@ export default function CardGalleryPage() {
 
             {celebration && (
                 <div className="fixed inset-0 pointer-events-none z-[60] flex items-center justify-center">
-                    <div className="animate-celebration text-center">
+                    <div className="animate-celebration text-center bg-black/70 px-8 py-6 rounded-2xl">
                         {celebration.type === 'tokens' && (
                             <>
                                 <div className="text-5xl sm:text-6xl font-bold text-yellow-400 drop-shadow-lg">
@@ -397,7 +397,7 @@ export default function CardGalleryPage() {
                     40% { transform: translateY(-10px) scale(1); }
                     100% { opacity: 0; transform: translateY(-60px) scale(0.9); }
                 }
-                .animate-celebration { animation: celebrationFloat 2.5s ease-out forwards; }
+                setTimeout(() => setCelebration(null), 3000)
             `}</style>
 
             <div className={`bg-slate-800 border-b border-slate-700 sticky ${user ? 'top-0' : 'top-[36px]'} z-10`}>
