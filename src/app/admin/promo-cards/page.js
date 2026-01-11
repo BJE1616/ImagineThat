@@ -59,6 +59,112 @@ const GRADIENT_COLORS = [
     { value: 'linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)', label: 'Night Sky' },
 ]
 
+const US_STATES = [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
+]
+
+const CATEGORIES = [
+    {
+        value: 'Home Services',
+        label: 'Home Services (Plumbing, HVAC, Cleaning, etc.)',
+        subcategories: ['Plumbing', 'Electrical', 'HVAC', 'Cleaning', 'Landscaping', 'Lawn Care', 'Tree Trimming', 'Pest Control', 'Other']
+    },
+    {
+        value: 'Handyman',
+        label: 'Handyman (Repairs, Painting, Pressure Washing, etc.)',
+        subcategories: ['General Repairs', 'Furniture Assembly', 'Drywall / Patching', 'Painting', 'Mounting & Installation', 'Pressure Washing', 'Gutter Cleaning', 'Other']
+    },
+    {
+        value: 'Restaurant / Food',
+        label: 'Restaurant / Food (Restaurants, Cafes, Catering, etc.)',
+        subcategories: ['Restaurants', 'Cafes', 'Bakeries', 'Catering', 'Food Trucks', 'Other']
+    },
+    {
+        value: 'Retail / Shopping',
+        label: 'Retail / Shopping (Clothing, Furniture, Gift Shops, etc.)',
+        subcategories: ['Clothing', 'Furniture', 'Gift Shops', 'Hardware Stores', 'Other']
+    },
+    {
+        value: 'Professional Services',
+        label: 'Professional Services (Accounting, Consulting, Marketing, etc.)',
+        subcategories: ['Accounting', 'Consulting', 'Marketing', 'IT Support', 'Photography', 'Other']
+    },
+    {
+        value: 'Health & Wellness',
+        label: 'Health & Wellness (Doctors, Dentists, Therapy, etc.)',
+        subcategories: ['Doctors', 'Dentists', 'Chiropractors', 'Therapy', 'Massage', 'Other']
+    },
+    {
+        value: 'Automotive',
+        label: 'Automotive (Mechanics, Detailing, Towing, etc.)',
+        subcategories: ['Mechanics', 'Car Dealers', 'Detailing', 'Towing', 'Oil Change', 'Other']
+    },
+    {
+        value: 'Real Estate',
+        label: 'Real Estate (Realtors, Mortgage, Home Inspection, etc.)',
+        subcategories: ['Realtors', 'Property Management', 'Mortgage', 'Home Inspection', 'Other']
+    },
+    {
+        value: 'Entertainment',
+        label: 'Entertainment (Event Venues, DJs, Musicians, etc.)',
+        subcategories: ['Event Venues', 'DJs', 'Musicians', 'Party Rentals', 'Other']
+    },
+    {
+        value: 'Beauty / Salon',
+        label: 'Beauty / Salon (Hair Salons, Barbers, Spas, etc.)',
+        subcategories: ['Hair Salons', 'Barbers', 'Nail Salons', 'Spas', 'Makeup Artists', 'Other']
+    },
+    {
+        value: 'Fitness',
+        label: 'Fitness (Gyms, Personal Trainers, Yoga, etc.)',
+        subcategories: ['Gyms', 'Personal Trainers', 'Yoga Studios', 'Sports Coaching', 'Other']
+    },
+    {
+        value: 'Legal',
+        label: 'Legal (Lawyers, Notary, Mediation, etc.)',
+        subcategories: ['Lawyers', 'Notary', 'Mediation', 'Other']
+    },
+    {
+        value: 'Financial',
+        label: 'Financial (Banks, Insurance, Financial Advisors, etc.)',
+        subcategories: ['Banks', 'Insurance', 'Financial Advisors', 'Tax Prep', 'Other']
+    },
+    {
+        value: 'Technology',
+        label: 'Technology (Software, Web Design, Computer Repair, etc.)',
+        subcategories: ['Software', 'Web Design', 'Computer Repair', 'App Development', 'Other']
+    },
+    {
+        value: 'Education',
+        label: 'Education (Tutoring, Schools, Music Lessons, etc.)',
+        subcategories: ['Tutoring', 'Schools', 'Training Centers', 'Music Lessons', 'Other']
+    },
+    {
+        value: 'Pet Services',
+        label: 'Pet Services (Veterinarians, Groomers, Pet Sitting, etc.)',
+        subcategories: ['Veterinarians', 'Groomers', 'Pet Sitting', 'Dog Training', 'Other']
+    },
+    {
+        value: 'Platform Promo',
+        label: 'Platform Promo (AdVANTAGEOUS promotional cards)',
+        subcategories: []
+    },
+    {
+        value: 'Other',
+        label: 'Other (Not listed above - enter your own)',
+        subcategories: []
+    },
+    {
+        value: 'Prefer Not to List',
+        label: 'Prefer Not to List',
+        subcategories: []
+    }
+]
+
 export default function PromoCardsPage() {
     const { currentTheme } = useTheme()
     const [cards, setCards] = useState([])
@@ -68,11 +174,18 @@ export default function PromoCardsPage() {
 
     // Template card form
     const [showTemplateForm, setShowTemplateForm] = useState(false)
+    const [editingCardId, setEditingCardId] = useState(null) // Track if we're editing
     const [templateForm, setTemplateForm] = useState({
         title: '',
         message: '',
         card_color: '#4F46E5',
-        text_color: '#FFFFFF'
+        text_color: '#FFFFFF',
+        city: '',
+        state: '',
+        business_category: '',
+        business_subcategory: [],
+        custom_category: '',
+        custom_subcategory: ''
     })
 
     // Settings
@@ -220,33 +333,144 @@ export default function PromoCardsPage() {
         }
     }
 
-    const createTemplateCard = async () => {
+    const handleCategoryChange = (e) => {
+        const newCategory = e.target.value
+        setTemplateForm({
+            ...templateForm,
+            business_category: newCategory,
+            business_subcategory: [],
+            custom_category: '',
+            custom_subcategory: ''
+        })
+    }
+
+    const handleSubcategoryChange = (subcategory) => {
+        const current = templateForm.business_subcategory || []
+
+        if (current.includes(subcategory)) {
+            setTemplateForm({
+                ...templateForm,
+                business_subcategory: current.filter(s => s !== subcategory),
+                custom_subcategory: subcategory === 'Other' ? '' : templateForm.custom_subcategory
+            })
+        } else {
+            if (current.length >= 3) {
+                setMessage({ type: 'error', text: 'You can select up to 3 subcategories maximum.' })
+                setTimeout(() => setMessage(null), 3000)
+                return
+            }
+            setTemplateForm({
+                ...templateForm,
+                business_subcategory: [...current, subcategory]
+            })
+        }
+    }
+
+    const getSelectedCategoryData = () => {
+        return CATEGORIES.find(c => c.value === templateForm.business_category)
+    }
+
+    const resetTemplateForm = () => {
+        setTemplateForm({
+            title: '',
+            message: '',
+            card_color: '#4F46E5',
+            text_color: '#FFFFFF',
+            city: '',
+            state: '',
+            business_category: '',
+            business_subcategory: [],
+            custom_category: '',
+            custom_subcategory: ''
+        })
+        setEditingCardId(null)
+        setShowTemplateForm(false)
+    }
+
+    const openEditForm = (card) => {
+        // Check if category is a known value or custom
+        const knownCategory = CATEGORIES.find(c => c.value === card.business_category)
+
+        setTemplateForm({
+            title: card.title || '',
+            message: card.message || '',
+            card_color: card.card_color || '#4F46E5',
+            text_color: card.text_color || '#FFFFFF',
+            city: card.city || '',
+            state: card.state || '',
+            business_category: knownCategory ? card.business_category : (card.business_category ? 'Other' : ''),
+            business_subcategory: card.business_subcategory || [],
+            custom_category: knownCategory ? '' : (card.business_category || ''),
+            custom_subcategory: ''
+        })
+        setEditingCardId(card.id)
+        setShowTemplateForm(true)
+    }
+
+    const createOrUpdateCard = async () => {
         if (!templateForm.title.trim()) {
             setMessage({ type: 'error', text: 'Title is required' })
             return
         }
 
+        if (!templateForm.business_category) {
+            setMessage({ type: 'error', text: 'Business Category is required' })
+            return
+        }
+
         try {
-            const { error } = await supabase
-                .from('business_cards')
-                .insert([{
-                    title: templateForm.title,
-                    message: templateForm.message,
-                    card_type: 'template',
-                    card_color: templateForm.card_color,
-                    text_color: templateForm.text_color,
-                    is_house_card: true
-                }])
+            // Determine final category and subcategory values
+            const finalCategory = templateForm.business_category === 'Other'
+                ? templateForm.custom_category
+                : templateForm.business_category
 
-            if (error) throw error
+            let finalSubcategory = [...(templateForm.business_subcategory || [])]
+            if (finalSubcategory.includes('Other') && templateForm.custom_subcategory) {
+                finalSubcategory = finalSubcategory.map(s =>
+                    s === 'Other' ? templateForm.custom_subcategory : s
+                )
+            }
 
-            setMessage({ type: 'success', text: 'Promo card created!' })
-            setTemplateForm({ title: '', message: '', card_color: '#4F46E5', text_color: '#FFFFFF' })
-            setShowTemplateForm(false)
+            const cardData = {
+                title: templateForm.title,
+                message: templateForm.message,
+                card_color: templateForm.card_color,
+                text_color: templateForm.text_color,
+                city: templateForm.city || '',
+                state: templateForm.state || '',
+                business_category: finalCategory || '',
+                business_subcategory: finalSubcategory.length > 0 ? finalSubcategory : null,
+                updated_at: new Date().toISOString()
+            }
+
+            if (editingCardId) {
+                // Update existing card
+                const { error } = await supabase
+                    .from('business_cards')
+                    .update(cardData)
+                    .eq('id', editingCardId)
+
+                if (error) throw error
+                setMessage({ type: 'success', text: 'Card updated!' })
+            } else {
+                // Create new card
+                const { error } = await supabase
+                    .from('business_cards')
+                    .insert([{
+                        ...cardData,
+                        card_type: 'template',
+                        is_house_card: true
+                    }])
+
+                if (error) throw error
+                setMessage({ type: 'success', text: 'Promo card created!' })
+            }
+
+            resetTemplateForm()
             loadCards()
         } catch (error) {
-            console.error('Error creating card:', error)
-            setMessage({ type: 'error', text: 'Failed to create card' })
+            console.error('Error saving card:', error)
+            setMessage({ type: 'error', text: 'Failed to save card' })
         }
     }
 
@@ -424,7 +648,13 @@ export default function PromoCardsPage() {
                     </label>
 
                     <button
-                        onClick={() => setShowTemplateForm(!showTemplateForm)}
+                        onClick={() => {
+                            if (showTemplateForm) {
+                                resetTemplateForm()
+                            } else {
+                                setShowTemplateForm(true)
+                            }
+                        }}
                         className={`px-3 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-500`}
                     >
                         🎨 {showTemplateForm ? 'Cancel' : 'Template Card'}
@@ -439,6 +669,15 @@ export default function PromoCardsPage() {
                 {/* Template Form */}
                 {showTemplateForm && (
                     <div className={`mt-3 p-3 bg-${currentTheme.bg} rounded-lg border border-${currentTheme.border}`}>
+
+                        {/* Editing indicator */}
+                        {editingCardId && (
+                            <div className="mb-3 p-2 bg-amber-500/20 border border-amber-500 rounded-lg">
+                                <p className="text-amber-500 text-xs font-bold">✏️ Editing existing card</p>
+                            </div>
+                        )}
+
+                        {/* Basic Info */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                                 <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Title *</label>
@@ -461,40 +700,164 @@ export default function PromoCardsPage() {
                                     placeholder="Optional message"
                                 />
                             </div>
+                        </div>
 
-                            <div>
-                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Background</label>
-                                <div className="flex flex-wrap gap-1">
-                                    {BG_COLORS.map(color => (
-                                        <button
-                                            key={color.value}
-                                            onClick={() => setTemplateForm(prev => ({ ...prev, card_color: color.value }))}
-                                            className={`w-5 h-5 rounded border-2 ${templateForm.card_color === color.value ? 'border-white' : 'border-transparent'}`}
-                                            style={{ backgroundColor: color.value }}
-                                            title={color.label}
-                                        />
-                                    ))}
+                        {/* Business Type Section */}
+                        <div className={`mt-4 pt-3 border-t border-${currentTheme.border}`}>
+                            <p className={`text-${currentTheme.accent} font-semibold text-xs mb-2`}>📁 Business Type</p>
+
+                            <div className={`bg-${currentTheme.card}/50 p-2 rounded-lg border border-${currentTheme.border}`}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Business Category *</label>
+                                        <select
+                                            value={templateForm.business_category}
+                                            onChange={handleCategoryChange}
+                                            className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                        >
+                                            <option value="">Select Category *</option>
+                                            {CATEGORIES.map(cat => (
+                                                <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {templateForm.business_category === 'Other' && (
+                                        <div>
+                                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Enter Your Category *</label>
+                                            <input
+                                                type="text"
+                                                value={templateForm.custom_category}
+                                                onChange={(e) => setTemplateForm(prev => ({ ...prev, custom_category: e.target.value }))}
+                                                className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                                placeholder="e.g. Mobile Car Wash"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
-                                <div className="flex flex-wrap gap-1">
-                                    {TEXT_COLORS.map(color => (
-                                        <button
-                                            key={color.value}
-                                            onClick={() => setTemplateForm(prev => ({ ...prev, text_color: color.value }))}
-                                            className={`w-5 h-5 rounded border-2 ${templateForm.text_color === color.value ? 'border-blue-500' : 'border-gray-400'}`}
-                                            style={{ backgroundColor: color.value }}
-                                            title={color.label}
+                                {/* Subcategory Checkboxes */}
+                                {templateForm.business_category &&
+                                    templateForm.business_category !== 'Other' &&
+                                    templateForm.business_category !== 'Prefer Not to List' &&
+                                    templateForm.business_category !== 'Platform Promo' &&
+                                    getSelectedCategoryData()?.subcategories?.length > 0 && (
+                                        <div className="mt-3">
+                                            <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-2`}>
+                                                Services / Subcategories <span className="text-slate-500">(select up to 3)</span>
+                                            </label>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+                                                {getSelectedCategoryData().subcategories.map(sub => (
+                                                    <label
+                                                        key={sub}
+                                                        className={`flex items-center gap-1.5 p-1.5 rounded cursor-pointer transition-all text-xs ${templateForm.business_subcategory?.includes(sub)
+                                                                ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}`
+                                                                : `bg-${currentTheme.card} border border-${currentTheme.border} hover:border-slate-500`
+                                                            }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={templateForm.business_subcategory?.includes(sub) || false}
+                                                            onChange={() => handleSubcategoryChange(sub)}
+                                                            className="w-3 h-3 accent-amber-500"
+                                                        />
+                                                        <span className={`text-${currentTheme.text}`}>{sub}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <p className={`text-xs text-${currentTheme.textMuted} mt-1`}>
+                                                {templateForm.business_subcategory?.length || 0}/3 selected
+                                            </p>
+                                        </div>
+                                    )}
+
+                                {/* Custom Subcategory Input */}
+                                {templateForm.business_subcategory?.includes('Other') && (
+                                    <div className="mt-2">
+                                        <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Enter Your Service</label>
+                                        <input
+                                            type="text"
+                                            value={templateForm.custom_subcategory}
+                                            onChange={(e) => setTemplateForm(prev => ({ ...prev, custom_subcategory: e.target.value }))}
+                                            className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                            placeholder="e.g. Window Cleaning"
                                         />
-                                    ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Location Section */}
+                        <div className={`mt-4 pt-3 border-t border-${currentTheme.border}`}>
+                            <p className={`text-${currentTheme.accent} font-semibold text-xs mb-2`}>📍 Location</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>City <span className="text-slate-500">(optional)</span></label>
+                                    <input
+                                        type="text"
+                                        value={templateForm.city}
+                                        onChange={(e) => setTemplateForm(prev => ({ ...prev, city: e.target.value }))}
+                                        className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                        placeholder="e.g. Dallas"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>State <span className="text-slate-500">(optional)</span></label>
+                                    <select
+                                        value={templateForm.state}
+                                        onChange={(e) => setTemplateForm(prev => ({ ...prev, state: e.target.value }))}
+                                        className={`w-full px-2 py-1.5 bg-${currentTheme.card} border border-${currentTheme.border} rounded text-${currentTheme.text} text-sm`}
+                                    >
+                                        <option value="">Select State</option>
+                                        {US_STATES.map(state => (
+                                            <option key={state} value={state}>{state}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Preview */}
-                        <div className="mt-3 flex items-center gap-3">
+                        {/* Appearance Section */}
+                        <div className={`mt-4 pt-3 border-t border-${currentTheme.border}`}>
+                            <p className={`text-${currentTheme.accent} font-semibold text-xs mb-2`}>🎨 Appearance</p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Background</label>
+                                    <div className="flex flex-wrap gap-1">
+                                        {BG_COLORS.map(color => (
+                                            <button
+                                                key={color.value}
+                                                onClick={() => setTemplateForm(prev => ({ ...prev, card_color: color.value }))}
+                                                className={`w-5 h-5 rounded border-2 ${templateForm.card_color === color.value ? 'border-white' : 'border-transparent'}`}
+                                                style={{ backgroundColor: color.value }}
+                                                title={color.label}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className={`block text-xs font-medium text-${currentTheme.textMuted} mb-1`}>Text Color</label>
+                                    <div className="flex flex-wrap gap-1">
+                                        {TEXT_COLORS.map(color => (
+                                            <button
+                                                key={color.value}
+                                                onClick={() => setTemplateForm(prev => ({ ...prev, text_color: color.value }))}
+                                                className={`w-5 h-5 rounded border-2 ${templateForm.text_color === color.value ? 'border-blue-500' : 'border-gray-400'}`}
+                                                style={{ backgroundColor: color.value }}
+                                                title={color.label}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Preview & Actions */}
+                        <div className="mt-4 flex items-center gap-3">
                             <div
                                 className="w-36 h-20 rounded-lg flex flex-col items-center justify-center p-2"
                                 style={{ backgroundColor: templateForm.card_color }}
@@ -510,13 +873,13 @@ export default function PromoCardsPage() {
                             </div>
                             <div className="flex gap-2">
                                 <button
-                                    onClick={createTemplateCard}
+                                    onClick={createOrUpdateCard}
                                     className={`px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-500`}
                                 >
-                                    Create Card
+                                    {editingCardId ? 'Update Card' : 'Create Card'}
                                 </button>
                                 <button
-                                    onClick={() => setShowTemplateForm(false)}
+                                    onClick={resetTemplateForm}
                                     className={`px-3 py-1.5 bg-slate-600 text-white rounded text-xs font-medium hover:bg-slate-500`}
                                 >
                                     Cancel
@@ -576,6 +939,13 @@ export default function PromoCardsPage() {
                                         title="Preview"
                                     >
                                         👁️
+                                    </button>
+                                    <button
+                                        onClick={() => openEditForm(card)}
+                                        className="p-1.5 bg-amber-500 text-white rounded hover:bg-amber-400 text-xs"
+                                        title="Edit Card"
+                                    >
+                                        ✏️
                                     </button>
                                     <button
                                         onClick={() => openPopupEditor(card)}
@@ -836,6 +1206,13 @@ export default function PromoCardsPage() {
                                 {previewCard.card_type === 'uploaded' ? 'Uploaded Image' : 'Template Card'}
                                 {previewCard.has_popup && ' • Has Popup'}
                             </p>
+                            {(previewCard.city || previewCard.state || previewCard.business_category) && (
+                                <p className="text-gray-500 text-xs mt-1">
+                                    {previewCard.business_category && <span>{previewCard.business_category}</span>}
+                                    {previewCard.city && <span> • {previewCard.city}</span>}
+                                    {previewCard.state && <span>, {previewCard.state}</span>}
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>
