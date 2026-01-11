@@ -25,7 +25,13 @@ function CardsContent() {
         email: '',
         website_url: '',
         card_color: '#4F46E5',
-        text_color: '#FFFFFF'
+        text_color: '#FFFFFF',
+        city: '',
+        state: '',
+        business_category: '',
+        business_subcategory: [],
+        custom_category: '',
+        custom_subcategory: ''
     })
     const [imageFile, setImageFile] = useState(null)
     const [imagePreview, setImagePreview] = useState(null)
@@ -62,6 +68,107 @@ function CardsContent() {
         { name: 'Black', value: '#1F2937' },
         { name: 'Yellow', value: '#FDE047' },
         { name: 'Light Gray', value: '#E5E7EB' },
+    ]
+
+    const US_STATES = [
+        'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+        'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+        'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+        'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+        'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY', 'DC'
+    ]
+
+    const CATEGORIES = [
+        {
+            value: 'Home Services',
+            label: 'Home Services (Plumbing, HVAC, Cleaning, etc.)',
+            subcategories: ['Plumbing', 'Electrical', 'HVAC', 'Cleaning', 'Landscaping', 'Lawn Care', 'Tree Trimming', 'Pest Control', 'Other']
+        },
+        {
+            value: 'Handyman',
+            label: 'Handyman (Repairs, Painting, Pressure Washing, etc.)',
+            subcategories: ['General Repairs', 'Furniture Assembly', 'Drywall / Patching', 'Painting', 'Mounting & Installation', 'Pressure Washing', 'Gutter Cleaning', 'Other']
+        },
+        {
+            value: 'Restaurant / Food',
+            label: 'Restaurant / Food (Restaurants, Cafes, Catering, etc.)',
+            subcategories: ['Restaurants', 'Cafes', 'Bakeries', 'Catering', 'Food Trucks', 'Other']
+        },
+        {
+            value: 'Retail / Shopping',
+            label: 'Retail / Shopping (Clothing, Furniture, Gift Shops, etc.)',
+            subcategories: ['Clothing', 'Furniture', 'Gift Shops', 'Hardware Stores', 'Other']
+        },
+        {
+            value: 'Professional Services',
+            label: 'Professional Services (Accounting, Consulting, Marketing, etc.)',
+            subcategories: ['Accounting', 'Consulting', 'Marketing', 'IT Support', 'Photography', 'Other']
+        },
+        {
+            value: 'Health & Wellness',
+            label: 'Health & Wellness (Doctors, Dentists, Therapy, etc.)',
+            subcategories: ['Doctors', 'Dentists', 'Chiropractors', 'Therapy', 'Massage', 'Other']
+        },
+        {
+            value: 'Automotive',
+            label: 'Automotive (Mechanics, Detailing, Towing, etc.)',
+            subcategories: ['Mechanics', 'Car Dealers', 'Detailing', 'Towing', 'Oil Change', 'Other']
+        },
+        {
+            value: 'Real Estate',
+            label: 'Real Estate (Realtors, Mortgage, Home Inspection, etc.)',
+            subcategories: ['Realtors', 'Property Management', 'Mortgage', 'Home Inspection', 'Other']
+        },
+        {
+            value: 'Entertainment',
+            label: 'Entertainment (Event Venues, DJs, Musicians, etc.)',
+            subcategories: ['Event Venues', 'DJs', 'Musicians', 'Party Rentals', 'Other']
+        },
+        {
+            value: 'Beauty / Salon',
+            label: 'Beauty / Salon (Hair Salons, Barbers, Spas, etc.)',
+            subcategories: ['Hair Salons', 'Barbers', 'Nail Salons', 'Spas', 'Makeup Artists', 'Other']
+        },
+        {
+            value: 'Fitness',
+            label: 'Fitness (Gyms, Personal Trainers, Yoga, etc.)',
+            subcategories: ['Gyms', 'Personal Trainers', 'Yoga Studios', 'Sports Coaching', 'Other']
+        },
+        {
+            value: 'Legal',
+            label: 'Legal (Lawyers, Notary, Mediation, etc.)',
+            subcategories: ['Lawyers', 'Notary', 'Mediation', 'Other']
+        },
+        {
+            value: 'Financial',
+            label: 'Financial (Banks, Insurance, Financial Advisors, etc.)',
+            subcategories: ['Banks', 'Insurance', 'Financial Advisors', 'Tax Prep', 'Other']
+        },
+        {
+            value: 'Technology',
+            label: 'Technology (Software, Web Design, Computer Repair, etc.)',
+            subcategories: ['Software', 'Web Design', 'Computer Repair', 'App Development', 'Other']
+        },
+        {
+            value: 'Education',
+            label: 'Education (Tutoring, Schools, Music Lessons, etc.)',
+            subcategories: ['Tutoring', 'Schools', 'Training Centers', 'Music Lessons', 'Other']
+        },
+        {
+            value: 'Pet Services',
+            label: 'Pet Services (Veterinarians, Groomers, Pet Sitting, etc.)',
+            subcategories: ['Veterinarians', 'Groomers', 'Pet Sitting', 'Dog Training', 'Other']
+        },
+        {
+            value: 'Other',
+            label: 'Other (Not listed above - enter your own)',
+            subcategories: []
+        },
+        {
+            value: 'Prefer Not to List',
+            label: 'Prefer Not to List',
+            subcategories: []
+        }
     ]
 
     useEffect(() => {
@@ -130,6 +237,40 @@ function CardsContent() {
             ...formData,
             [e.target.name]: e.target.value
         })
+    }
+
+    const handleCategoryChange = (e) => {
+        const newCategory = e.target.value
+        setFormData({
+            ...formData,
+            business_category: newCategory,
+            business_subcategory: [],
+            custom_category: '',
+            custom_subcategory: ''
+        })
+    }
+
+    const handleSubcategoryChange = (subcategory) => {
+        const current = formData.business_subcategory || []
+
+        if (current.includes(subcategory)) {
+            // Remove it
+            setFormData({
+                ...formData,
+                business_subcategory: current.filter(s => s !== subcategory),
+                custom_subcategory: subcategory === 'Other' ? '' : formData.custom_subcategory
+            })
+        } else {
+            // Add it (max 3)
+            if (current.length >= 3) {
+                alert('You can select up to 3 subcategories maximum.')
+                return
+            }
+            setFormData({
+                ...formData,
+                business_subcategory: [...current, subcategory]
+            })
+        }
     }
 
     const formatPhone = (value) => {
@@ -367,6 +508,13 @@ function CardsContent() {
         setUploading(true)
 
         try {
+            // Validate required category
+            if (!formData.business_category) {
+                alert('Please select a Business Category')
+                setUploading(false)
+                return
+            }
+
             let imageUrl = ''
 
             if (cardType === 'uploaded') {
@@ -376,6 +524,19 @@ function CardsContent() {
                     return
                 }
                 imageUrl = await uploadImage()
+            }
+
+            // Determine final category and subcategory values
+            const finalCategory = formData.business_category === 'Other'
+                ? formData.custom_category
+                : formData.business_category
+
+            // Build subcategory array, replacing 'Other' with custom value if present
+            let finalSubcategory = [...(formData.business_subcategory || [])]
+            if (finalSubcategory.includes('Other') && formData.custom_subcategory) {
+                finalSubcategory = finalSubcategory.map(s =>
+                    s === 'Other' ? formData.custom_subcategory : s
+                )
             }
 
             const { data, error } = await supabase
@@ -395,7 +556,11 @@ function CardsContent() {
                     card_color: formData.card_color,
                     text_color: formData.text_color,
                     image_url: imageUrl || '',
-                    image_rotation: cardType === 'uploaded' ? imageRotation : 0
+                    image_rotation: cardType === 'uploaded' ? imageRotation : 0,
+                    city: formData.city || '',
+                    state: formData.state || '',
+                    business_category: finalCategory || '',
+                    business_subcategory: finalSubcategory.length > 0 ? finalSubcategory : null
                 }])
                 .select()
 
@@ -432,7 +597,13 @@ function CardsContent() {
             email: '',
             website_url: '',
             card_color: '#4F46E5',
-            text_color: '#FFFFFF'
+            text_color: '#FFFFFF',
+            city: '',
+            state: '',
+            business_category: '',
+            business_subcategory: [],
+            custom_category: '',
+            custom_subcategory: ''
         })
         setImageFile(null)
         setImagePreview(null)
@@ -478,6 +649,10 @@ function CardsContent() {
         if (length >= maxLength) return minSize
         const ratio = (length - maxLength * 0.5) / (maxLength * 0.5)
         return maxSize - (ratio * (maxSize - minSize))
+    }
+
+    const getSelectedCategoryData = () => {
+        return CATEGORIES.find(c => c.value === formData.business_category)
     }
 
     const maxCards = (userData?.is_admin || userData?.is_super_admin) ? 25 : 5
@@ -735,6 +910,104 @@ function CardsContent() {
                                     />
                                 </div>
 
+                                {/* Business Type Section */}
+                                <div className="pt-4 mt-2 border-t border-slate-600">
+                                    <p className="text-amber-500 font-semibold text-sm mb-3">📁 Business Type</p>
+                                </div>
+
+                                {/* Business Category - REQUIRED, moved up */}
+                                <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600">
+                                    <label className="block text-sm font-medium text-slate-400 mb-1">
+                                        Business Category * <span className="text-xs text-slate-500">(helps users find you)</span>
+                                    </label>
+                                    <select
+                                        name="business_category"
+                                        required
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                        value={formData.business_category || ''}
+                                        onChange={handleCategoryChange}
+                                    >
+                                        <option value="">Select Category *</option>
+                                        {CATEGORIES.map(cat => (
+                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Custom Category Input (if Other selected) */}
+                                {formData.business_category === 'Other' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">
+                                            Enter Your Category *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="custom_category"
+                                            required
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            placeholder="e.g. Mobile Car Wash"
+                                            value={formData.custom_category || ''}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Subcategory Checkboxes - shown for categories with subcategories */}
+                                {formData.business_category &&
+                                    formData.business_category !== 'Other' &&
+                                    formData.business_category !== 'Prefer Not to List' &&
+                                    getSelectedCategoryData()?.subcategories?.length > 0 && (
+                                        <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600">
+                                            <label className="block text-sm font-medium text-slate-400 mb-2">
+                                                Services / Subcategories <span className="text-xs text-slate-500">(select up to 3)</span>
+                                            </label>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                                {getSelectedCategoryData().subcategories.map(sub => (
+                                                    <label
+                                                        key={sub}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all ${formData.business_subcategory?.includes(sub)
+                                                            ? 'bg-amber-500/20 border border-amber-500'
+                                                            : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
+                                                            }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.business_subcategory?.includes(sub) || false}
+                                                            onChange={() => handleSubcategoryChange(sub)}
+                                                            className="w-4 h-4 accent-amber-500"
+                                                        />
+                                                        <span className="text-sm text-white">{sub}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-2">
+                                                {formData.business_subcategory?.length || 0}/3 selected
+                                            </p>
+                                        </div>
+                                    )}
+
+                                {/* Custom Subcategory Input (if Other selected in subcategories) */}
+                                {formData.business_subcategory?.includes('Other') && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">
+                                            Enter Your Service/Subcategory
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="custom_subcategory"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            placeholder="e.g. Window Cleaning"
+                                            value={formData.custom_subcategory || ''}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Card Details Section */}
+                                <div className="pt-4 mt-2 border-t border-slate-600">
+                                    <p className="text-amber-500 font-semibold text-sm mb-3">📋 Card Details</p>
+                                </div>
+
                                 {/* Upload Image Fields - hidden when template selected */}
                                 <div className={cardType === 'uploaded' ? 'space-y-4' : 'hidden'}>
                                     <div>
@@ -848,6 +1121,50 @@ function CardsContent() {
                                     <p className="text-xs text-slate-500 mt-1">
                                         Just enter your domain - we'll add https:// automatically
                                     </p>
+                                </div>
+
+                                {/* Location Section */}
+                                <div className="pt-4 mt-2 border-t border-slate-600">
+                                    <p className="text-amber-500 font-semibold text-sm mb-3">📍 Location</p>
+                                </div>
+
+                                {/* Location Fields - City & State */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">
+                                            City <span className="text-xs text-slate-500">(optional)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="city"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            placeholder="e.g. Dallas"
+                                            value={formData.city || ''}
+                                            onChange={handleChange}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">
+                                            State <span className="text-xs text-slate-500">(optional)</span>
+                                        </label>
+                                        <select
+                                            name="state"
+                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
+                                            value={formData.state || ''}
+                                            onChange={handleChange}
+                                        >
+                                            <option value="">Select State</option>
+                                            {US_STATES.map(state => (
+                                                <option key={state} value={state}>{state}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Appearance Section */}
+                                <div className="pt-4 mt-2 border-t border-slate-600">
+                                    <p className="text-amber-500 font-semibold text-sm mb-3">🎨 Appearance</p>
                                 </div>
 
                                 <div>
