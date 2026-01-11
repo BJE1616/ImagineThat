@@ -15,7 +15,6 @@ const TIPS = {
     daily_bb_cap: "Maximum tokens a user can earn from this game per day. Prevents abuse and controls inflation.",
     daily_play_cap: "Maximum plays allowed per day. Leave blank for unlimited plays.",
     free_plays_per_day: "Free plays given to each user daily. Only applies to slot machines.",
-    win_percentage: "Return to player percentage. Higher = players win more often. 85-95% is typical for slots.",
     is_enabled: "Turn this game on or off. Disabled games won't award tokens.",
     entry_award_chance: "Probability of earning a drawing entry per unique daily view. 30% = 30% chance per view. Only applies to Card Gallery.",
     lucky_view_chance: "The % chance a user wins SOMETHING (token or entry) each time they view a unique card. Example: 40% means roughly 4 out of 10 card views will win a prize.",
@@ -44,13 +43,7 @@ const getWarnings = (game) => {
         warnings.push({ field: 'free_plays_per_day', message: 'High free plays increases token giveaway' })
     }
 
-    if (game.win_percentage !== null && game.win_percentage > 95) {
-        warnings.push({ field: 'win_percentage', message: 'Very high RTP may not be sustainable' })
-    }
 
-    if (game.win_percentage !== null && game.win_percentage < 80) {
-        warnings.push({ field: 'win_percentage', message: 'Low RTP may frustrate players' })
-    }
 
     // Card Gallery specific warnings
     if (game.game_key === 'card_gallery') {
@@ -433,29 +426,7 @@ export default function TokenSettingsPage() {
                                         )}
                                     </div>
 
-                                    {/* ----- Slot Machine Extra Settings ----- */}
-                                    {game.game_key.includes('slot_machine') && (
-                                        <div className="mt-2 pt-2 border-t border-slate-700">
-                                            <p className="text-slate-400 text-[10px] mb-1 font-medium">Slot Machine Settings</p>
-                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                                                <div>
-                                                    <label className="block text-slate-400 text-[10px] mb-0.5">
-                                                        <Tooltip text={TIPS.win_percentage}>Win % (RTP)</Tooltip>
-                                                    </label>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        max="100"
-                                                        step="0.1"
-                                                        value={game.win_percentage ?? ''}
-                                                        onChange={(e) => handleInputChange(game.id, 'win_percentage', e.target.value, true)}
-                                                        onBlur={(e) => handleBlur(game.id, 'win_percentage', e.target.value, true)}
-                                                        className={`w-full px-2 py-1 bg-slate-700 border rounded text-white text-xs focus:outline-none focus:border-yellow-500 ${getFieldWarning(game, 'win_percentage') ? 'border-yellow-500/50' : 'border-slate-600'}`}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
+
 
                                     {saving === game.id && (
                                         <div className="mt-1 text-yellow-500 text-xs">Saving...</div>
