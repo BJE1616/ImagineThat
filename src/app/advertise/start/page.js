@@ -444,35 +444,6 @@ export default function AdvertisePage() {
                 })
                 .eq('id', user.id)
 
-            const { data: existingCampaigns } = await supabase
-                .from('ad_campaigns')
-                .select('id')
-                .eq('user_id', user.id)
-                .in('status', ['active', 'queued'])
-
-            const hasExisting = existingCampaigns && existingCampaigns.length > 0
-            const newStatus = hasExisting ? 'queued' : 'active'
-
-            const { data: campaign, error: campaignError } = await supabase
-                .from('ad_campaigns')
-                .insert([{
-                    user_id: user.id,
-                    business_card_id: selectedCardId,
-                    payment_method: paymentMethod,
-                    amount_paid: parseInt(settings.ad_price),
-                    views_guaranteed: parseInt(settings.guaranteed_views),
-                    views_from_game: 0,
-                    views_from_flips: 0,
-                    bonus_views: 0,
-                    status: newStatus
-                }])
-                .select()
-                .single()
-
-            if (campaignError) throw campaignError
-
-            setCampaignId(campaign.id)
-
             // Log terms acceptance
             if (termsDocId && termsVersion) {
                 try {
@@ -483,14 +454,61 @@ export default function AdvertisePage() {
                             document_id: termsDocId,
                             document_key: 'advertiser_terms',
                             version_accepted: termsVersion,
-                            ip_address: null // Could be captured if needed
+                            ip_address: null
                         }])
                 } catch (termsError) {
                     console.error('Terms acceptance log error:', termsError)
                 }
             }
 
-            // Send receipt email for all purchases
+            // ===== STRIPE PAYMENT =====
+            if (paymentMethod === 'stripe') {
+                const response = await fetch('/api/stripe/advertiser-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        cardId: selectedCardId,
+                        amount: settings.ad_price,
+                        guaranteedViews: settings.guaranteed_views
+                    })
+                })
+
+                const data = await response.json()
+
+                if (data.error) {
+                    throw new Error(data.error)
+                }
+
+                // Redirect to Stripe checkout
+                window.location.href = data.url
+                return
+            }
+
+            // ===== VENMO / CASHAPP PAYMENT =====
+            // Campaign stays pending until manually verified
+            const { data: campaign, error: campaignError } = await supabase
+                .from('ad_campaigns')
+                .insert([{
+                    user_id: user.id,
+                    business_card_id: selectedCardId,
+                    payment_method: paymentMethod,
+                    payment_handle: paymentHandle,
+                    amount_paid: parseInt(settings.ad_price),
+                    views_guaranteed: parseInt(settings.guaranteed_views),
+                    views_from_game: 0,
+                    views_from_flips: 0,
+                    bonus_views: 0,
+                    status: 'pending'
+                }])
+                .select()
+                .single()
+
+            if (campaignError) throw campaignError
+
+            setCampaignId(campaign.id)
+
+            // Send receipt email
             try {
                 await fetch('/api/send-email', {
                     method: 'POST',
@@ -511,25 +529,6 @@ export default function AdvertisePage() {
                 })
             } catch (emailError) {
                 console.error('Ad campaign receipt email error:', emailError)
-            }
-
-            if (newStatus === 'active') {
-                try {
-                    await fetch('/api/send-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            type: 'campaign_activated',
-                            to: userData.email,
-                            data: {
-                                username: userData.username,
-                                views: parseInt(settings.guaranteed_views)
-                            }
-                        })
-                    })
-                } catch (emailError) {
-                    console.error('Campaign activated email error:', emailError)
-                }
             }
 
             setStep(5) // Go to matrix choice
