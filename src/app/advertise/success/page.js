@@ -9,6 +9,7 @@ function SuccessContent() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
     const [campaign, setCampaign] = useState(null)
+    const [matrixPayout, setMatrixPayout] = useState('200')
 
     useEffect(() => {
         const campaignId = searchParams.get('campaign_id')
@@ -17,7 +18,19 @@ function SuccessContent() {
         } else {
             setLoading(false)
         }
+        fetchMatrixPayout()
     }, [searchParams])
+
+    const fetchMatrixPayout = async () => {
+        const { data } = await supabase
+            .from('admin_settings')
+            .select('setting_value')
+            .eq('setting_key', 'matrix_payout')
+            .single()
+        if (data?.setting_value) {
+            setMatrixPayout(data.setting_value)
+        }
+    }
 
     const loadCampaign = async (id) => {
         const { data } = await supabase
@@ -49,12 +62,28 @@ function SuccessContent() {
                         ? 'Your ad campaign is now live!'
                         : 'Your campaign is queued and will go live soon.'}
                 </p>
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    className="px-6 py-3 bg-yellow-500 text-slate-900 font-bold rounded-lg hover:bg-yellow-400"
-                >
-                    Go to Dashboard
-                </button>
+
+                {/* Matrix Promo Section */}
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+                    <h2 className="text-xl font-bold text-yellow-400 mb-2">Want to earn ${matrixPayout}?</h2>
+                    <p className="text-slate-400 text-sm mb-4">
+                        Join our free referral program! Help 6 other businesses advertise and earn ${matrixPayout} cash back.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500"
+                        >
+                            Yes, tell me more
+                        </button>
+                        <button
+                            onClick={() => router.push('/dashboard')}
+                            className="px-6 py-3 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600"
+                        >
+                            No thanks, go to Dashboard
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     )
