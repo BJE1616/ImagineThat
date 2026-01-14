@@ -24,6 +24,7 @@ export default function DashboardPage() {
     const [showJoinMatrix, setShowJoinMatrix] = useState(false)
     const [referredBy, setReferredBy] = useState('')
     const [referralError, setReferralError] = useState(null)
+    const [referrerFound, setReferrerFound] = useState(null)
     const [joiningMatrix, setJoiningMatrix] = useState(false)
     const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [bonusHistory, setBonusHistory] = useState([])
@@ -55,6 +56,36 @@ export default function DashboardPage() {
     useEffect(() => {
         checkUser()
     }, [])
+
+    // Live referrer lookup
+    useEffect(() => {
+        const lookupReferrer = async () => {
+            if (!referredBy.trim()) {
+                setReferrerFound(null)
+                return
+            }
+
+            try {
+                const { data: users } = await supabase
+                    .from('users')
+                    .select('username')
+                    .ilike('username', referredBy.trim())
+                    .limit(1)
+
+                if (users && users.length > 0) {
+                    setReferrerFound(users[0].username)
+                    setReferralError(null)
+                } else {
+                    setReferrerFound(null)
+                }
+            } catch (error) {
+                console.error('Error looking up referrer:', error)
+            }
+        }
+
+        const timeoutId = setTimeout(lookupReferrer, 500)
+        return () => clearTimeout(timeoutId)
+    }, [referredBy])
 
     const checkUser = async () => {
         try {
@@ -1371,6 +1402,7 @@ export default function DashboardPage() {
                                 onChange={(e) => {
                                     setReferredBy(e.target.value)
                                     setReferralError(null)
+                                    setReferrerFound(null)
                                 }}
                                 className={`w-full px-2 py-1.5 bg-${currentTheme.border} border rounded-lg text-${currentTheme.text} text-sm placeholder-${currentTheme.textMuted} focus:outline-none focus:ring-2 focus:ring-${currentTheme.accent} ${referralError ? 'border-red-500' : `border-${currentTheme.border}`
                                     }`}
@@ -1379,6 +1411,16 @@ export default function DashboardPage() {
                             {referralError && (
                                 <p className="text-red-400 text-xs mt-1">
                                     ✗ {referralError}
+                                </p>
+                            )}
+                            {referrerFound && !referralError && (
+                                <p className="text-green-400 text-xs mt-1">
+                                    ✓ {referrerFound} found!
+                                </p>
+                            )}
+                            {referredBy.trim() && !referrerFound && !referralError && (
+                                <p className="text-yellow-400 text-xs mt-1">
+                                    Checking...
                                 </p>
                             )}
                         </div>
