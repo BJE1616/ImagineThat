@@ -11,27 +11,32 @@ function CardsContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const returnTo = searchParams.get('returnTo')
+    const editCardId = searchParams.get('editCard')
     const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [cards, setCards] = useState([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
+    const [editingCardId, setEditingCardId] = useState(null)
     const [cardType, setCardType] = useState('template')
     const [formData, setFormData] = useState({
-        display_name: '',
         full_business_name: '',
-        tagline: '',
-        phone: '',
-        email: '',
-        website_url: '',
-        card_color: '#4F46E5',
-        text_color: '#FFFFFF',
-        city: '',
-        state: '',
         business_category: '',
         business_subcategory: [],
         custom_category: '',
-        custom_subcategory: ''
+        custom_subcategory: '',
+        tagline: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        phone: '',
+        email: '',
+        website_url: '',
+        display_name: '',
+        short_tagline: '',
+        card_color: '#4F46E5',
+        text_color: '#FFFFFF'
     })
     const [imageFile, setImageFile] = useState(null)
     const [imagePreview, setImagePreview] = useState(null)
@@ -175,6 +180,16 @@ function CardsContent() {
         checkUser()
     }, [])
 
+    // Auto-open edit if editCard param is present
+    useEffect(() => {
+        if (editCardId && cards.length > 0 && !showForm) {
+            const cardToEdit = cards.find(c => c.id === editCardId)
+            if (cardToEdit) {
+                handleEdit(cardToEdit)
+            }
+        }
+    }, [editCardId, cards])
+
     const checkUser = async () => {
         try {
             const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -233,9 +248,22 @@ function CardsContent() {
     }
 
     const handleChange = (e) => {
+        const { name, value } = e.target
+        let updates = { [name]: value }
+
+        // Auto-fill display_name when full_business_name changes
+        if (name === 'full_business_name') {
+            updates.display_name = value.slice(0, 20)
+        }
+
+        // Auto-fill short_tagline when tagline changes
+        if (name === 'tagline') {
+            updates.short_tagline = value.slice(0, 20)
+        }
+
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            ...updates
         })
     }
 
@@ -254,14 +282,12 @@ function CardsContent() {
         const current = formData.business_subcategory || []
 
         if (current.includes(subcategory)) {
-            // Remove it
             setFormData({
                 ...formData,
                 business_subcategory: current.filter(s => s !== subcategory),
                 custom_subcategory: subcategory === 'Other' ? '' : formData.custom_subcategory
             })
         } else {
-            // Add it (max 3)
             if (current.length >= 3) {
                 alert('You can select up to 3 subcategories maximum.')
                 return
@@ -326,7 +352,6 @@ function CardsContent() {
         }
     }
 
-    // Handle initial image selection - opens cropper
     const handleImageChange = async (e) => {
         const file = e.target.files[0]
         if (file) {
@@ -346,7 +371,6 @@ function CardsContent() {
         setCroppedAreaPixels(croppedAreaPixels)
     }, [])
 
-    // Helper to create rotated image
     const createImage = (url) =>
         new Promise((resolve, reject) => {
             const image = new Image()
@@ -359,7 +383,6 @@ function CardsContent() {
         return (degreeValue * Math.PI) / 180
     }
 
-    // Create cropped image from canvas with rotation support
     const getCroppedImg = async (imageSrc, pixelCrop, rotation = 0) => {
         const image = await createImage(imageSrc)
         const canvas = document.createElement('canvas')
@@ -367,33 +390,27 @@ function CardsContent() {
 
         const rotRad = getRadianAngle(rotation)
 
-        // Calculate bounding box of the rotated image
         const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
             image.width,
             image.height,
             rotation
         )
 
-        // Set canvas size to match the bounding box
         canvas.width = bBoxWidth
         canvas.height = bBoxHeight
 
-        // Translate canvas context to center before rotating
         ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
         ctx.rotate(rotRad)
         ctx.translate(-image.width / 2, -image.height / 2)
 
-        // Draw rotated image
         ctx.drawImage(image, 0, 0)
 
-        // Create a new canvas for the cropped result
         const croppedCanvas = document.createElement('canvas')
         const croppedCtx = croppedCanvas.getContext('2d')
 
         croppedCanvas.width = pixelCrop.width
         croppedCanvas.height = pixelCrop.height
 
-        // Draw the cropped area
         croppedCtx.drawImage(
             canvas,
             pixelCrop.x,
@@ -413,7 +430,6 @@ function CardsContent() {
         })
     }
 
-    // Helper function to calculate rotated image size
     const rotateSize = (width, height, rotation) => {
         const rotRad = getRadianAngle(rotation)
         return {
@@ -424,19 +440,15 @@ function CardsContent() {
         }
     }
 
-    // Handle crop confirmation
     const handleCropConfirm = async () => {
         setProcessingImage(true)
         setShowCropper(false)
 
         try {
-            // Get cropped image blob with rotation
             const croppedBlob = await getCroppedImg(cropImage, croppedAreaPixels, cropRotation)
 
-            // Create a File object from the blob
             let croppedFile = new File([croppedBlob], 'business-card.jpg', { type: 'image/jpeg' })
 
-            // Compress if over 800KB
             if (croppedFile.size > 800 * 1024) {
                 const options = {
                     maxSizeMB: 0.8,
@@ -449,7 +461,6 @@ function CardsContent() {
             setImageFile(croppedFile)
             setImageRotation(0)
 
-            // Create preview
             const reader = new FileReader()
             reader.onloadend = () => {
                 setImagePreview(reader.result)
@@ -464,7 +475,6 @@ function CardsContent() {
         }
     }
 
-    // Cancel cropping
     const handleCropCancel = () => {
         setShowCropper(false)
         setCropImage(null)
@@ -508,9 +518,14 @@ function CardsContent() {
         setUploading(true)
 
         try {
-            // Validate required category
             if (!formData.business_category) {
                 alert('Please select a Business Category')
+                setUploading(false)
+                return
+            }
+
+            if (!formData.display_name) {
+                alert('Please enter a Display Name for in-game use')
                 setUploading(false)
                 return
             }
@@ -518,20 +533,23 @@ function CardsContent() {
             let imageUrl = ''
 
             if (cardType === 'uploaded') {
-                if (!imageFile) {
+                if (imageFile) {
+                    // New image uploaded
+                    imageUrl = await uploadImage()
+                } else if (editingCardId && imagePreview) {
+                    // Editing and keeping existing image
+                    imageUrl = imagePreview
+                } else {
                     alert('Please select an image to upload')
                     setUploading(false)
                     return
                 }
-                imageUrl = await uploadImage()
             }
 
-            // Determine final category and subcategory values
             const finalCategory = formData.business_category === 'Other'
                 ? formData.custom_category
                 : formData.business_category
 
-            // Build subcategory array, replacing 'Other' with custom value if present
             let finalSubcategory = [...(formData.business_subcategory || [])]
             if (finalSubcategory.includes('Other') && formData.custom_subcategory) {
                 finalSubcategory = finalSubcategory.map(s =>
@@ -539,48 +557,73 @@ function CardsContent() {
                 )
             }
 
-            const { data, error } = await supabase
-                .from('business_cards')
-                .insert([{
-                    user_id: user.id,
-                    card_type: cardType,
-                    display_name: formData.display_name,
-                    full_business_name: formData.full_business_name || formData.display_name,
-                    title: formData.display_name,
-                    business_name: formData.full_business_name || formData.display_name,
-                    tagline: formData.tagline || '',
-                    message: formData.tagline || '',
-                    phone: formData.phone || '',
-                    email: formData.email || '',
-                    website_url: formData.website_url || '',
-                    card_color: formData.card_color,
-                    text_color: formData.text_color,
-                    image_url: imageUrl || '',
-                    image_rotation: cardType === 'uploaded' ? imageRotation : 0,
-                    city: formData.city || '',
-                    state: formData.state || '',
-                    business_category: finalCategory || '',
-                    business_subcategory: finalSubcategory.length > 0 ? finalSubcategory : null
-                }])
-                .select()
+            const cardData = {
+                card_type: cardType,
+                display_name: formData.display_name,
+                full_business_name: formData.full_business_name || formData.display_name,
+                title: formData.display_name,
+                business_name: formData.full_business_name || formData.display_name,
+                tagline: formData.tagline || '',
+                short_tagline: formData.short_tagline || '',
+                message: formData.tagline || '',
+                phone: formData.phone || '',
+                email: formData.email || '',
+                website_url: formData.website_url || '',
+                address: formData.address || '',
+                city: formData.city || '',
+                state: formData.state || '',
+                zip: formData.zip || '',
+                card_color: formData.card_color,
+                text_color: formData.text_color,
+                image_url: imageUrl || '',
+                image_rotation: cardType === 'uploaded' ? imageRotation : 0,
+                business_category: finalCategory || '',
+                business_subcategory: finalSubcategory.length > 0 ? finalSubcategory : null
+            }
 
-            if (error) throw error
+            if (editingCardId) {
+                // Update existing card
+                const { error } = await supabase
+                    .from('business_cards')
+                    .update(cardData)
+                    .eq('id', editingCardId)
 
-            if (returnTo === 'campaign') {
-                router.push('/advertise/start')
-                return
-            } else if (!hasActiveCampaign) {
-                if (confirm('Business card created! Ready to start advertising?')) {
+                if (error) throw error
+
+                if (returnTo === 'campaign') {
                     router.push('/advertise/start')
                     return
                 }
+
+                alert('Business card updated successfully!')
             } else {
-                alert('Business card created successfully!')
+                // Create new card
+                const { error } = await supabase
+                    .from('business_cards')
+                    .insert([{
+                        user_id: user.id,
+                        ...cardData
+                    }])
+
+                if (error) throw error
+
+                if (returnTo === 'campaign') {
+                    router.push('/advertise/start')
+                    return
+                } else if (!hasActiveCampaign) {
+                    if (confirm('Business card created! Ready to start advertising?')) {
+                        router.push('/advertise/start')
+                        return
+                    }
+                } else {
+                    alert('Business card created successfully!')
+                }
             }
+
             resetForm()
             await loadCards(user.id)
         } catch (error) {
-            alert('Error creating card: ' + error.message)
+            alert('Error saving card: ' + error.message)
         } finally {
             setUploading(false)
         }
@@ -588,22 +631,26 @@ function CardsContent() {
 
     const resetForm = () => {
         setShowForm(false)
+        setEditingCardId(null)
         setCardType('template')
         setFormData({
-            display_name: '',
             full_business_name: '',
-            tagline: '',
-            phone: '',
-            email: '',
-            website_url: '',
-            card_color: '#4F46E5',
-            text_color: '#FFFFFF',
-            city: '',
-            state: '',
             business_category: '',
             business_subcategory: [],
             custom_category: '',
-            custom_subcategory: ''
+            custom_subcategory: '',
+            tagline: '',
+            address: '',
+            city: '',
+            state: '',
+            zip: '',
+            phone: '',
+            email: '',
+            website_url: '',
+            display_name: '',
+            short_tagline: '',
+            card_color: '#4F46E5',
+            text_color: '#FFFFFF'
         })
         setImageFile(null)
         setImagePreview(null)
@@ -642,6 +689,35 @@ function CardsContent() {
         }
     }
 
+    const handleEdit = (card) => {
+        setEditingCardId(card.id)
+        setCardType(card.card_type || 'template')
+        setFormData({
+            full_business_name: card.full_business_name || card.business_name || '',
+            business_category: card.business_category || '',
+            business_subcategory: card.business_subcategory || [],
+            custom_category: '',
+            custom_subcategory: '',
+            tagline: card.tagline || card.message || '',
+            address: card.address || '',
+            city: card.city || '',
+            state: card.state || '',
+            zip: card.zip || '',
+            phone: card.phone || '',
+            email: card.email || '',
+            website_url: card.website_url || '',
+            display_name: card.display_name || card.title || '',
+            short_tagline: card.short_tagline || '',
+            card_color: card.card_color || '#4F46E5',
+            text_color: card.text_color || '#FFFFFF'
+        })
+        if (card.image_url) {
+            setImagePreview(card.image_url)
+            setImageRotation(card.image_rotation || 0)
+        }
+        setShowForm(true)
+    }
+
     const getDynamicFontSize = (text, maxSize, minSize, maxLength) => {
         if (!text) return maxSize
         const length = text.length
@@ -668,36 +744,25 @@ function CardsContent() {
         )
     }
 
-    const InGamePreview = () => (
-        <div className="text-center">
-            <p className="text-xs text-slate-400 mb-2">In-Game View:</p>
-            <div
-                className="w-24 h-16 rounded-lg flex items-center justify-center border border-slate-600 mx-auto"
-                style={{ backgroundColor: formData.card_color }}
-            >
-                <p
-                    className="font-bold text-center px-1"
-                    style={{
-                        color: formData.text_color,
-                        fontSize: `${getDynamicFontSize(formData.display_name, 12, 8, 20)}px`
-                    }}
-                >
-                    {formData.display_name || 'Display Name'}
-                </p>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Players see this + 👁 icon</p>
-        </div>
-    )
-
+    // Full Card Preview Component
     const FullCardPreview = () => {
         const displayName = formData.full_business_name || formData.display_name || 'Business Name'
         const hasContactInfo = formData.phone || formData.email || formData.website_url
+        const hasAddress = formData.address || formData.city || formData.state || formData.zip
+
+        // Build address line
+        let addressLine = ''
+        if (formData.address) addressLine = formData.address
+        let cityStateZip = ''
+        if (formData.city) cityStateZip = formData.city
+        if (formData.state) cityStateZip += (cityStateZip ? ', ' : '') + formData.state
+        if (formData.zip) cityStateZip += (cityStateZip ? ' ' : '') + formData.zip
 
         return (
-            <div className="text-center">
-                <p className="text-xs text-slate-400 mb-2">Full Card View (👁 click):</p>
+            <div>
+                <p className="text-xs text-slate-400 mb-2 text-center">Full Card Preview:</p>
                 {cardType === 'uploaded' && imagePreview ? (
-                    <div className="w-48 aspect-[7/4] rounded-lg border-2 border-slate-600 mx-auto overflow-hidden bg-slate-800">
+                    <div className="w-full max-w-xs mx-auto aspect-[7/4] rounded-lg border-2 border-slate-600 overflow-hidden bg-slate-800">
                         <img
                             src={imagePreview}
                             alt="Preview"
@@ -707,7 +772,7 @@ function CardsContent() {
                     </div>
                 ) : (
                     <div
-                        className="w-48 aspect-[7/4] rounded-lg p-3 flex flex-col justify-between border-2 border-slate-600 mx-auto"
+                        className="w-full max-w-xs mx-auto aspect-[7/4] rounded-lg p-3 flex flex-col justify-between border-2 border-slate-600"
                         style={{ backgroundColor: formData.card_color }}
                     >
                         <div className="text-center">
@@ -736,30 +801,76 @@ function CardsContent() {
                             </div>
                         )}
 
-                        {hasContactInfo && (
-                            <div className="text-center space-y-0.5">
-                                {formData.phone && (
-                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
-                                        {formData.phone}
-                                    </p>
-                                )}
-                                {formData.email && (
-                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
-                                        {formData.email}
-                                    </p>
-                                )}
-                                {formData.website_url && (
-                                    <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
-                                        {formData.website_url}
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                        <div className="text-center space-y-0.5">
+                            {hasAddress && (
+                                <>
+                                    {addressLine && (
+                                        <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                            {addressLine}
+                                        </p>
+                                    )}
+                                    {cityStateZip && (
+                                        <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                            {cityStateZip}
+                                        </p>
+                                    )}
+                                </>
+                            )}
+                            {formData.phone && (
+                                <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                    {formData.phone}
+                                </p>
+                            )}
+                            {formData.email && (
+                                <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                    {formData.email}
+                                </p>
+                            )}
+                            {formData.website_url && (
+                                <p className="text-[10px]" style={{ color: formData.text_color, opacity: 0.85 }}>
+                                    {formData.website_url}
+                                </p>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
         )
     }
+
+    // In-Game Preview Component
+    const InGamePreview = () => (
+        <div>
+            <p className="text-xs text-slate-400 mb-2 text-center">In-Game Preview:</p>
+            <div
+                className="w-28 h-20 rounded-lg flex flex-col items-center justify-center border border-slate-600 mx-auto"
+                style={{ backgroundColor: formData.card_color }}
+            >
+                <p
+                    className="font-bold text-center px-1"
+                    style={{
+                        color: formData.text_color,
+                        fontSize: `${getDynamicFontSize(formData.display_name, 12, 8, 20)}px`
+                    }}
+                >
+                    {formData.display_name || 'Display Name'}
+                </p>
+                {formData.short_tagline && (
+                    <p
+                        className="text-center px-1 mt-0.5"
+                        style={{
+                            color: formData.text_color,
+                            fontSize: `${getDynamicFontSize(formData.short_tagline, 9, 7, 20)}px`,
+                            opacity: 0.85
+                        }}
+                    >
+                        {formData.short_tagline}
+                    </p>
+                )}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1 text-center">Players see this + 👁 icon</p>
+        </div>
+    )
 
     return (
         <div className="min-h-screen bg-slate-900">
@@ -826,16 +937,16 @@ function CardsContent() {
                 </div>
             )}
 
-            <main className="max-w-4xl mx-auto px-4 py-8">
-                <div className="flex justify-between items-center mb-8">
+            <main className="max-w-lg mx-auto px-4 py-6">
+                <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-white">My Business Cards</h1>
-                        <p className="text-slate-400 text-sm mt-1">{cards.length}/{maxCards} cards created</p>
+                        <h1 className="text-2xl font-bold text-white">My Business Cards</h1>
+                        <p className="text-slate-400 text-xs mt-1">{cards.length}/{maxCards} cards</p>
                     </div>
                     {!showForm && cards.length < maxCards && (
                         <button
                             onClick={() => setShowForm(true)}
-                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
+                            className="px-4 py-2 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all text-sm"
                         >
                             + New Card
                         </button>
@@ -843,22 +954,23 @@ function CardsContent() {
                 </div>
 
                 {showForm && (
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mb-8">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white">Create New Card</h2>
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 mb-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-bold text-white">{editingCardId ? 'Edit Card' : 'Create New Card'}</h2>
                             <button
                                 onClick={resetForm}
-                                className="text-slate-400 hover:text-white"
+                                className="text-slate-400 hover:text-white text-sm"
                             >
                                 ✕ Cancel
                             </button>
                         </div>
 
-                        <div className="flex gap-4 mb-6">
+                        {/* Card Type Toggle */}
+                        <div className="flex gap-2 mb-4">
                             <button
                                 type="button"
                                 onClick={() => setCardType('template')}
-                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'template'
+                                className={`flex-1 py-2 rounded-lg font-medium transition-all text-sm ${cardType === 'template'
                                     ? 'bg-amber-500 text-slate-900'
                                     : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                                     }`}
@@ -868,7 +980,7 @@ function CardsContent() {
                             <button
                                 type="button"
                                 onClick={() => setCardType('uploaded')}
-                                className={`flex-1 py-3 rounded-lg font-medium transition-all ${cardType === 'uploaded'
+                                className={`flex-1 py-2 rounded-lg font-medium transition-all text-sm ${cardType === 'uploaded'
                                     ? 'bg-amber-500 text-slate-900'
                                     : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                                     }`}
@@ -877,362 +989,420 @@ function CardsContent() {
                             </button>
                         </div>
 
-                        <div className="flex flex-col lg:flex-row gap-6">
-                            <form onSubmit={handleSubmit} className="flex-1 space-y-4">
+                        <form onSubmit={handleSubmit} className="space-y-3">
+
+                            {/* ===== BUSINESS CARD INFORMATION ===== */}
+                            <div className="pt-2 pb-1 border-b border-slate-600">
+                                <p className="text-amber-500 font-semibold text-sm">📋 Business Card Information</p>
+                            </div>
+
+                            {/* Full Business Name */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Full Business Name * <span className="text-slate-500">(50 chars)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="full_business_name"
+                                    required
+                                    maxLength={50}
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="Your complete business name"
+                                    value={formData.full_business_name || ''}
+                                    onChange={handleChange}
+                                />
+                            </div>
+
+                            {/* Business Category */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Business Category *
+                                </label>
+                                <select
+                                    name="business_category"
+                                    required
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    value={formData.business_category || ''}
+                                    onChange={handleCategoryChange}
+                                >
+                                    <option value="">Select Category *</option>
+                                    {CATEGORIES.map(cat => (
+                                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Custom Category Input */}
+                            {formData.business_category === 'Other' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Display Name * <span className="text-xs text-slate-500">(20 chars - shown in games)</span>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Enter Your Category *
                                     </label>
                                     <input
                                         type="text"
-                                        name="display_name"
+                                        name="custom_category"
                                         required
-                                        maxLength={20}
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                        placeholder="Short name for games"
-                                        value={formData.display_name || ''}
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="e.g. Mobile Car Wash"
+                                        value={formData.custom_category || ''}
                                         onChange={handleChange}
                                     />
                                 </div>
+                            )}
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Full Business Name <span className="text-xs text-slate-500">(50 chars - shown on full view)</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="full_business_name"
-                                        maxLength={50}
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                        placeholder="Your complete business name"
-                                        value={formData.full_business_name || ''}
-                                        onChange={handleChange}
-                                    />
-                                </div>
-
-                                {/* Business Type Section */}
-                                <div className="pt-4 mt-2 border-t border-slate-600">
-                                    <p className="text-amber-500 font-semibold text-sm mb-3">📁 Business Type</p>
-                                </div>
-
-                                {/* Business Category - REQUIRED, moved up */}
-                                <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600">
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Business Category * <span className="text-xs text-slate-500">(helps users find you)</span>
-                                    </label>
-                                    <select
-                                        name="business_category"
-                                        required
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                        value={formData.business_category || ''}
-                                        onChange={handleCategoryChange}
-                                    >
-                                        <option value="">Select Category *</option>
-                                        {CATEGORIES.map(cat => (
-                                            <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Custom Category Input (if Other selected) */}
-                                {formData.business_category === 'Other' && (
+                            {/* Subcategory Checkboxes */}
+                            {formData.business_category &&
+                                formData.business_category !== 'Other' &&
+                                formData.business_category !== 'Prefer Not to List' &&
+                                getSelectedCategoryData()?.subcategories?.length > 0 && (
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Enter Your Category *
+                                        <label className="block text-xs font-medium text-slate-400 mb-2">
+                                            Services / Subcategories <span className="text-slate-500">(up to 3)</span>
                                         </label>
-                                        <input
-                                            type="text"
-                                            name="custom_category"
-                                            required
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            placeholder="e.g. Mobile Car Wash"
-                                            value={formData.custom_category || ''}
-                                            onChange={handleChange}
-                                        />
+                                        <div className="grid grid-cols-2 gap-1">
+                                            {getSelectedCategoryData().subcategories.map(sub => (
+                                                <label
+                                                    key={sub}
+                                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-all text-xs ${formData.business_subcategory?.includes(sub)
+                                                        ? 'bg-amber-500/20 border border-amber-500'
+                                                        : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.business_subcategory?.includes(sub) || false}
+                                                        onChange={() => handleSubcategoryChange(sub)}
+                                                        className="w-3 h-3 accent-amber-500"
+                                                    />
+                                                    <span className="text-white">{sub}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            {formData.business_subcategory?.length || 0}/3 selected
+                                        </p>
                                     </div>
                                 )}
 
-                                {/* Subcategory Checkboxes - shown for categories with subcategories */}
-                                {formData.business_category &&
-                                    formData.business_category !== 'Other' &&
-                                    formData.business_category !== 'Prefer Not to List' &&
-                                    getSelectedCategoryData()?.subcategories?.length > 0 && (
-                                        <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600">
-                                            <label className="block text-sm font-medium text-slate-400 mb-2">
-                                                Services / Subcategories <span className="text-xs text-slate-500">(select up to 3)</span>
-                                            </label>
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                                {getSelectedCategoryData().subcategories.map(sub => (
-                                                    <label
-                                                        key={sub}
-                                                        className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all ${formData.business_subcategory?.includes(sub)
-                                                            ? 'bg-amber-500/20 border border-amber-500'
-                                                            : 'bg-slate-700 border border-slate-600 hover:border-slate-500'
-                                                            }`}
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={formData.business_subcategory?.includes(sub) || false}
-                                                            onChange={() => handleSubcategoryChange(sub)}
-                                                            className="w-4 h-4 accent-amber-500"
-                                                        />
-                                                        <span className="text-sm text-white">{sub}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-2">
-                                                {formData.business_subcategory?.length || 0}/3 selected
-                                            </p>
-                                        </div>
+                            {/* Custom Subcategory Input */}
+                            {formData.business_subcategory?.includes('Other') && (
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Enter Your Service/Subcategory
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="custom_subcategory"
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="e.g. Window Cleaning"
+                                        value={formData.custom_subcategory || ''}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Tagline - only for template cards */}
+                            {cardType === 'template' && (
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Tagline <span className="text-slate-500">(100 chars)</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="tagline"
+                                        maxLength={100}
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="Your catchy tagline"
+                                        value={formData.tagline || ''}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Upload Image - only for uploaded cards */}
+                            {cardType === 'uploaded' && (
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Upload Business Card Image *
+                                    </label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                        disabled={processingImage}
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm disabled:opacity-50"
+                                    />
+                                    {processingImage ? (
+                                        <p className="text-xs text-amber-500 mt-1 flex items-center gap-2">
+                                            <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
+                                            Processing image...
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            📸 Take a photo or upload — you'll crop & straighten it next
+                                        </p>
                                     )}
 
-                                {/* Custom Subcategory Input (if Other selected in subcategories) */}
-                                {formData.business_subcategory?.includes('Other') && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Enter Your Service/Subcategory
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="custom_subcategory"
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            placeholder="e.g. Window Cleaning"
-                                            value={formData.custom_subcategory || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* Card Details Section */}
-                                <div className="pt-4 mt-2 border-t border-slate-600">
-                                    <p className="text-amber-500 font-semibold text-sm mb-3">📋 Card Details</p>
-                                </div>
-
-                                {/* Upload Image Fields - hidden when template selected */}
-                                <div className={cardType === 'uploaded' ? 'space-y-4' : 'hidden'}>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Upload Business Card Image *
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageChange}
-                                            disabled={processingImage}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white disabled:opacity-50"
-                                        />
-                                        {processingImage ? (
-                                            <p className="text-xs text-amber-500 mt-1 flex items-center gap-2">
-                                                <span className="inline-block w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></span>
-                                                Processing image...
-                                            </p>
-                                        ) : (
-                                            <p className="text-xs text-slate-500 mt-1">
-                                                📸 Take a photo or upload — you'll crop & straighten it next
-                                            </p>
-                                        )}
-                                    </div>
-
                                     {imagePreview && (
-                                        <div className="flex items-center gap-4">
-                                            <span className="text-sm text-slate-400">Rotate Image:</span>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className="text-xs text-slate-400">Rotate:</span>
                                             <button
                                                 type="button"
                                                 onClick={() => rotateImage('left')}
-                                                className="px-3 py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
+                                                className="px-2 py-1 bg-slate-700 text-white rounded text-xs hover:bg-slate-600"
                                             >
-                                                ↺ 90° Left
+                                                ↺ Left
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => rotateImage('right')}
-                                                className="px-3 py-1 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
+                                                className="px-2 py-1 bg-slate-700 text-white rounded text-xs hover:bg-slate-600"
                                             >
-                                                ↻ 90° Right
+                                                ↻ Right
                                             </button>
                                             <span className="text-xs text-slate-500">({imageRotation}°)</span>
                                         </div>
                                     )}
                                 </div>
+                            )}
 
-                                {/* Template Card Fields - hidden when upload selected */}
-                                <div className={cardType === 'template' ? 'space-y-4' : 'hidden'}>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            Tagline / Message <span className="text-xs text-slate-500">(100 chars)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="tagline"
-                                            maxLength={100}
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            placeholder="Your catchy tagline"
-                                            value={formData.tagline || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
+                            {/* Address */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Address <span className="text-slate-500">(optional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="address"
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="123 Main Street"
+                                    value={formData.address || ''}
+                                    onChange={handleChange}
+                                />
+                            </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-1">
-                                                Phone
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                                placeholder="(555)-555-5555"
-                                                value={formData.phone || ''}
-                                                onChange={handlePhoneChange}
-                                                maxLength={14}
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-slate-400 mb-1">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                                placeholder="your@email.com"
-                                                value={formData.email || ''}
-                                                onChange={handleChange}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Website URL - shown for both types */}
+                            {/* City / State */}
+                            <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">
-                                        Website URL <span className="text-xs text-slate-500">(optional)</span>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        City <span className="text-slate-500">(optional)</span>
                                     </label>
                                     <input
-                                        type="url"
-                                        name="website_url"
-                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                        placeholder="yourwebsite.com"
-                                        value={formData.website_url || ''}
-                                        onChange={handleUrlChange}
-                                        onBlur={handleUrlBlur}
+                                        type="text"
+                                        name="city"
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="Dallas"
+                                        value={formData.city || ''}
+                                        onChange={handleChange}
                                     />
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        Just enter your domain - we'll add https:// automatically
-                                    </p>
                                 </div>
-
-                                {/* Location Section */}
-                                <div className="pt-4 mt-2 border-t border-slate-600">
-                                    <p className="text-amber-500 font-semibold text-sm mb-3">📍 Location</p>
-                                </div>
-
-                                {/* Location Fields - City & State */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            City <span className="text-xs text-slate-500">(optional)</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="city"
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            placeholder="e.g. Dallas"
-                                            value={formData.city || ''}
-                                            onChange={handleChange}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">
-                                            State <span className="text-xs text-slate-500">(optional)</span>
-                                        </label>
-                                        <select
-                                            name="state"
-                                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white"
-                                            value={formData.state || ''}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="">Select State</option>
-                                            {US_STATES.map(state => (
-                                                <option key={state} value={state}>{state}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Appearance Section */}
-                                <div className="pt-4 mt-2 border-t border-slate-600">
-                                    <p className="text-amber-500 font-semibold text-sm mb-3">🎨 Appearance</p>
-                                </div>
-
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                                        Background Color <span className="text-xs text-slate-500">(for in-game display)</span>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        State <span className="text-slate-500">(optional)</span>
                                     </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {colorOptions.map((color) => (
-                                            <button
-                                                key={color.value}
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, card_color: color.value })}
-                                                className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.card_color === color.value
-                                                    ? 'border-amber-500 scale-110'
-                                                    : 'border-slate-600 hover:border-slate-400'
-                                                    }`}
-                                                style={{ backgroundColor: color.value }}
-                                                title={color.name}
-                                            />
+                                    <select
+                                        name="state"
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        value={formData.state || ''}
+                                        onChange={handleChange}
+                                    >
+                                        <option value="">Select</option>
+                                        {US_STATES.map(state => (
+                                            <option key={state} value={state}>{state}</option>
                                         ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                                        Text Color
-                                    </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {textColorOptions.map((color) => (
-                                            <button
-                                                key={color.value}
-                                                type="button"
-                                                onClick={() => setFormData({ ...formData, text_color: color.value })}
-                                                className={`w-10 h-10 rounded-lg border-2 transition-all ${formData.text_color === color.value
-                                                    ? 'border-amber-500 scale-110'
-                                                    : 'border-slate-600 hover:border-slate-400'
-                                                    }`}
-                                                style={{ backgroundColor: color.value }}
-                                                title={color.name}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={uploading || processingImage}
-                                    className="w-full py-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:bg-slate-700 disabled:text-slate-500 font-bold transition-all"
-                                >
-                                    {uploading ? 'Creating...' : 'Create Business Card'}
-                                </button>
-                            </form>
-
-                            <div className="lg:w-72 p-4 bg-slate-700/30 rounded-lg">
-                                <h3 className="text-sm font-bold text-white mb-4 text-center">Live Preview</h3>
-                                <div className="space-y-6">
-                                    <InGamePreview />
-                                    <FullCardPreview />
+                                    </select>
                                 </div>
                             </div>
-                        </div>
+
+                            {/* Zip */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Zip Code <span className="text-slate-500">(optional)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="zip"
+                                    maxLength={10}
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="75001"
+                                    value={formData.zip || ''}
+                                    onChange={handleChange}
+                                />
+                            </div>
+
+                            {/* Phone / Email */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Phone
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        name="phone"
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="(555)-555-5555"
+                                        value={formData.phone || ''}
+                                        onChange={handlePhoneChange}
+                                        maxLength={14}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                        placeholder="you@email.com"
+                                        value={formData.email || ''}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Website URL */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Website URL <span className="text-slate-500">(optional)</span>
+                                </label>
+                                <input
+                                    type="url"
+                                    name="website_url"
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="yourwebsite.com"
+                                    value={formData.website_url || ''}
+                                    onChange={handleUrlChange}
+                                    onBlur={handleUrlBlur}
+                                />
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Just enter your domain - we'll add https:// automatically
+                                </p>
+                            </div>
+
+                            {/* ===== IN GAME INFORMATION ===== */}
+                            <div className="pt-4 pb-1 border-b border-slate-600">
+                                <p className="text-amber-500 font-semibold text-sm">🎮 In Game Information</p>
+                            </div>
+
+                            {/* Display Name */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Display Name * <span className="text-slate-500">(20 chars - shown in games)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="display_name"
+                                    required
+                                    maxLength={20}
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="Short name for games"
+                                    value={formData.display_name || ''}
+                                    onChange={handleChange}
+                                />
+                                {formData.full_business_name && formData.full_business_name.length > 20 && (
+                                    <p className="text-xs text-amber-400 mt-1">
+                                        ⚠️ Your business name is too long for in-game display. Please shorten it above.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Short In-Game Tagline */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Short In-Game Tagline <span className="text-slate-500">(20 chars)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="short_tagline"
+                                    maxLength={20}
+                                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white text-sm"
+                                    placeholder="Quick tagline for games"
+                                    value={formData.short_tagline || ''}
+                                    onChange={handleChange}
+                                />
+                                {formData.tagline && formData.tagline.length > 20 && (
+                                    <p className="text-xs text-amber-400 mt-1">
+                                        ⚠️ Your tagline is too long for in-game display. Please shorten it above.
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* ===== CARD COLOR PREFERENCES ===== */}
+                            <div className="pt-4 pb-1 border-b border-slate-600">
+                                <p className="text-amber-500 font-semibold text-sm">🎨 Card Color Preferences</p>
+                            </div>
+
+                            {/* Background Color */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-2">
+                                    Background Color
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {colorOptions.map((color) => (
+                                        <button
+                                            key={color.value}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, card_color: color.value })}
+                                            className={`w-8 h-8 rounded-lg border-2 transition-all ${formData.card_color === color.value
+                                                ? 'border-amber-500 scale-110'
+                                                : 'border-slate-600 hover:border-slate-400'
+                                                }`}
+                                            style={{ backgroundColor: color.value }}
+                                            title={color.name}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Text Color */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-2">
+                                    Text Color
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                    {textColorOptions.map((color) => (
+                                        <button
+                                            key={color.value}
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, text_color: color.value })}
+                                            className={`w-8 h-8 rounded-lg border-2 transition-all ${formData.text_color === color.value
+                                                ? 'border-amber-500 scale-110'
+                                                : 'border-slate-600 hover:border-slate-400'
+                                                }`}
+                                            style={{ backgroundColor: color.value }}
+                                            title={color.name}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ===== PREVIEWS ===== */}
+                            <div className="pt-4 pb-2 border-t border-slate-600 mt-4">
+                                <p className="text-white font-semibold text-sm text-center mb-4">Preview Your Card</p>
+                                <div className="space-y-4">
+                                    <FullCardPreview />
+                                    <InGamePreview />
+                                </div>
+                            </div>
+
+                            {/* Submit Button */}
+                            <button
+                                type="submit"
+                                disabled={uploading || processingImage}
+                                className="w-full py-3 bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400 disabled:bg-slate-700 disabled:text-slate-500 font-bold transition-all mt-4"
+                            >
+                                {uploading ? 'Saving...' : (editingCardId ? 'Update Card' : 'Save Business Card')}
+                            </button>
+                        </form>
                     </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* Existing Cards Grid */}
+                <div className="grid grid-cols-2 gap-3">
                     {cards.length === 0 && !showForm && (
-                        <div className="col-span-full text-center py-12">
-                            <p className="text-slate-400 text-lg mb-4">You haven't created any business cards yet.</p>
+                        <div className="col-span-full text-center py-8">
+                            <p className="text-slate-400 mb-4">You haven't created any business cards yet.</p>
                             <button
                                 onClick={() => setShowForm(true)}
                                 className="px-6 py-3 bg-amber-500 text-slate-900 font-bold rounded-lg hover:bg-amber-400 transition-all"
@@ -1251,32 +1421,42 @@ function CardsContent() {
                     {cards.map((card) => (
                         <div key={card.id} className="relative group">
                             {isCardInUse(card.id) && (
-                                <div className="absolute -top-2 -left-2 z-10 px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
+                                <div className="absolute -top-2 -left-2 z-10 px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full">
                                     In Use
                                 </div>
                             )}
 
+                            {/* Edit Button */}
+                            <button
+                                onClick={() => handleEdit(card)}
+                                className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 px-2 py-0.5 rounded-full transition-colors opacity-0 group-hover:opacity-100 bg-amber-500 text-slate-900 hover:bg-amber-400 text-xs font-bold"
+                                title="Edit card"
+                            >
+                                ✏️ Edit
+                            </button>
+
+                            {/* Delete Button */}
                             <button
                                 onClick={() => handleDelete(card.id)}
-                                className={`absolute -top-2 -right-2 z-10 p-2 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${isCardInUse(card.id)
+                                className={`absolute -top-2 -right-2 z-10 p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100 ${isCardInUse(card.id)
                                     ? 'bg-slate-500 text-slate-300 cursor-not-allowed'
                                     : 'bg-red-500 text-white hover:bg-red-600'
                                     }`}
                                 title={isCardInUse(card.id) ? 'Cannot delete - card is in use' : 'Delete card'}
                             >
                                 {isCardInUse(card.id) ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                                     </svg>
                                 ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                                     </svg>
                                 )}
                             </button>
 
                             {card.card_type === 'uploaded' && card.image_url ? (
-                                <div className={`bg-slate-800 border rounded-xl overflow-hidden aspect-[7/4] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}>
+                                <div className={`bg-slate-800 border rounded-lg overflow-hidden aspect-[7/4] flex items-center justify-center ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}>
                                     <img
                                         src={card.image_url}
                                         alt="Business Card"
@@ -1286,23 +1466,21 @@ function CardsContent() {
                                 </div>
                             ) : (
                                 <div
-                                    className={`rounded-xl p-2 aspect-[7/4] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}
+                                    className={`rounded-lg p-2 aspect-[7/4] flex flex-col justify-between border overflow-hidden ${isCardInUse(card.id) ? 'border-green-500' : 'border-slate-700'}`}
                                     style={{ backgroundColor: card.card_color || '#4F46E5' }}
                                 >
                                     <div className="text-center overflow-hidden">
-                                        <h3 className="font-bold text-sm sm:text-base md:text-lg leading-tight line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
+                                        <h3 className="font-bold text-xs leading-tight line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
                                             {card.full_business_name || card.display_name || card.title || card.business_name}
                                         </h3>
                                         {(card.message || card.tagline) && (
-                                            <p className="text-xs sm:text-sm mt-1 opacity-90 line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
+                                            <p className="text-[10px] mt-0.5 opacity-90 line-clamp-2" style={{ color: card.text_color || '#FFFFFF' }}>
                                                 {card.message || card.tagline}
                                             </p>
                                         )}
                                     </div>
-                                    <div className="text-center text-xs sm:text-sm truncate" style={{ color: card.text_color || '#FFFFFF' }}>
+                                    <div className="text-center text-[10px] truncate" style={{ color: card.text_color || '#FFFFFF' }}>
                                         {card.phone && <p className="truncate">{card.phone}</p>}
-                                        {card.email && <p className="truncate">{card.email}</p>}
-                                        {card.website_url && <p className="truncate">{card.website_url}</p>}
                                     </div>
                                 </div>
                             )}

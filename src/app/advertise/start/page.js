@@ -17,21 +17,12 @@ export default function AdvertisePage() {
         ad_price: '100',
         matrix_payout: '200'
     })
-    const [paymentMethod, setPaymentMethod] = useState('')
-    const [paymentHandle, setPaymentHandle] = useState('')
-    const [payoutMethod, setPayoutMethod] = useState('')
-    const [payoutHandle, setPayoutHandle] = useState('')
     const [message, setMessage] = useState('')
 
     const [businessCards, setBusinessCards] = useState([])
     const [selectedCardId, setSelectedCardId] = useState(null)
 
     const [step, setStep] = useState(1)
-    const [campaignId, setCampaignId] = useState(null)
-    const [joinMatrix, setJoinMatrix] = useState(false)
-    const [referredBy, setReferredBy] = useState('')
-    const [referrerName, setReferrerName] = useState(null)
-    const [referrerNotFound, setReferrerNotFound] = useState(false)
     const [previewCard, setPreviewCard] = useState(null)
     const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [termsContent, setTermsContent] = useState(null)
@@ -77,12 +68,6 @@ export default function AdvertisePage() {
                 setTermsVersion(termsData.version)
             }
 
-            // Pre-fill payout method from profile if exists
-            if (userDataResult?.payout_method) {
-                setPayoutMethod(userDataResult.payout_method)
-                setPayoutHandle(userDataResult.payout_handle || '')
-            }
-
             const { data: cardData } = await supabase
                 .from('business_cards')
                 .select('*')
@@ -114,336 +99,11 @@ export default function AdvertisePage() {
         }
     }
 
-    const lookupReferrer = async (username) => {
-        if (!username || username.length < 2) {
-            setReferrerName(null)
-            setReferrerNotFound(false)
-            return
-        }
-
-        if (username.toLowerCase() === userData?.username?.toLowerCase()) {
-            setReferrerName(null)
-            setReferrerNotFound(true)
-            return
-        }
-
-        try {
-            const { data: userResult, error: userError } = await supabase
-                .from('users')
-                .select('id, username, first_name')
-                .ilike('username', username)
-                .maybeSingle()
-
-            if (userError || !userResult) {
-                setReferrerName(null)
-                setReferrerNotFound(true)
-                return
-            }
-
-            // Check if referrer has an active, incomplete matrix with open spots
-            const { data: matrices } = await supabase
-                .from('matrix_entries')
-                .select('*')
-                .eq('user_id', userResult.id)
-                .eq('is_active', true)
-                .eq('is_completed', false)
-
-            // Check if any matrix has at least one open spot
-            const hasOpenSpot = matrices?.some(matrix =>
-                !matrix.spot_2 || !matrix.spot_3 || !matrix.spot_4 ||
-                !matrix.spot_5 || !matrix.spot_6 || !matrix.spot_7
-            )
-
-            if (!matrices || matrices.length === 0 || !hasOpenSpot) {
-                setReferrerName(null)
-                setReferrerNotFound(true)
-                return
-            }
-
-            setReferrerName(userResult.first_name || userResult.username)
-            setReferrerNotFound(false)
-        } catch (error) {
-            console.error('Referrer lookup error:', error)
-            setReferrerName(null)
-            setReferrerNotFound(true)
-        }
-    }
-
-    const handleReferralChange = (e) => {
-        const value = e.target.value
-        setReferredBy(value)
-        if (value.length >= 2) {
-            lookupReferrer(value)
-        } else {
-            setReferrerName(null)
-            setReferrerNotFound(false)
-        }
-    }
-
-    // Helper function to send spot filled email
-    const sendSpotFilledEmail = async (matrixOwnerId, newUserId, spotNumber, matrix) => {
-        try {
-            // Get matrix owner info
-            const { data: ownerData } = await supabase
-                .from('users')
-                .select('email, first_name, username')
-                .eq('id', matrixOwnerId)
-                .single()
-
-            // Get new member info
-            const { data: newMemberData } = await supabase
-                .from('users')
-                .select('first_name, username')
-                .eq('id', newUserId)
-                .single()
-
-            if (ownerData && newMemberData) {
-                // Count filled spots
-                const filledCount = [matrix.spot_2, matrix.spot_3, matrix.spot_4, matrix.spot_5, matrix.spot_6, matrix.spot_7]
-                    .filter(spot => spot !== null).length + 1 // +1 for the spot we just filled
-
-                await fetch('/api/send-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'matrix_spot_filled',
-                        to: ownerData.email,
-                        data: {
-                            first_name: ownerData.first_name || ownerData.username,
-                            new_member_name: newMemberData.first_name || newMemberData.username,
-                            spot_number: spotNumber,
-                            filled_count: filledCount,
-                            spots_remaining: 6 - filledCount,
-                            payout_amount: matrix.payout_amount || settings.matrix_payout
-                        }
-                    })
-                })
-            }
-        } catch (emailError) {
-            console.error('Spot filled email error:', emailError)
-        }
-    }
-
-    const findMatrixSpotForUser = async (newUserId, referrerUsername) => {
-        try {
-            let referrerId = null
-
-            if (referrerUsername) {
-                const { data: referrer } = await supabase
-                    .from('users')
-                    .select('id')
-                    .ilike('username', referrerUsername)
-                    .single()
-
-                if (referrer) {
-                    referrerId = referrer.id
-                }
-            }
-
-            if (referrerId) {
-                // Get all active incomplete matrices for referrer (oldest first)
-                const { data: referrerMatrices } = await supabase
-                    .from('matrix_entries')
-                    .select('*')
-                    .eq('user_id', referrerId)
-                    .eq('is_active', true)
-                    .eq('is_completed', false)
-                    .order('created_at', { ascending: true })
-
-                if (referrerMatrices && referrerMatrices.length > 0) {
-                    // Check each matrix for open spots 2-7
-                    for (const referrerMatrix of referrerMatrices) {
-                        const spots = [
-                            { key: 'spot_2', num: 2 },
-                            { key: 'spot_3', num: 3 },
-                            { key: 'spot_4', num: 4 },
-                            { key: 'spot_5', num: 5 },
-                            { key: 'spot_6', num: 6 },
-                            { key: 'spot_7', num: 7 }
-                        ]
-
-                        for (const spot of spots) {
-                            if (!referrerMatrix[spot.key]) {
-                                await supabase
-                                    .from('matrix_entries')
-                                    .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
-                                    .eq('id', referrerMatrix.id)
-
-                                const notifType = spot.num <= 3 ? 'referral_joined' : 'matrix_growth'
-                                const notifTitle = spot.num <= 3
-                                    ? '🎉 Your referral became an advertiser!'
-                                    : '🔷 Your matrix is growing!'
-                                const notifMessage = spot.num <= 3
-                                    ? `They've been added to your matrix in spot ${spot.num}!`
-                                    : `Spot ${spot.num} has been filled in your matrix!`
-
-                                await supabase
-                                    .from('notifications')
-                                    .insert([{
-                                        user_id: referrerId,
-                                        type: notifType,
-                                        title: notifTitle,
-                                        message: notifMessage
-                                    }])
-
-                                // Send email to matrix owner
-                                await sendSpotFilledEmail(referrerId, newUserId, spot.num, referrerMatrix)
-
-                                if (spot.num <= 3) {
-                                    await supabase.rpc('increment_referral_count', { user_id: referrerId })
-                                }
-                                await checkMatrixCompletion(referrerMatrix.id)
-                                return { placed: true, spot: spot.num }
-                            }
-                        }
-                    }
-                }
-            }
-
-            const { data: waitingMatrices } = await supabase
-                .from('matrix_entries')
-                .select('*')
-                .eq('is_active', true)
-                .eq('is_completed', false)
-                .order('created_at', { ascending: true })
-
-            if (waitingMatrices && waitingMatrices.length > 0) {
-                for (const matrix of waitingMatrices) {
-                    if (matrix.user_id === newUserId) continue
-
-                    const spots = [
-                        { key: 'spot_2', num: 2 },
-                        { key: 'spot_3', num: 3 },
-                        { key: 'spot_4', num: 4 },
-                        { key: 'spot_5', num: 5 },
-                        { key: 'spot_6', num: 6 },
-                        { key: 'spot_7', num: 7 }
-                    ]
-
-                    for (const spot of spots) {
-                        if (!matrix[spot.key]) {
-                            await supabase
-                                .from('matrix_entries')
-                                .update({ [spot.key]: newUserId, updated_at: new Date().toISOString() })
-                                .eq('id', matrix.id)
-
-                            if (spot.num <= 3) {
-                                await supabase
-                                    .from('notifications')
-                                    .insert([{
-                                        user_id: matrix.user_id,
-                                        type: 'free_referral',
-                                        title: '🎉 You got a free referral!',
-                                        message: `Someone was auto-placed in your matrix spot ${spot.num}!`
-                                    }])
-                            } else {
-                                await supabase
-                                    .from('notifications')
-                                    .insert([{
-                                        user_id: matrix.user_id,
-                                        type: 'matrix_growth',
-                                        title: '🔷 Your matrix is growing!',
-                                        message: `Spot ${spot.num} has been filled in your matrix!`
-                                    }])
-                            }
-
-                            // Send email to matrix owner
-                            await sendSpotFilledEmail(matrix.user_id, newUserId, spot.num, matrix)
-
-                            await checkMatrixCompletion(matrix.id)
-                            return { placed: true, spot: spot.num, wasAutoPlaced: true }
-                        }
-                    }
-                }
-            }
-
-            return { placed: false }
-        } catch (error) {
-            console.error('Error finding matrix spot:', error)
-            return { placed: false }
-        }
-    }
-
-    const checkMatrixCompletion = async (matrixId) => {
-        try {
-            const { data: matrix } = await supabase
-                .from('matrix_entries')
-                .select('*')
-                .eq('id', matrixId)
-                .single()
-
-            if (matrix && matrix.spot_2 && matrix.spot_3 && matrix.spot_4 &&
-                matrix.spot_5 && matrix.spot_6 && matrix.spot_7) {
-                await supabase
-                    .from('matrix_entries')
-                    .update({
-                        is_completed: true,
-                        completed_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', matrixId)
-
-                await supabase
-                    .from('notifications')
-                    .insert([{
-                        user_id: matrix.user_id,
-                        type: 'matrix_complete',
-                        title: '🎉 Matrix Complete!',
-                        message: `Congratulations! Your matrix is complete. Your payout of $${matrix.payout_amount || settings.matrix_payout} is being processed!`
-                    }])
-
-                try {
-                    const { data: matrixUser } = await supabase
-                        .from('users')
-                        .select('email, first_name')
-                        .eq('id', matrix.user_id)
-                        .single()
-
-                    // Count user's completed matrices
-                    const { count: matrixCount } = await supabase
-                        .from('matrix_entries')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('user_id', matrix.user_id)
-                        .eq('is_completed', true)
-
-                    if (matrixUser) {
-                        await fetch('/api/send-email', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                type: 'matrix_completed',
-                                to: matrixUser.email,
-                                data: {
-                                    first_name: matrixUser.first_name || 'there',
-                                    matrix_number: matrixCount || 1,
-                                    payout: matrix.payout_amount || settings.matrix_payout
-                                }
-                            })
-                        })
-                    }
-                } catch (emailError) {
-                    console.error('Matrix complete email error:', emailError)
-                }
-            }
-        } catch (error) {
-            console.error('Error checking matrix completion:', error)
-        }
-    }
-
     const handlePurchase = async () => {
         setProcessing(true)
         setMessage('')
 
         try {
-            // Save payout preferences to user profile
-            await supabase
-                .from('users')
-                .update({
-                    payout_method: payoutMethod,
-                    payout_handle: payoutHandle
-                })
-                .eq('id', user.id)
-
             // Log terms acceptance
             if (termsDocId && termsVersion) {
                 try {
@@ -461,156 +121,26 @@ export default function AdvertisePage() {
                 }
             }
 
-            // ===== STRIPE PAYMENT =====
-            if (paymentMethod === 'stripe') {
-                const response = await fetch('/api/stripe/advertiser-checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId: user.id,
-                        cardId: selectedCardId,
-                        amount: settings.ad_price,
-                        guaranteedViews: settings.guaranteed_views
-                    })
+            // Stripe Payment - redirect to checkout
+            const response = await fetch('/api/stripe/advertiser-checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    cardId: selectedCardId,
+                    amount: settings.ad_price,
+                    guaranteedViews: settings.guaranteed_views
                 })
+            })
 
-                const data = await response.json()
+            const data = await response.json()
 
-                if (data.error) {
-                    throw new Error(data.error)
-                }
-
-                // Redirect to Stripe checkout
-                window.location.href = data.url
-                return
+            if (data.error) {
+                throw new Error(data.error)
             }
 
-            // ===== VENMO / CASHAPP PAYMENT =====
-            // Campaign stays pending until manually verified
-            const { data: campaign, error: campaignError } = await supabase
-                .from('ad_campaigns')
-                .insert([{
-                    user_id: user.id,
-                    business_card_id: selectedCardId,
-                    payment_method: paymentMethod,
-                    payment_handle: paymentHandle,
-                    amount_paid: parseInt(settings.ad_price),
-                    views_guaranteed: parseInt(settings.guaranteed_views),
-                    views_from_game: 0,
-                    views_from_flips: 0,
-                    bonus_views: 0,
-                    status: 'pending'
-                }])
-                .select()
-                .single()
-
-            if (campaignError) throw campaignError
-
-            setCampaignId(campaign.id)
-
-            // Send receipt email
-            try {
-                await fetch('/api/send-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'ad_campaign_receipt',
-                        to: userData.email,
-                        data: {
-                            first_name: userData.username,
-                            campaign_tier: 'Standard',
-                            amount: settings.ad_price,
-                            payment_method: paymentMethod,
-                            date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-                            order_number: campaign.id.slice(0, 8).toUpperCase(),
-                            views_guaranteed: parseInt(settings.guaranteed_views).toLocaleString()
-                        }
-                    })
-                })
-            } catch (emailError) {
-                console.error('Ad campaign receipt email error:', emailError)
-            }
-
-            setStep(5) // Go to matrix choice
-
-        } catch (error) {
-            setMessage('Error: ' + error.message)
-        } finally {
-            setProcessing(false)
-        }
-    }
-
-    const handleMatrixChoice = (wantsMatrix) => {
-        setJoinMatrix(wantsMatrix)
-        if (wantsMatrix) {
-            setStep(6)
-        } else {
-            finishWithoutMatrix()
-        }
-    }
-
-    const finishWithoutMatrix = () => {
-        setMessage('✓ Campaign created! Redirecting to dashboard...')
-        setTimeout(() => router.push('/dashboard'), 2000)
-    }
-
-    const handleJoinMatrix = async () => {
-        setProcessing(true)
-
-        try {
-            // Check if user already has 3 active incomplete matrices
-            const { data: existingMatrices, error: countError } = await supabase
-                .from('matrix_entries')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('is_active', true)
-                .eq('is_completed', false)
-
-            if (countError) throw countError
-
-            if (existingMatrices && existingMatrices.length >= 3) {
-                setMessage('You already have 3 active matrices. Complete one to start another!')
-                setProcessing(false)
-                return
-            }
-
-            const { error: matrixError } = await supabase
-                .from('matrix_entries')
-                .insert([{
-                    user_id: user.id,
-                    campaign_id: campaignId,
-                    spot_1: user.id,
-                    is_active: true,
-                    is_completed: false,
-                    payout_amount: parseInt(settings.matrix_payout),
-                    payout_status: 'pending'
-                }])
-
-            if (matrixError) throw matrixError
-
-            // Send matrix_joined email to user
-            try {
-                await fetch('/api/send-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'matrix_joined',
-                        to: userData.email,
-                        data: {
-                            first_name: userData.first_name || userData.username,
-                            username: userData.username,
-                            payout_amount: settings.matrix_payout
-                        }
-                    })
-                })
-            } catch (emailError) {
-                console.error('Matrix joined email error:', emailError)
-            }
-
-            await findMatrixSpotForUser(user.id, referredBy)
-
-            setMessage('✓ You joined the matrix! Redirecting to dashboard...')
-            setTimeout(() => router.push('/dashboard'), 2000)
+            // Redirect to Stripe checkout
+            window.location.href = data.url
 
         } catch (error) {
             setMessage('Error: ' + error.message)
@@ -667,24 +197,32 @@ export default function AdvertisePage() {
                         </div>
                     </>
                 ) : (
-                    <span
-                        className="font-bold text-center leading-tight"
-                        style={{ fontSize: `${getDynamicFontSize(displayName, 11, 7, 20)}px` }}
-                    >
-                        {displayName}
-                    </span>
+                    <>
+                        <span
+                            className="font-bold text-center leading-tight"
+                            style={{ fontSize: `${getDynamicFontSize(displayName, 11, 7, 20)}px` }}
+                        >
+                            {displayName}
+                        </span>
+                        {card.short_tagline && (
+                            <span
+                                className="text-center leading-tight mt-0.5 opacity-85"
+                                style={{ fontSize: `${getDynamicFontSize(card.short_tagline, 8, 6, 20)}px` }}
+                            >
+                                {card.short_tagline}
+                            </span>
+                        )}
+                    </>
                 )}
             </div>
         )
     }
 
-    // Step indicator component
+    // Step indicator component - 2 steps: Card, Review & Pay
     const StepIndicator = () => {
         const steps = [
-            { num: 1, label: 'Card' },
-            { num: 2, label: 'Pay' },
-            { num: 3, label: 'Payout' },
-            { num: 4, label: 'Review' }
+            { num: 1, label: 'Select Card' },
+            { num: 2, label: 'Review & Pay' }
         ]
 
         return (
@@ -748,7 +286,7 @@ export default function AdvertisePage() {
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
                         <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 1: Select Your Card</h2>
                         <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
-                            Choose which business card to use for this campaign.
+                            Choose which business card to advertise. This card will be shown to users in our games.
                         </p>
 
                         {/* Selected Card Preview */}
@@ -764,17 +302,13 @@ export default function AdvertisePage() {
                                     </div>
                                 )}
                             </div>
-                            {selectedCard && (
-                                <p className={`text-center text-${currentTheme.accent} text-xs mt-2 cursor-pointer hover:underline`} onClick={() => setPreviewCard(selectedCard)}>
-                                    👁 Click to preview full card
-                                </p>
-                            )}
+
                         </div>
 
                         {/* Card Selector (if multiple) */}
                         {businessCards.length > 1 && (
                             <div className="mb-4">
-                                <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Your Cards ({businessCards.length}/5):</p>
+                                <p className={`text-xs text-${currentTheme.textMuted} mb-2`}>Your Cards:</p>
                                 <div className="flex gap-2 flex-wrap justify-center">
                                     {businessCards.map((card) => (
                                         <button
@@ -794,17 +328,26 @@ export default function AdvertisePage() {
 
                         {/* Info text */}
                         <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
-                            <p className={`text-xs text-${currentTheme.textMuted}`}>
-                                📝 You can have up to <strong>5 card designs</strong>. You can delete inactive cards to make room for new ones.
+                            <p className={`text-xs text-${currentTheme.textMuted} text-center`}>                                * You can have up to <strong>5 card designs</strong>. You can also delete non active cards if you wish to create new ones.
                             </p>
                         </div>
+
+                        {/* Edit selected card option */}
+                        {selectedCard && (
+                            <button
+                                onClick={() => router.push(`/cards?returnTo=campaign&editCard=${selectedCard.id}`)}
+                                className={`w-full py-2 mb-2 border border-${currentTheme.accent} rounded-lg text-${currentTheme.accent} text-sm hover:bg-${currentTheme.accent}/10 transition-all`}
+                            >
+                                ✏️ Edit Selected Card
+                            </button>
+                        )}
 
                         {/* Create new card option */}
                         <button
                             onClick={() => router.push('/cards?returnTo=campaign')}
                             className={`w-full py-2 mb-4 border border-dashed border-${currentTheme.border} rounded-lg text-${currentTheme.textMuted} text-sm hover:border-${currentTheme.accent} hover:text-${currentTheme.text} transition-all`}
                         >
-                            + Create New Card
+                            + CREATE A NEW CARD
                         </button>
 
                         {/* Continue button */}
@@ -813,47 +356,49 @@ export default function AdvertisePage() {
                             disabled={!selectedCardId}
                             className={`w-full py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
                         >
-                            Use This Card →
+                            Continue with this card →
                         </button>
                     </div>
                 </div>
 
                 {/* Card Preview Modal */}
-                {previewCard && (
-                    <div
-                        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-                        onClick={() => setPreviewCard(null)}
-                    >
+                {
+                    previewCard && (
                         <div
-                            className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 max-w-sm w-full`}
-                            onClick={(e) => e.stopPropagation()}
+                            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+                            onClick={() => setPreviewCard(null)}
                         >
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className={`font-bold text-${currentTheme.text}`}>Full Card Preview</h3>
+                            <div
+                                className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-4 max-w-sm w-full`}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className={`font-bold text-${currentTheme.text}`}>Full Card Preview</h3>
+                                    <button
+                                        onClick={() => setPreviewCard(null)}
+                                        className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-xl`}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <div className="aspect-[3/2] rounded-lg overflow-hidden">
+                                    {renderCardPreview(previewCard, 'large')}
+                                </div>
                                 <button
-                                    onClick={() => setPreviewCard(null)}
-                                    className={`text-${currentTheme.textMuted} hover:text-${currentTheme.text} text-xl`}
+                                    onClick={() => { setSelectedCardId(previewCard.id); setPreviewCard(null); }}
+                                    className={`w-full mt-4 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm`}
                                 >
-                                    ✕
+                                    Use This Card
                                 </button>
                             </div>
-                            <div className="aspect-[3/2] rounded-lg overflow-hidden">
-                                {renderCardPreview(previewCard, 'large')}
-                            </div>
-                            <button
-                                onClick={() => { setSelectedCardId(previewCard.id); setPreviewCard(null); }}
-                                className={`w-full mt-4 py-2 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg text-sm`}
-                            >
-                                Use This Card
-                            </button>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )
+                }
+            </div >
         )
     }
 
-    // ==================== STEP 2: PAYMENT METHOD ====================
+    // ==================== STEP 2: REVIEW & PAY ====================
     if (step === 2) {
         return (
             <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
@@ -862,207 +407,9 @@ export default function AdvertisePage() {
                     <StepIndicator />
 
                     <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
-                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 2: Payment Method</h2>
+                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 2: Review & Pay</h2>
                         <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
-                            How would you like to pay for this campaign?
-                        </p>
-
-                        {/* Package Summary */}
-                        <div className={`bg-gradient-to-br from-${currentTheme.accent}/20 to-orange-500/20 border border-${currentTheme.accent}/30 rounded-lg p-3 mb-4`}>
-                            <div className="flex justify-between items-center">
-                                <span className={`text-${currentTheme.text} font-medium`}>Standard Campaign</span>
-                                <span className={`text-${currentTheme.accent} font-bold text-xl`}>${settings.ad_price}</span>
-                            </div>
-                            <p className={`text-${currentTheme.textMuted} text-xs mt-1`}>
-                                {parseInt(settings.guaranteed_views).toLocaleString()} guaranteed views
-                            </p>
-                        </div>
-
-                        {/* Payment Options */}
-                        <div className="space-y-2 mb-4">
-                            <button
-                                onClick={() => { setPaymentMethod('stripe'); setPaymentHandle(''); }}
-                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'stripe'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                <span className="text-2xl">💳</span>
-                                <div>
-                                    <p className={`font-medium text-${currentTheme.text}`}>Credit Card</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay securely with Stripe</p>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setPaymentMethod('venmo')}
-                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'venmo'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                <span className="text-2xl">📱</span>
-                                <div>
-                                    <p className={`font-medium text-${currentTheme.text}`}>Venmo</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay with your Venmo account</p>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setPaymentMethod('cashapp')}
-                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${paymentMethod === 'cashapp'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                <span className="text-2xl">💵</span>
-                                <div>
-                                    <p className={`font-medium text-${currentTheme.text}`}>CashApp</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Pay with your CashApp account</p>
-                                </div>
-                            </button>
-                        </div>
-
-                        {/* Handle input for Venmo/CashApp */}
-                        {(paymentMethod === 'venmo' || paymentMethod === 'cashapp') && (
-                            <div className="mb-4">
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                    Your {paymentMethod === 'venmo' ? '@username' : '$cashtag'}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={paymentHandle}
-                                    onChange={(e) => setPaymentHandle(e.target.value)}
-                                    placeholder={paymentMethod === 'venmo' ? '@username' : '$cashtag'}
-                                    className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
-                                />
-                            </div>
-                        )}
-
-                        {/* Navigation */}
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setStep(1)}
-                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
-                            >
-                                ← Back
-                            </button>
-                            <button
-                                onClick={() => setStep(3)}
-                                disabled={!paymentMethod || ((paymentMethod === 'venmo' || paymentMethod === 'cashapp') && !paymentHandle)}
-                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
-                            >
-                                Continue →
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    // ==================== STEP 3: PAYOUT PREFERENCE ====================
-    if (step === 3) {
-        return (
-            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
-                <div className="max-w-lg mx-auto">
-                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
-                    <StepIndicator />
-
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
-                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 3: Payout Preference</h2>
-                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
-                            How do you want to receive prize winnings or matrix earnings?
-                        </p>
-
-                        {/* Info */}
-                        <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
-                            <p className={`text-xs text-${currentTheme.textMuted}`}>
-                                💵 We only pay out via <strong>Venmo</strong> or <strong>CashApp</strong>. You can update this anytime in your Profile.
-                            </p>
-                        </div>
-
-                        {/* Payout Options */}
-                        <div className="space-y-2 mb-4">
-                            <button
-                                onClick={() => setPayoutMethod('venmo')}
-                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'venmo'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                <span className="text-2xl">📱</span>
-                                <div>
-                                    <p className={`font-medium text-${currentTheme.text}`}>Venmo</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Receive payments to your Venmo</p>
-                                </div>
-                            </button>
-
-                            <button
-                                onClick={() => setPayoutMethod('cashapp')}
-                                className={`w-full p-3 rounded-lg border-2 text-left transition-all flex items-center gap-3 ${payoutMethod === 'cashapp'
-                                    ? `border-${currentTheme.accent} bg-${currentTheme.accent}/10`
-                                    : `border-${currentTheme.border} hover:border-${currentTheme.textMuted}`
-                                    }`}
-                            >
-                                <span className="text-2xl">💵</span>
-                                <div>
-                                    <p className={`font-medium text-${currentTheme.text}`}>CashApp</p>
-                                    <p className={`text-xs text-${currentTheme.textMuted}`}>Receive payments to your CashApp</p>
-                                </div>
-                            </button>
-                        </div>
-
-                        {/* Handle input */}
-                        {payoutMethod && (
-                            <div className="mb-4">
-                                <label className={`block text-sm font-medium text-${currentTheme.textMuted} mb-1`}>
-                                    Your {payoutMethod === 'venmo' ? '@username' : '$cashtag'}
-                                </label>
-                                <input
-                                    type="text"
-                                    value={payoutHandle}
-                                    onChange={(e) => setPayoutHandle(e.target.value)}
-                                    placeholder={payoutMethod === 'venmo' ? '@username' : '$cashtag'}
-                                    className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
-                                />
-                            </div>
-                        )}
-
-                        {/* Navigation */}
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setStep(2)}
-                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
-                            >
-                                ← Back
-                            </button>
-                            <button
-                                onClick={() => setStep(4)}
-                                disabled={!payoutMethod || !payoutHandle}
-                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50`}
-                            >
-                                Continue →
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    // ==================== STEP 4: REVIEW & PAY ====================
-    if (step === 4) {
-        return (
-            <div className={`min-h-screen bg-${currentTheme.bg} py-6 px-4`}>
-                <div className="max-w-lg mx-auto">
-                    <h1 className={`text-xl font-bold text-${currentTheme.text} text-center mb-2`}>Start a Campaign</h1>
-                    <StepIndicator />
-
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
-                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1`}>Step 4: Review & Pay</h2>
-                        <p className={`text-${currentTheme.textMuted} text-sm mb-4`}>
-                            Please confirm your campaign details.
+                            Confirm your campaign details and pay to go live.
                         </p>
 
                         {/* Card Preview */}
@@ -1074,8 +421,8 @@ export default function AdvertisePage() {
                             >
                                 {selectedCard && renderCardPreview(selectedCard, 'small')}
                             </div>
-                            <p className={`text-center text-${currentTheme.accent} text-xs mt-1 cursor-pointer hover:underline`} onClick={() => selectedCard && setPreviewCard(selectedCard)}>
-                                👁 Click to preview full card
+                            <p className={`text-center text-${currentTheme.accent} text-xs mt-1 cursor-pointer hover:underline`} onClick={() => router.push('/cards')}>
+                                ✏️ Edit this card
                             </p>
                         </div>
 
@@ -1090,16 +437,9 @@ export default function AdvertisePage() {
                                 <span className={`text-${currentTheme.text} font-medium`}>{parseInt(settings.guaranteed_views).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className={`text-${currentTheme.textMuted}`}>Payment Method</span>
-                                <span className={`text-${currentTheme.text} font-medium capitalize`}>
-                                    {paymentMethod === 'stripe' ? 'Credit Card' : paymentMethod}
-                                    {paymentHandle && ` (${paymentHandle})`}
-                                </span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className={`text-${currentTheme.textMuted}`}>Payout Method</span>
-                                <span className={`text-${currentTheme.text} font-medium capitalize`}>
-                                    {payoutMethod} ({payoutHandle})
+                                <span className={`text-${currentTheme.textMuted}`}>Payment</span>
+                                <span className={`text-${currentTheme.text} font-medium`}>
+                                    💳 Credit or Debit Card
                                 </span>
                             </div>
                             <div className={`border-t border-${currentTheme.border} pt-3 flex justify-between`}>
@@ -1143,7 +483,7 @@ export default function AdvertisePage() {
                         {/* Navigation */}
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setStep(3)}
+                                onClick={() => setStep(1)}
                                 className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
                             >
                                 ← Back
@@ -1190,130 +530,6 @@ export default function AdvertisePage() {
                         </div>
                     </div>
                 )}
-            </div>
-        )
-    }
-
-    // ==================== STEP 5: JOIN MATRIX? ====================
-    if (step === 5) {
-        return (
-            <div className={`min-h-screen bg-${currentTheme.bg} py-8 px-4`}>
-                <div className="max-w-md mx-auto">
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-6 text-center`}>
-                        <div className="w-14 h-14 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <span className="text-2xl">✓</span>
-                        </div>
-                        <h2 className="text-xl font-bold text-green-400 mb-1">Payment Successful!</h2>
-                        <p className={`text-${currentTheme.textMuted} text-sm mb-5`}>Your ad campaign is now active.</p>
-
-                        <div className={`bg-${currentTheme.bg} rounded-lg p-4 mb-5 text-left`}>
-                            <h3 className={`font-bold text-${currentTheme.text} mb-2 text-center`}>🔷 Want to Earn ${settings.matrix_payout} Back?</h3>
-                            <p className={`text-${currentTheme.textMuted} text-sm mb-3`}>
-                                Join the <strong>Referral Matrix</strong> and fill 6 spots to earn ${settings.matrix_payout}!
-                            </p>
-
-                            {/* Matrix Visual */}
-                            <div className="flex flex-col items-center gap-1 mb-3">
-                                <div className={`w-12 h-8 bg-${currentTheme.accent}/30 border border-${currentTheme.accent} rounded text-xs flex items-center justify-center text-${currentTheme.accent} font-bold`}>You</div>
-                                <div className="flex gap-1">
-                                    <div className={`w-10 h-6 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>2</div>
-                                    <div className={`w-10 h-6 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>3</div>
-                                </div>
-                                <div className="flex gap-1">
-                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>4</div>
-                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>5</div>
-                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>6</div>
-                                    <div className={`w-8 h-5 bg-${currentTheme.border} rounded text-xs flex items-center justify-center text-${currentTheme.textMuted}`}>7</div>
-                                </div>
-                            </div>
-                            <p className={`text-${currentTheme.textMuted} text-xs text-center`}>
-                                Refer friends or get auto-filled by new advertisers!
-                            </p>
-                        </div>
-
-                        {message && (
-                            <div className="mb-4 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 text-center text-sm">
-                                {message}
-                            </div>
-                        )}
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => handleMatrixChoice(false)}
-                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg`}
-                            >
-                                No Thanks
-                            </button>
-                            <button
-                                onClick={() => handleMatrixChoice(true)}
-                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg`}
-                            >
-                                Yes, Join!
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    // ==================== STEP 6: REFERRER ====================
-    if (step === 6) {
-        return (
-            <div className={`min-h-screen bg-${currentTheme.bg} py-8 px-4`}>
-                <div className="max-w-md mx-auto">
-                    <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-xl p-5`}>
-                        <h2 className={`text-lg font-bold text-${currentTheme.text} mb-1 text-center`}>Who Referred You?</h2>
-                        <p className={`text-${currentTheme.textMuted} text-sm mb-4 text-center`}>
-                            Enter their username to be placed under them.
-                        </p>
-
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                value={referredBy}
-                                onChange={handleReferralChange}
-                                className={`w-full px-3 py-2 bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg text-${currentTheme.text}`}
-                                placeholder="Referrer's username (optional)"
-                            />
-                            {referrerName && (
-                                <p className="text-green-400 text-sm mt-2">✓ You'll be placed under {referrerName}</p>
-                            )}
-                            {referrerNotFound && referredBy.length >= 2 && (
-                                <p className="text-orange-400 text-sm mt-2">⚠ User not found</p>
-                            )}
-                        </div>
-
-                        <div className={`bg-${currentTheme.bg} rounded-lg p-3 mb-4`}>
-                            <p className={`text-${currentTheme.textMuted} text-xs`}>
-                                💡 You'll be placed under this person. If no Referrer, no problem, you'll be placed in the next available spot.
-                            </p>
-                        </div>
-
-                        {message && (
-                            <div className="mb-4 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 text-center text-sm">
-                                {message}
-                            </div>
-                        )}
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handleJoinMatrix}
-                                disabled={processing}
-                                className={`flex-1 py-3 bg-${currentTheme.border} text-${currentTheme.text} font-bold rounded-lg disabled:opacity-50`}
-                            >
-                                {processing ? '...' : 'Skip (Auto-place me)'}
-                            </button>
-                            <button
-                                onClick={handleJoinMatrix}
-                                disabled={processing || (referredBy && !referrerName)}
-                                className={`flex-1 py-3 bg-gradient-to-r from-${currentTheme.accent} to-orange-500 text-white font-bold rounded-lg disabled:opacity-50`}
-                            >
-                                {processing ? '...' : 'Join Matrix'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </div>
         )
     }

@@ -1,14 +1,13 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-)
-
 export async function POST(request) {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+
+    const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+    )
     try {
         const { userId, cardId, amount, guaranteedViews } = await request.json()
 
@@ -42,7 +41,7 @@ export async function POST(request) {
             .in('status', ['active', 'queued'])
 
         const hasExisting = existingCampaigns && existingCampaigns.length > 0
-        const newStatus = 'awaiting_payment'
+        const newStatus = 'pending_payment'
 
         // Create pending campaign
         const { data: campaign, error: campaignError } = await supabase
