@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-export default function AdvertiseSuccessPage() {
+function SuccessContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
     const [loading, setLoading] = useState(true)
@@ -57,5 +57,21 @@ export default function AdvertiseSuccessPage() {
                 </button>
             </div>
         </div>
+    )
+}
+
+function SuccessLoading() {
+    return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+            <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    )
+}
+
+export default function AdvertiseSuccessPage() {
+    return (
+        <Suspense fallback={<SuccessLoading />}>
+            <SuccessContent />
+        </Suspense>
     )
 }
