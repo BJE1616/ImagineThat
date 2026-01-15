@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function DashboardPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { currentTheme } = useTheme()
     const [user, setUser] = useState(null)
     const [userData, setUserData] = useState(null)
@@ -56,6 +57,13 @@ export default function DashboardPage() {
     useEffect(() => {
         checkUser()
     }, [])
+
+    // Auto-open matrix form if coming from success page
+    useEffect(() => {
+        if (searchParams.get('joinMatrix') === 'true') {
+            setShowJoinMatrix(true)
+        }
+    }, [searchParams])
 
     // Live referrer lookup
     useEffect(() => {

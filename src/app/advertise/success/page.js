@@ -71,16 +71,22 @@ function SuccessContent() {
                     </p>
                     <div className="flex flex-col gap-3">
                         <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/dashboard?joinMatrix=true')}
                             className="px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500"
                         >
-                            Yes, tell me more
+                            Yes, Join Now
+                        </button>
+                        <button
+                            onClick={() => router.push('/advertise/matrix')}
+                            className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500"
+                        >
+                            Tell Me More
                         </button>
                         <button
                             onClick={() => router.push('/dashboard')}
                             className="px-6 py-3 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600"
                         >
-                            No thanks, go to Dashboard
+                            No Thanks
                         </button>
                     </div>
                 </div>
