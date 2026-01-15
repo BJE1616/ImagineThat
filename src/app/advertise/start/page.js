@@ -453,7 +453,7 @@ export default function AdvertisePage() {
                             <div className="mb-4">
                                 <p className={`text-xs font-medium text-${currentTheme.textMuted} mb-2`}>Terms of Service</p>
                                 <div
-                                    className={`bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg p-3 max-h-32 overflow-y-auto text-xs text-${currentTheme.textMuted}`}
+                                    className={`bg-${currentTheme.bg} border border-${currentTheme.border} rounded-lg p-3 max-h-32 overflow-y-auto text-xs text-${currentTheme.textMuted} [&>p]:mb-3 [&>h1]:text-base [&>h1]:font-bold [&>h1]:mb-2 [&>h2]:text-sm [&>h2]:font-bold [&>h2]:mb-2 [&>ul]:list-disc [&>ul]:ml-4 [&>ol]:list-decimal [&>ol]:ml-4`}
                                     dangerouslySetInnerHTML={{ __html: termsContent }}
                                 />
                                 <label className="flex items-start gap-2 mt-3 cursor-pointer">
