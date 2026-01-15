@@ -3,19 +3,43 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTheme } from '@/lib/ThemeContext'
 
 export default function MatrixPage() {
     const { currentTheme } = useTheme()
+    const router = useRouter()
     const [settings, setSettings] = useState({
         guaranteed_views: '1000',
         ad_price: '100',
         matrix_payout: '200'
     })
+    const [hasActiveCampaign, setHasActiveCampaign] = useState(false)
 
     useEffect(() => {
         fetchSettings()
+        checkUserCampaign()
     }, [])
+
+    const checkUserCampaign = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                setHasActiveCampaign(true)
+            }
+        } catch (error) {
+            console.error('Error checking campaign:', error)
+        }
+    }
 
     const fetchSettings = async () => {
         try {
@@ -123,12 +147,21 @@ export default function MatrixPage() {
                     </div>
 
                     {/* CTA */}
-                    <Link
-                        href="/advertise/start"
-                        className="block w-full py-3 bg-green-900 text-white text-center text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl hover:bg-green-800 hover:-translate-y-1 transition-all"
-                    >
-                        Start Your Campaign
-                    </Link>
+                    {hasActiveCampaign ? (
+                        <button
+                            onClick={() => router.push('/dashboard?joinMatrix=true')}
+                            className="block w-full py-3 bg-green-600 text-white text-center text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl hover:bg-green-500 hover:-translate-y-1 transition-all"
+                        >
+                            Join Matrix Now
+                        </button>
+                    ) : (
+                        <Link
+                            href="/advertise/start"
+                            className="block w-full py-3 bg-green-900 text-white text-center text-sm font-semibold rounded-lg shadow-lg hover:shadow-xl hover:bg-green-800 hover:-translate-y-1 transition-all"
+                        >
+                            Start Your Campaign
+                        </Link>
+                    )}
                 </div>
             </section>
 
