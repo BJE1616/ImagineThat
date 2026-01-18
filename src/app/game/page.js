@@ -287,7 +287,7 @@ export default function GamePage() {
                     .insert({
                         user_id: viewerUserId,
                         promo_card_id: promoCardId,
-                        view_type: 'game',
+                        view_type: 'game_display',
                         game_type: 'memory'
                     })
 
@@ -379,7 +379,7 @@ export default function GamePage() {
                     .insert({
                         user_id: viewerUserId,
                         promo_card_id: promoCardId,
-                        view_type: 'flip',
+                        view_type: 'eyeball_click',
                         game_type: 'memory'
                     })
 
