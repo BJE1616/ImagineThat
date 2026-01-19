@@ -150,7 +150,10 @@ export default function MyStatsPage() {
                 .eq('user_id', user.id)
                 .eq('game_key', 'card_gallery')
 
-            if (dateFilter && timeRange !== 'today') {
+            // Apply date filter based on selected time range
+            if (timeRange === 'today') {
+                query = query.eq('activity_date', today)
+            } else if (timeRange !== 'all' && dateFilter) {
                 query = query.gte('activity_date', dateFilter)
             }
 
@@ -195,7 +198,10 @@ export default function MyStatsPage() {
                 .select('free_spins_used, paid_spins, tokens_won, tokens_wagered, drawing_entries')
                 .eq('user_id', user.id)
 
-            if (dateFilter && timeRange !== 'today') {
+            // Apply date filter based on selected time range
+            if (timeRange === 'today') {
+                query = query.eq('spin_date', today)
+            } else if (timeRange !== 'all' && dateFilter) {
                 query = query.gte('spin_date', dateFilter)
             }
 
