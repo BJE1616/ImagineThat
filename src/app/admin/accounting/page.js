@@ -289,6 +289,7 @@ export default function AccountingDashboardPage() {
             .from('ad_campaigns')
             .select('amount_paid, status')
             .gte('created_at', dateFilter)
+            .in('status', ['active', 'queued', 'completed'])
 
         const grossRevenue = campaigns?.reduce((sum, c) => sum + (c.amount_paid || 0), 0) || 0
 

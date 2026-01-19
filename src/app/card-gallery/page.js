@@ -138,6 +138,27 @@ export default function CardGalleryPage() {
                 .in('user_id', advertiserIds)
 
             setCards(cardsData || [])
+
+            // Track gallery views for each advertiser
+            for (const odId of advertiserIds) {
+                const { data: campaign } = await supabase
+                    .from('ad_campaigns')
+                    .select('id, views_from_gallery')
+                    .eq('user_id', odId)
+                    .eq('status', 'active')
+                    .limit(1)
+                    .single()
+
+                if (campaign) {
+                    await supabase
+                        .from('ad_campaigns')
+                        .update({
+                            views_from_gallery: (campaign.views_from_gallery || 0) + 1,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', campaign.id)
+                }
+            }
         } catch (error) {
             console.error('Error loading cards:', error)
         }

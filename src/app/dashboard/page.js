@@ -649,6 +649,20 @@ export default function DashboardPage() {
                 return
             }
 
+            // Check if already joined matrix with this campaign
+            const { data: existingMatrix } = await supabase
+                .from('matrix_entries')
+                .select('id')
+                .eq('campaign_id', activeCampaign.id)
+                .limit(1)
+                .maybeSingle()
+
+            if (existingMatrix) {
+                setReferralError('You already joined the matrix with this campaign.')
+                setJoiningMatrix(false)
+                return
+            }
+
             if (referredBy.trim()) {
                 if (referredBy.trim().toLowerCase() === userData?.username?.toLowerCase()) {
                     setReferralError('You cannot refer yourself.')

@@ -733,7 +733,7 @@ export default function SlotMachinePage() {
             if (card?.is_house_card) {
                 // Track house/promo cards
                 await logPromoCardView(card, 'game_display')
-            } else if (card?.user_id) {
+            } else if (card?.user_id && demoMode) {
                 // Track advertiser cards - THIS WAS MISSING BEFORE!
                 await trackAdvertiserSlotDisplay(card.user_id)
             }
