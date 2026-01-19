@@ -586,6 +586,31 @@ export default function SlotMachinePage() {
         }
     }
 
+    // ===== TRACK ADVERTISER CARD DISPLAY IN SLOTS =====
+    const trackAdvertiserSlotDisplay = async (cardUserId) => {
+        if (!cardUserId) return
+        try {
+            const { data: campaigns } = await supabase
+                .from('ad_campaigns')
+                .select('id, views_from_game')
+                .eq('user_id', cardUserId)
+                .eq('status', 'active')
+                .limit(1)
+
+            if (campaigns && campaigns.length > 0) {
+                await supabase
+                    .from('ad_campaigns')
+                    .update({
+                        views_from_game: (campaigns[0].views_from_game || 0) + 1,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', campaigns[0].id)
+            }
+        } catch (error) {
+            console.log('Error tracking advertiser slot display')
+        }
+    }
+
     // ===== HANDLE EYEBALL CLICK =====
     const handleEyeballClick = async (card) => {
         // Log the click for promo cards
@@ -703,10 +728,14 @@ export default function SlotMachinePage() {
 
         setReels(finalReels)
 
-        // Log promo card views for cards displayed (even in demo mode - ads still get views!)
+        // Log card views for ALL cards displayed (even in demo mode - ads still get views!)
         for (const card of finalReels) {
             if (card?.is_house_card) {
+                // Track house/promo cards
                 await logPromoCardView(card, 'game_display')
+            } else if (card?.user_id) {
+                // Track advertiser cards - THIS WAS MISSING BEFORE!
+                await trackAdvertiserSlotDisplay(card.user_id)
             }
         }
 

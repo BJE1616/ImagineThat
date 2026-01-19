@@ -251,6 +251,18 @@ export default function Navbar() {
                                         🎁 Card Gallery
                                         <span className={`block text-xs text-green-500`}>Earn Free Tokens!</span>
                                     </Link>
+                                    {user && (
+                                        <Link
+                                            href="/my-stats"
+                                            className={`block px-3 py-2 text-sm transition-all ${pathname === '/my-stats'
+                                                ? `text-${currentTheme.accentHover} bg-${currentTheme.accent}/10`
+                                                : `text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text}`
+                                                }`}
+                                        >
+                                            📊 My Ad Stats
+                                            <span className={`block text-xs text-blue-400`}>Track Your Engagement</span>
+                                        </Link>
+                                    )}
                                     {showWinnersLink && (
                                         <Link
                                             href="/winners"
@@ -406,6 +418,12 @@ export default function Navbar() {
                                             className={`sm:hidden block px-3 py-1.5 text-sm text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text} transition-all`}
                                         >
                                             🛍️ Store
+                                        </Link>
+                                        <Link
+                                            href="/my-stats"
+                                            className={`sm:hidden block px-3 py-1.5 text-sm text-${currentTheme.textMuted} hover:bg-${currentTheme.border} hover:text-${currentTheme.text} transition-all`}
+                                        >
+                                            📊 My Stats
                                         </Link>
                                         <Link
                                             href="/dashboard"
