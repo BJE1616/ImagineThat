@@ -46,13 +46,19 @@ export async function POST(request) {
                     // Determine status: queued if they have existing active campaigns, otherwise active
                     const newStatus = hasExisting ? 'queued' : 'active'
 
+                    // Calculate expires_at (30 days from now) - only set if going active immediately
+                    const expiresAt = newStatus === 'active' 
+                        ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                        : null
+
                     // Update campaign status
                     await supabase
                         .from('ad_campaigns')
                         .update({
                             status: newStatus,
                             payment_id: session.payment_intent,
-                            paid_at: new Date().toISOString()
+                            paid_at: new Date().toISOString(),
+                            expires_at: expiresAt
                         })
                         .eq('id', campaignId)
 

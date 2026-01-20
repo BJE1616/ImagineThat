@@ -246,6 +246,15 @@ export default function DashboardPage() {
         return (camp.views_from_game || 0) + (camp.views_from_flips || 0)
     }
 
+    const getDaysRemaining = (camp) => {
+        if (!camp?.expires_at) return null
+        const now = new Date()
+        const expires = new Date(camp.expires_at)
+        const diffTime = expires - now
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return Math.max(0, diffDays)
+    }
+
     const getBonusViews = (camp) => {
         if (!camp) return 0
         return camp.bonus_views || 0
@@ -781,7 +790,13 @@ export default function DashboardPage() {
                                 {getStatusLabel(camp.status)}
                             </span>
                             <span className={`text-${currentTheme.textMuted} text-[10px]`}>
-                                {getTotalViews(camp).toLocaleString()} / {camp.views_guaranteed?.toLocaleString()} views
+                                {camp.status === 'active' && camp.expires_at ? (
+                                    `${getDaysRemaining(camp)} days remaining`
+                                ) : camp.status === 'completed' ? (
+                                    `${getTotalViews(camp).toLocaleString()} total views`
+                                ) : (
+                                    `${getTotalViews(camp).toLocaleString()} views`
+                                )}
                             </span>
                         </div>
 
@@ -894,8 +909,8 @@ export default function DashboardPage() {
 
                                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3">
                                     <p className="text-red-400 text-sm">
-                                        You have <span className="font-bold">{(cancellingCampaign.views_guaranteed - getTotalViews(cancellingCampaign)).toLocaleString()}</span> views remaining.
-                                        These will be forfeited.
+                                        You have <span className="font-bold">{getDaysRemaining(cancellingCampaign) || 0}</span> days remaining.
+                                        This time will be forfeited.
                                     </p>
                                     <p className="text-red-400 text-sm mt-1">
                                         <span className="font-bold">No refund</span> will be given.

@@ -94,7 +94,8 @@ async function sendCampaignActivatedEmail(campaign) {
 
         const result = await sendTemplateEmail('campaign_activated', user.email, {
             username: user.username,
-            views: (campaign.views_guaranteed || 0).toLocaleString()
+            views: (campaign.views_guaranteed || 0).toLocaleString(),
+            duration: '30 days'
         })
 
         if (result.success) {

@@ -139,7 +139,7 @@ export const emailTemplates = {
                 <p>Hey ${vars.username || 'there'},</p>
                 <p>Great news! Your advertising campaign is now live.</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white;">
-                    <p style="margin: 0;"><strong>Guaranteed Views:</strong> ${vars.views || '1,000'}</p>
+                    <p style="margin: 0;"><strong>Duration:</strong> ${vars.duration || '30 days'}</p>
                 </div>
                 <p>Your business card is now being shown to players. Check your dashboard to track progress!</p>
                 <a href="https://imaginethat.icu/dashboard" style="display: inline-block; background: #f59e0b; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Dashboard</a>
@@ -154,9 +154,9 @@ export const emailTemplates = {
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <h1 style="color: #22c55e;">Campaign Complete!</h1>
                 <p>Hey ${vars.username || 'there'},</p>
-                <p>Your advertising campaign has finished delivering all guaranteed views.</p>
+                <p>Your 30-day advertising campaign has finished!</p>
                 <div style="background: #1e293b; padding: 20px; border-radius: 8px; color: white;">
-                    <p style="margin: 0;"><strong>Total Views Delivered:</strong> ${vars.views || '1,000'}</p>
+                    <p style="margin: 0;"><strong>Total Views Earned:</strong> ${vars.total_views || vars.views || '0'}</p>
                 </div>
                 <p>Ready to reach more customers? Start a new campaign today!</p>
                 <a href="https://imaginethat.icu/advertise" style="display: inline-block; background: #f59e0b; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Start New Campaign</a>
