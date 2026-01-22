@@ -191,7 +191,7 @@ export default function AdminWinnersPage() {
 
             const { data: userData } = await supabase
                 .from('users')
-                .select('username, preferred_payment_method, payment_handle')
+                .select('username, payout_method, payout_handle')
                 .eq('id', entry.user_id)
                 .single()
 
@@ -215,8 +215,8 @@ export default function AdminWinnersPage() {
                     reason: `Match Game #${rank} - ${currentWeek}`,
                     reference_type: 'match_game',
                     reference_id: entry.id,
-                    payment_method: userData?.preferred_payment_method || null,
-                    payment_handle: userData?.payment_handle || null,
+                    payment_method: userData?.payout_method || null,
+                    payment_handle: userData?.payout_handle || null,
                     status: 'pending',
                     queued_at: new Date().toISOString()
                 }])

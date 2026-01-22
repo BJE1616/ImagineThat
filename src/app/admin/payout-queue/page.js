@@ -135,7 +135,7 @@ export default function PayoutQueuePage() {
             .from('payout_queue')
             .select(`
                 *,
-                users (id, username, email, first_name, last_name, preferred_payment_method, payment_handle)
+                users (id, username, email, first_name, last_name, payout_method, payout_handle)
             `)
             .eq('status', 'pending')
             .order('queued_at', { ascending: true })
@@ -282,7 +282,7 @@ export default function PayoutQueuePage() {
         }
         setSelectedPayout(payout)
         setPaymentForm({
-            payment_method: payout.payment_method || payout.users?.preferred_payment_method || '',
+            payment_method: payout.payment_method || payout.users?.payout_method || '',
             confirmation_number: '',
             amount_paid: payout.amount.toFixed(2),
             payment_date: new Date().toISOString().split('T')[0],
@@ -332,7 +332,7 @@ export default function PayoutQueuePage() {
                     reference_type: payout.reference_type,
                     reference_id: payout.reference_id,
                     payment_method: paymentForm.payment_method,
-                    payment_handle: payout.payment_handle || payout.users?.payment_handle || 'unknown',
+                    payment_handle: payout.payment_handle || payout.users?.payout_handle || 'unknown',
                     confirmation_number: paymentForm.confirmation_number.trim(),
                     notes: paymentForm.notes.trim() || null,
                     paid_at: new Date(paymentForm.payment_date).toISOString(),
@@ -412,7 +412,7 @@ export default function PayoutQueuePage() {
                             first_name: payout.users?.first_name || payout.users?.username,
                             amount: amount.toFixed(2),
                             payment_method: paymentForm.payment_method,
-                            payment_handle: payout.payment_handle || payout.users?.payment_handle || 'N/A',
+                            payment_handle: payout.payment_handle || payout.users?.payout_handle || 'N/A',
                             confirmation_number: paymentForm.confirmation_number.trim(),
                             date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                         }
@@ -867,14 +867,14 @@ export default function PayoutQueuePage() {
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-slate-500">Payment Method</p>
-                                                                    <p className="text-slate-300 capitalize">{payout.payment_method || payout.users?.preferred_payment_method || 'Not set'}</p>
+                                                                    <p className="text-slate-300 capitalize">{payout.payment_method || payout.users?.payout_method || 'Not set'}</p>
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-slate-500">Payment Handle</p>
                                                                     <div className="flex items-center gap-1">
-                                                                        <p className="text-yellow-400">{payout.payment_handle || payout.users?.payment_handle || 'Not set'}</p>
-                                                                        {(payout.payment_handle || payout.users?.payment_handle) && (
-                                                                            <button onClick={() => copyToClipboard(payout.payment_handle || payout.users?.payment_handle)} className="text-slate-500 hover:text-white">📋</button>
+                                                                        <p className="text-yellow-400">{payout.payment_handle || payout.users?.payout_handle || 'Not set'}</p>
+                                                                        {(payout.payment_handle || payout.users?.payout_handle) && (
+                                                                            <button onClick={() => copyToClipboard(payout.payment_handle || payout.users?.payout_handle)} className="text-slate-500 hover:text-white">📋</button>
                                                                         )}
                                                                     </div>
                                                                 </div>
@@ -1130,11 +1130,11 @@ export default function PayoutQueuePage() {
                                 <p className="text-slate-400 text-xs mb-1">Send to:</p>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-white font-medium">{selectedPayout.payment_handle || selectedPayout.users?.payment_handle || 'No handle'}</p>
+                                        <p className="text-white font-medium">{selectedPayout.payment_handle || selectedPayout.users?.payout_handle || 'No handle'}</p>
                                         <p className="text-slate-500 text-xs">{selectedPayout.users?.email}</p>
                                     </div>
-                                    {(selectedPayout.payment_handle || selectedPayout.users?.payment_handle) && (
-                                        <button onClick={() => copyToClipboard(selectedPayout.payment_handle || selectedPayout.users?.payment_handle)} className="px-2 py-1 bg-slate-600 text-slate-300 rounded text-xs">📋</button>
+                                    {(selectedPayout.payment_handle || selectedPayout.users?.payout_handle) && (
+                                        <button onClick={() => copyToClipboard(selectedPayout.payment_handle || selectedPayout.users?.payout_handle)} className="px-2 py-1 bg-slate-600 text-slate-300 rounded text-xs">📋</button>
                                     )}
                                 </div>
                             </div>
