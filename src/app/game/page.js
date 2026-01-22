@@ -409,6 +409,23 @@ export default function GamePage() {
         }
     }
 
+    // Track promo/house card views (separate from advertiser tracking)
+    const logPromoCardView = async (card, viewType) => {
+        if (!card?.is_house_card) return
+        try {
+            await supabase
+                .from('promo_card_views')
+                .insert([{
+                    promo_card_id: card.id,
+                    user_id: user?.id || null,
+                    view_type: viewType,
+                    game_type: 'memory'
+                }])
+        } catch (error) {
+            console.error('Error logging promo view:', error)
+        }
+    }
+
     const loadCards = async (mode) => {
         try {
             const limit = mode === 'easy' ? 6 : 8
@@ -478,9 +495,11 @@ export default function GamePage() {
             const cardIds = selectedCards.map(card => card.id)
             await createGameSession(mode, cardIds)
 
-            // FIXED: Pass both user_id AND card id to trackGameView
+            // Track card views - house cards go to promo_card_views, advertiser cards go to ad_campaigns
             selectedCards.forEach(card => {
-                if (card.user_id) {
+                if (card.is_house_card) {
+                    logPromoCardView(card, 'game_display')
+                } else if (card.user_id) {
                     trackGameView(card.user_id, card.id)
                 }
             })
@@ -600,8 +619,10 @@ export default function GamePage() {
         if (flippedCards.some(card => card.uniqueId === clickedCard.uniqueId)) return
         if (matchedPairs.includes(clickedCard.pairId)) return
 
-        // FIXED: Pass the card.id (promo_card_id) to trackFlipView
-        if (clickedCard.user_id) {
+        // Track card flips - house cards go to promo_card_views, advertiser cards go to ad_campaigns
+        if (clickedCard.is_house_card) {
+            logPromoCardView(clickedCard, 'eyeball_click')
+        } else if (clickedCard.user_id) {
             trackFlipView(clickedCard.user_id, clickedCard.uniqueId, clickedCard.id)
         }
 
