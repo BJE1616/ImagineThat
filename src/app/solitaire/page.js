@@ -374,6 +374,10 @@ export default function SolitairePage() {
         if (displayAds.length > 0) {
             displayAds.forEach(ad => {
                 trackDisplayAdView(ad.user_id)
+                // Log promo card views for house cards
+                if (ad.is_house_card) {
+                    logPromoCardView(ad, 'game_display')
+                }
             })
         }
     }, [displayAds])
