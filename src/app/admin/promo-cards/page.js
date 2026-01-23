@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '@/lib/ThemeContext'
+import Tooltip from '@/components/Tooltip'
 
 // Color options
 const BG_COLORS = [
@@ -594,10 +595,14 @@ export default function PromoCardsPage() {
             {/* Settings Card - Compact Inline */}
             <div className={`bg-${currentTheme.card} border border-${currentTheme.border} rounded-lg p-3 mb-3`}>
                 <div className="flex flex-wrap items-center gap-3">
-                    <span className={`text-sm font-bold text-${currentTheme.text}`}>⚙️ Display</span>
+                    <Tooltip text="These settings apply to ALL promo cards globally, not just individual cards. They control how often promo cards appear across all games (Slots, Solitaire, Memory).">
+                        <span className={`text-sm font-bold text-${currentTheme.text}`}>⚙️ Global Display Settings</span>
+                    </Tooltip>
 
                     <div className="flex items-center gap-1.5">
-                        <span className={`text-xs text-${currentTheme.textMuted}`}>1 promo per</span>
+                        <Tooltip text="Controls the ratio of promo cards mixed with advertiser cards. Example: '10' means 1 promo card is added for every 10 advertiser cards in the game pool. Lower number = more promo exposure.">
+                            <span className={`text-xs text-${currentTheme.textMuted}`}>1 promo per</span>
+                        </Tooltip>
                         <input
                             type="number"
                             min="0"
@@ -615,17 +620,19 @@ export default function PromoCardsPage() {
                         >
                             <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-all ${fallbackEnabled ? 'translate-x-4' : 'translate-x-0.5'}`}></div>
                         </button>
-                        <span className={`text-xs text-${currentTheme.textMuted}`}>
-                            {fallbackEnabled ? 'Fallback ON' : 'Fallback OFF'}
-                        </span>
+                        <Tooltip text="When ON: If no paying advertisers exist, games will show promo cards instead. When OFF: Games show nothing if no advertisers. Keep ON for launch when you don't have advertisers yet.">
+                            <span className={`text-xs text-${currentTheme.textMuted}`}>
+                                {fallbackEnabled ? 'Fallback ON' : 'Fallback OFF'}
+                            </span>
+                        </Tooltip>
                     </div>
 
                     <button
                         onClick={saveSettings}
                         disabled={savingSettings}
-                        className={`px-3 py-1 bg-${currentTheme.accent} text-slate-900 rounded text-xs font-bold hover:opacity-90 disabled:opacity-50`}
+                        className={`px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-500 disabled:opacity-50`}
                     >
-                        {savingSettings ? '...' : 'Save'}
+                        {savingSettings ? '...' : '💾 Save Settings'}
                     </button>
                 </div>
             </div>
@@ -751,8 +758,8 @@ export default function PromoCardsPage() {
                                                     <label
                                                         key={sub}
                                                         className={`flex items-center gap-1.5 p-1.5 rounded cursor-pointer transition-all text-xs ${templateForm.business_subcategory?.includes(sub)
-                                                                ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}`
-                                                                : `bg-${currentTheme.card} border border-${currentTheme.border} hover:border-slate-500`
+                                                            ? `bg-${currentTheme.accent}/20 border border-${currentTheme.accent}`
+                                                            : `bg-${currentTheme.card} border border-${currentTheme.border} hover:border-slate-500`
                                                             }`}
                                                     >
                                                         <input
@@ -874,9 +881,9 @@ export default function PromoCardsPage() {
                             <div className="flex gap-2">
                                 <button
                                     onClick={createOrUpdateCard}
-                                    className={`px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-500`}
+                                    className={`px-4 py-1.5 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-500`}
                                 >
-                                    {editingCardId ? 'Update Card' : 'Create Card'}
+                                    {editingCardId ? '✅ Save Card Changes' : '➕ Create Card'}
                                 </button>
                                 <button
                                     onClick={resetTemplateForm}
@@ -1148,7 +1155,7 @@ export default function PromoCardsPage() {
                                 onClick={savePopup}
                                 className="flex-1 py-1.5 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-500"
                             >
-                                Save
+                                ✅ Save Popup
                             </button>
                             <button
                                 onClick={() => setEditingPopup(null)}
