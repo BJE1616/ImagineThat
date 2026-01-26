@@ -68,6 +68,17 @@ export default function PayoutQueuePage() {
     const [selectedReconciliation, setSelectedReconciliation] = useState(null)
     const [resolutionNotes, setResolutionNotes] = useState('')
 
+    // Business Payment Accounts
+    const [businessAccounts, setBusinessAccounts] = useState({
+        venmo_handle: '',
+        venmo_notes: '',
+        cashapp_handle: '',
+        cashapp_notes: ''
+    })
+    const [businessAccountsExpanded, setBusinessAccountsExpanded] = useState(true)
+    const [editingBusinessAccounts, setEditingBusinessAccounts] = useState(false)
+    const [savingBusinessAccounts, setSavingBusinessAccounts] = useState(false)
+
     const [stats, setStats] = useState({
         pending_count: 0,
         pending_amount: 0,
@@ -125,7 +136,8 @@ export default function PayoutQueuePage() {
             loadHistory(),
             loadWallets(),
             loadReconciliations(),
-            loadStats()
+            loadStats(),
+            loadBusinessAccounts()
         ])
         setLoading(false)
     }
@@ -194,6 +206,61 @@ export default function PayoutQueuePage() {
             today_paid: todayPaid?.length || 0,
             today_amount: todayPaid?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
         })
+    }
+
+    const loadBusinessAccounts = async () => {
+        const { data, error } = await supabase
+            .from('admin_settings')
+            .select('setting_key, setting_value')
+            .in('setting_key', ['business_venmo_handle', 'business_venmo_notes', 'business_cashapp_handle', 'business_cashapp_notes'])
+
+        if (!error && data) {
+            const settings = {}
+            data.forEach(item => {
+                const key = item.setting_key.replace('business_', '')
+                settings[key] = item.setting_value || ''
+            })
+            setBusinessAccounts(prev => ({ ...prev, ...settings }))
+        }
+    }
+
+    const saveBusinessAccounts = async () => {
+        setSavingBusinessAccounts(true)
+        try {
+            const settings = [
+                { setting_key: 'business_venmo_handle', setting_value: businessAccounts.venmo_handle },
+                { setting_key: 'business_venmo_notes', setting_value: businessAccounts.venmo_notes },
+                { setting_key: 'business_cashapp_handle', setting_value: businessAccounts.cashapp_handle },
+                { setting_key: 'business_cashapp_notes', setting_value: businessAccounts.cashapp_notes }
+            ]
+
+            for (const setting of settings) {
+                const { data: existing } = await supabase
+                    .from('admin_settings')
+                    .select('id')
+                    .eq('setting_key', setting.setting_key)
+                    .maybeSingle()
+
+                if (existing) {
+                    await supabase
+                        .from('admin_settings')
+                        .update({ setting_value: setting.setting_value, updated_at: new Date().toISOString() })
+                        .eq('setting_key', setting.setting_key)
+                } else {
+                    await supabase
+                        .from('admin_settings')
+                        .insert({ ...setting, created_at: new Date().toISOString() })
+                }
+            }
+
+            setMessage({ type: 'success', text: 'Business accounts saved!' })
+            setEditingBusinessAccounts(false)
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to save business accounts' })
+        } finally {
+            setSavingBusinessAccounts(false)
+            setTimeout(() => setMessage(null), 3000)
+        }
     }
 
     const getDateRange = (filterValue) => {
@@ -723,6 +790,104 @@ export default function PayoutQueuePage() {
                 {message && (
                     <div className={`px-3 py-1 rounded text-sm ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                         {message.text}
+                    </div>
+                )}
+            </div>
+
+            {/* Business Payment Accounts */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+                <div
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-700/30"
+                    onClick={() => !editingBusinessAccounts && setBusinessAccountsExpanded(!businessAccountsExpanded)}
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-lg">📱</span>
+                        <span className="text-white font-medium">Business Payment Accounts</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {canProcessPayouts && !editingBusinessAccounts && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setEditingBusinessAccounts(true); setBusinessAccountsExpanded(true); }}
+                                className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1"
+                            >
+                                Edit
+                            </button>
+                        )}
+                        <span className="text-slate-400 text-sm">{businessAccountsExpanded ? '▼' : '▶'}</span>
+                    </div>
+                </div>
+                {businessAccountsExpanded && (
+                    <div className="px-3 pb-3 border-t border-slate-700">
+                        {editingBusinessAccounts ? (
+                            <div className="space-y-3 pt-3">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">💚 Venmo Handle</label>
+                                        <input
+                                            type="text"
+                                            value={businessAccounts.venmo_handle}
+                                            onChange={(e) => setBusinessAccounts(prev => ({ ...prev, venmo_handle: e.target.value }))}
+                                            placeholder="@YourHandle"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm"
+                                        />
+                                        <label className="block text-xs text-slate-400 mb-1 mt-2">Notes</label>
+                                        <input
+                                            type="text"
+                                            value={businessAccounts.venmo_notes}
+                                            onChange={(e) => setBusinessAccounts(prev => ({ ...prev, venmo_notes: e.target.value }))}
+                                            placeholder="e.g., Daily limit $5,000"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">💵 Cash App Handle</label>
+                                        <input
+                                            type="text"
+                                            value={businessAccounts.cashapp_handle}
+                                            onChange={(e) => setBusinessAccounts(prev => ({ ...prev, cashapp_handle: e.target.value }))}
+                                            placeholder="$YourHandle"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm"
+                                        />
+                                        <label className="block text-xs text-slate-400 mb-1 mt-2">Notes</label>
+                                        <input
+                                            type="text"
+                                            value={businessAccounts.cashapp_notes}
+                                            onChange={(e) => setBusinessAccounts(prev => ({ ...prev, cashapp_notes: e.target.value }))}
+                                            placeholder="e.g., Business account"
+                                            className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button
+                                        onClick={() => { setEditingBusinessAccounts(false); loadBusinessAccounts(); }}
+                                        className="px-3 py-1 text-sm text-slate-400 hover:text-white"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={saveBusinessAccounts}
+                                        disabled={savingBusinessAccounts}
+                                        className="px-3 py-1 text-sm bg-green-600 hover:bg-green-500 text-white rounded disabled:opacity-50"
+                                    >
+                                        {savingBusinessAccounts ? 'Saving...' : '✅ Save'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-4 pt-3">
+                                <div>
+                                    <p className="text-xs text-slate-400 mb-1">💚 Venmo</p>
+                                    <p className="text-white font-medium">{businessAccounts.venmo_handle || <span className="text-slate-500 italic">Not set</span>}</p>
+                                    {businessAccounts.venmo_notes && <p className="text-xs text-slate-400 mt-1">{businessAccounts.venmo_notes}</p>}
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-400 mb-1">💵 Cash App</p>
+                                    <p className="text-white font-medium">{businessAccounts.cashapp_handle || <span className="text-slate-500 italic">Not set</span>}</p>
+                                    {businessAccounts.cashapp_notes && <p className="text-xs text-slate-400 mt-1">{businessAccounts.cashapp_notes}</p>}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
