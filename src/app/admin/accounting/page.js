@@ -36,7 +36,11 @@ const TIPS = {
     // Tax Summaries
     taxYear: "The tax year to send summaries for. Users who earned money this year will be included.",
     taxRecipients: "Number of users who received payouts (matrix, prizes, etc.) during the selected year.",
-    taxConfirm: "This sends official tax documents. Double-check the year and recipient count before sending."
+    taxConfirm: "This sends official tax documents. Double-check the year and recipient count before sending.",
+
+    // Wallets
+    walletBalances: "Cash available in each payment account for sending payouts. Keep these synced with your actual account balances.",
+    loanTracking: "Money loaned to the business that needs to be paid back. Track who lent what and repayment status."
 }
 
 export default function AccountingDashboardPage() {
@@ -100,6 +104,27 @@ export default function AccountingDashboardPage() {
         notes: ''
     })
 
+    // ===== WALLET & LOAN STATE =====
+    const [wallets, setWallets] = useState([])
+    const [loans, setLoans] = useState([])
+    const [showAddWalletForm, setShowAddWalletForm] = useState(false)
+    const [showAddFundsForm, setShowAddFundsForm] = useState(false)
+    const [showRepaymentForm, setShowRepaymentForm] = useState(false)
+    const [editingWallet, setEditingWallet] = useState(null)
+    const [selectedWalletForFunds, setSelectedWalletForFunds] = useState(null)
+    const [selectedLoanForRepayment, setSelectedLoanForRepayment] = useState(null)
+    const [newWallet, setNewWallet] = useState({ wallet_key: '', wallet_name: '' })
+    const [addFundsForm, setAddFundsForm] = useState({
+        amount: '',
+        source_type: 'loan',
+        lender_name: '',
+        notes: ''
+    })
+    const [repaymentForm, setRepaymentForm] = useState({
+        amount: '',
+        notes: ''
+    })
+
     useEffect(() => {
         loadAllData()
     }, [dateRange])
@@ -107,6 +132,10 @@ export default function AccountingDashboardPage() {
     useEffect(() => {
         if (activeTab === 'tax') {
             loadTaxRecipients(taxYear)
+        }
+        if (activeTab === 'wallets') {
+            loadWallets()
+            loadLoans()
         }
     }, [activeTab, taxYear])
 
@@ -195,6 +224,211 @@ export default function AccountingDashboardPage() {
         const { data } = await supabase.from('partners').select('*').order('is_owner', { ascending: false }).order('name')
         setPartners(data || [])
     }
+
+    // ===== WALLET & LOAN FUNCTIONS =====
+    const loadWallets = async () => {
+        const { data } = await supabase.from('account_wallets').select('*').order('wallet_name')
+        setWallets(data || [])
+    }
+
+    const loadLoans = async () => {
+        const { data } = await supabase
+            .from('business_loans')
+            .select('*')
+            .order('loan_date', { ascending: false })
+        setLoans(data || [])
+    }
+
+    const addWallet = async () => {
+        if (!newWallet.wallet_key || !newWallet.wallet_name) {
+            setMessage({ type: 'error', text: 'Wallet key and name required' })
+            return
+        }
+        // Sanitize wallet_key: lowercase, no spaces
+        const sanitizedKey = newWallet.wallet_key.toLowerCase().replace(/\s+/g, '_')
+
+        try {
+            const { error } = await supabase.from('account_wallets').insert([{
+                wallet_key: sanitizedKey,
+                wallet_name: newWallet.wallet_name,
+                balance: 0
+            }])
+            if (error) throw error
+            setMessage({ type: 'success', text: 'Wallet added!' })
+            setShowAddWalletForm(false)
+            setNewWallet({ wallet_key: '', wallet_name: '' })
+            loadWallets()
+            setTimeout(() => setMessage(null), 2000)
+        } catch (error) {
+            console.error('Error adding wallet:', error)
+            setMessage({ type: 'error', text: 'Failed to add wallet. Key may already exist.' })
+        }
+    }
+
+    const updateWalletName = async (walletKey, newName) => {
+        try {
+            const { error } = await supabase
+                .from('account_wallets')
+                .update({ wallet_name: newName, updated_at: new Date().toISOString() })
+                .eq('wallet_key', walletKey)
+            if (error) throw error
+            setMessage({ type: 'success', text: 'Wallet updated!' })
+            setEditingWallet(null)
+            loadWallets()
+            setTimeout(() => setMessage(null), 2000)
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to update' })
+        }
+    }
+
+    const deleteWallet = async (walletKey) => {
+        // Check if wallet has transactions
+        const { data: txns } = await supabase
+            .from('wallet_transactions')
+            .select('id')
+            .eq('wallet_key', walletKey)
+            .limit(1)
+
+        if (txns && txns.length > 0) {
+            setMessage({ type: 'error', text: 'Cannot delete wallet with transaction history' })
+            setTimeout(() => setMessage(null), 3000)
+            return
+        }
+
+        if (!confirm('Delete this wallet?')) return
+
+        try {
+            const { error } = await supabase.from('account_wallets').delete().eq('wallet_key', walletKey)
+            if (error) throw error
+            setMessage({ type: 'success', text: 'Wallet deleted!' })
+            loadWallets()
+            setTimeout(() => setMessage(null), 2000)
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to delete' })
+        }
+    }
+
+    const openAddFundsForm = (wallet) => {
+        setSelectedWalletForFunds(wallet)
+        setAddFundsForm({ amount: '', source_type: 'loan', lender_name: '', notes: '' })
+        setShowAddFundsForm(true)
+    }
+
+    const addFundsToWallet = async () => {
+        const amount = parseFloat(addFundsForm.amount)
+        if (!amount || amount <= 0) {
+            setMessage({ type: 'error', text: 'Enter a valid amount' })
+            return
+        }
+
+        if (addFundsForm.source_type === 'loan' && !addFundsForm.lender_name.trim()) {
+            setMessage({ type: 'error', text: 'Lender name required for loans' })
+            return
+        }
+
+        try {
+            const wallet = selectedWalletForFunds
+
+            // Update wallet balance
+            await supabase
+                .from('account_wallets')
+                .update({
+                    balance: wallet.balance + amount,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('wallet_key', wallet.wallet_key)
+
+            // Log the transaction
+            await supabase.from('wallet_transactions').insert([{
+                wallet_key: wallet.wallet_key,
+                transaction_type: addFundsForm.source_type === 'loan' ? 'loan_deposit' : 'deposit',
+                amount: amount,
+                description: addFundsForm.source_type === 'loan'
+                    ? `Loan from ${addFundsForm.lender_name}${addFundsForm.notes ? ` - ${addFundsForm.notes}` : ''}`
+                    : `${addFundsForm.source_type === 'revenue' ? 'Revenue' : 'Deposit'}${addFundsForm.notes ? ` - ${addFundsForm.notes}` : ''}`,
+                reference_type: addFundsForm.source_type
+            }])
+
+            // If it's a loan, create loan record
+            if (addFundsForm.source_type === 'loan') {
+                await supabase.from('business_loans').insert([{
+                    lender_name: addFundsForm.lender_name.trim(),
+                    original_amount: amount,
+                    loan_date: new Date().toISOString().split('T')[0],
+                    wallet_key: wallet.wallet_key,
+                    notes: addFundsForm.notes || null,
+                    status: 'outstanding',
+                    repaid_amount: 0
+                }])
+            }
+
+            setMessage({ type: 'success', text: addFundsForm.source_type === 'loan' ? 'Loan recorded & funds added!' : 'Funds added!' })
+            setShowAddFundsForm(false)
+            loadWallets()
+            loadLoans()
+            setTimeout(() => setMessage(null), 3000)
+        } catch (error) {
+            console.error('Error adding funds:', error)
+            setMessage({ type: 'error', text: 'Failed to add funds' })
+        }
+    }
+
+    const openRepaymentForm = (loan) => {
+        setSelectedLoanForRepayment(loan)
+        const remaining = loan.original_amount - (loan.repaid_amount || 0)
+        setRepaymentForm({ amount: remaining.toFixed(2), notes: '' })
+        setShowRepaymentForm(true)
+    }
+
+    const recordRepayment = async () => {
+        const amount = parseFloat(repaymentForm.amount)
+        const loan = selectedLoanForRepayment
+        const remaining = loan.original_amount - (loan.repaid_amount || 0)
+
+        if (!amount || amount <= 0) {
+            setMessage({ type: 'error', text: 'Enter a valid amount' })
+            return
+        }
+
+        if (amount > remaining) {
+            setMessage({ type: 'error', text: `Cannot repay more than outstanding amount ($${remaining.toFixed(2)})` })
+            return
+        }
+
+        try {
+            const newRepaidAmount = (loan.repaid_amount || 0) + amount
+            const newStatus = newRepaidAmount >= loan.original_amount ? 'repaid' : 'partial'
+
+            // Update loan record
+            await supabase
+                .from('business_loans')
+                .update({
+                    repaid_amount: newRepaidAmount,
+                    status: newStatus,
+                    repaid_date: newStatus === 'repaid' ? new Date().toISOString().split('T')[0] : null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', loan.id)
+
+            // Record the repayment
+            await supabase.from('loan_repayments').insert([{
+                loan_id: loan.id,
+                amount: amount,
+                repayment_date: new Date().toISOString().split('T')[0],
+                notes: repaymentForm.notes || null
+            }])
+
+            setMessage({ type: 'success', text: newStatus === 'repaid' ? 'Loan fully repaid!' : 'Repayment recorded!' })
+            setShowRepaymentForm(false)
+            loadLoans()
+            setTimeout(() => setMessage(null), 3000)
+        } catch (error) {
+            console.error('Error recording repayment:', error)
+            setMessage({ type: 'error', text: 'Failed to record repayment' })
+        }
+    }
+
+    // ===== END WALLET & LOAN FUNCTIONS =====
 
     const loadTaxRecipients = async (year) => {
         try {
@@ -556,6 +790,23 @@ export default function AccountingDashboardPage() {
     const activePartners = partners.filter(p => p.is_active)
     const totalPartnerPercentage = activePartners.reduce((sum, p) => sum + (parseFloat(p.percentage) || 0), 0)
 
+    // Loan calculations
+    const totalLoaned = loans.reduce((sum, l) => sum + (l.original_amount || 0), 0)
+    const totalRepaid = loans.reduce((sum, l) => sum + (l.repaid_amount || 0), 0)
+    const totalOutstanding = totalLoaned - totalRepaid
+    const outstandingLoans = loans.filter(l => l.status !== 'repaid')
+
+    // Group outstanding by lender
+    const loansByLender = outstandingLoans.reduce((acc, loan) => {
+        const lender = loan.lender_name
+        if (!acc[lender]) acc[lender] = 0
+        acc[lender] += (loan.original_amount - (loan.repaid_amount || 0))
+        return acc
+    }, {})
+
+    // Total wallet balance
+    const totalWalletBalance = wallets.reduce((sum, w) => sum + (w.balance || 0), 0)
+
     if (loading) {
         return (
             <div className="p-4">
@@ -591,8 +842,8 @@ export default function AccountingDashboardPage() {
                 </div>
             </div>
 
-            <div className="flex gap-1 mb-3">
-                {['overview', 'allocations', 'expenses', 'transactions', 'partners', 'tax'].map(tab => (
+            <div className="flex gap-1 mb-3 flex-wrap">
+                {['overview', 'wallets', 'allocations', 'expenses', 'transactions', 'partners', 'tax'].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -699,59 +950,288 @@ export default function AccountingDashboardPage() {
                             )}
                         </div>
                     )}
+                </div>
+            )}
 
-                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <h3 className="text-white font-semibold mb-2 text-sm">
-                            <Tooltip text={TIPS.fundBalances}>Fund Balances</Tooltip>
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                            {funds.map(fund => (
-                                <div key={fund.id} className="bg-slate-700/50 rounded p-2">
-                                    <p className="text-slate-400 text-xs truncate">{fund.fund_name}</p>
-                                    <p className="text-white font-semibold">${(fund.balance || 0).toFixed(2)}</p>
+            {/* ===== WALLETS TAB ===== */}
+            {activeTab === 'wallets' && (
+                <div className="space-y-4">
+                    {/* Wallet Balances */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-white font-semibold flex items-center gap-2">
+                                💰 Wallet Balances
+                                <Tooltip text={TIPS.walletBalances} />
+                            </h3>
+                            <button
+                                onClick={() => setShowAddWalletForm(true)}
+                                className="text-xs text-yellow-400 hover:text-yellow-300"
+                            >
+                                + Add Wallet
+                            </button>
+                        </div>
+
+                        {showAddWalletForm && (
+                            <div className="bg-slate-700/50 rounded-lg p-3 mb-3">
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <div>
+                                        <label className="text-slate-400 text-xs">Wallet Key (lowercase, no spaces)</label>
+                                        <input
+                                            type="text"
+                                            value={newWallet.wallet_key}
+                                            onChange={(e) => setNewWallet({ ...newWallet, wallet_key: e.target.value })}
+                                            placeholder="e.g., paypal"
+                                            className="w-full mt-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-slate-400 text-xs">Display Name</label>
+                                        <input
+                                            type="text"
+                                            value={newWallet.wallet_name}
+                                            onChange={(e) => setNewWallet({ ...newWallet, wallet_name: e.target.value })}
+                                            placeholder="e.g., PayPal"
+                                            className="w-full mt-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setShowAddWalletForm(false)} className="px-3 py-1 text-sm text-slate-400">Cancel</button>
+                                    <button onClick={addWallet} className="px-3 py-1 text-sm bg-green-600 text-white rounded">Add</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {wallets.map(wallet => (
+                                <div key={wallet.wallet_key} className="bg-slate-700/50 rounded-lg p-3">
+                                    {editingWallet === wallet.wallet_key ? (
+                                        <div className="space-y-2">
+                                            <input
+                                                type="text"
+                                                defaultValue={wallet.wallet_name}
+                                                onBlur={(e) => updateWalletName(wallet.wallet_key, e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && updateWalletName(wallet.wallet_key, e.target.value)}
+                                                className="w-full px-2 py-1 bg-slate-600 border border-slate-500 rounded text-white text-sm"
+                                                autoFocus
+                                            />
+                                            <button onClick={() => setEditingWallet(null)} className="text-xs text-slate-400">Cancel</button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-slate-400 text-xs">{wallet.wallet_name}</p>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => setEditingWallet(wallet.wallet_key)}
+                                                        className="text-[10px] text-slate-500 hover:text-white"
+                                                    >✏️</button>
+                                                    <button
+                                                        onClick={() => deleteWallet(wallet.wallet_key)}
+                                                        className="text-[10px] text-slate-500 hover:text-red-400"
+                                                    >🗑️</button>
+                                                </div>
+                                            </div>
+                                            <p className={`text-xl font-bold ${wallet.balance < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                ${wallet.balance.toFixed(2)}
+                                            </p>
+                                            <button
+                                                onClick={() => openAddFundsForm(wallet)}
+                                                className="text-xs text-yellow-400 hover:text-yellow-300 mt-1"
+                                            >
+                                                + Add Funds
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             ))}
+                            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                                <p className="text-yellow-400 text-xs mb-1">Total All Wallets</p>
+                                <p className="text-xl font-bold text-yellow-400">${totalWalletBalance.toFixed(2)}</p>
+                            </div>
                         </div>
+                    </div>
+
+                    {/* Loan Summary */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                            📊 Loan Summary
+                            <Tooltip text={TIPS.loanTracking} />
+                        </h3>
+
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="bg-slate-700/50 rounded-lg p-3">
+                                <p className="text-slate-400 text-xs">Total Loaned</p>
+                                <p className="text-xl font-bold text-white">${totalLoaned.toFixed(2)}</p>
+                            </div>
+                            <div className="bg-slate-700/50 rounded-lg p-3">
+                                <p className="text-slate-400 text-xs">Total Repaid</p>
+                                <p className="text-xl font-bold text-green-400">${totalRepaid.toFixed(2)}</p>
+                            </div>
+                            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                                <p className="text-red-400 text-xs">Outstanding</p>
+                                <p className="text-xl font-bold text-red-400">${totalOutstanding.toFixed(2)}</p>
+                            </div>
+                        </div>
+
+                        {Object.keys(loansByLender).length > 0 && (
+                            <div className="bg-slate-700/30 rounded-lg p-3 mb-4">
+                                <p className="text-slate-400 text-xs mb-2">Outstanding by Lender:</p>
+                                {Object.entries(loansByLender).map(([lender, amount]) => (
+                                    <div key={lender} className="flex justify-between text-sm">
+                                        <span className="text-white">{lender}</span>
+                                        <span className="text-red-400">${amount.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Loan List */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <h3 className="text-white font-semibold mb-3">📋 All Loans</h3>
+
+                        {loans.length === 0 ? (
+                            <div className="text-center text-slate-400 py-4">
+                                <p>No loans recorded yet</p>
+                                <p className="text-xs mt-1">Add funds to a wallet as a "Loan" to start tracking</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-slate-400 text-xs border-b border-slate-700">
+                                            <th className="text-left py-2">Date</th>
+                                            <th className="text-left py-2">Lender</th>
+                                            <th className="text-left py-2">Wallet</th>
+                                            <th className="text-right py-2">Amount</th>
+                                            <th className="text-right py-2">Repaid</th>
+                                            <th className="text-right py-2">Owed</th>
+                                            <th className="text-center py-2">Status</th>
+                                            <th className="text-right py-2">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {loans.map(loan => {
+                                            const owed = loan.original_amount - (loan.repaid_amount || 0)
+                                            return (
+                                                <tr key={loan.id} className="border-b border-slate-700/50">
+                                                    <td className="py-2 text-slate-400">{new Date(loan.loan_date).toLocaleDateString()}</td>
+                                                    <td className="py-2 text-white">{loan.lender_name}</td>
+                                                    <td className="py-2 text-slate-400 capitalize">{loan.wallet_key || '-'}</td>
+                                                    <td className="py-2 text-right text-white">${loan.original_amount.toFixed(2)}</td>
+                                                    <td className="py-2 text-right text-green-400">${(loan.repaid_amount || 0).toFixed(2)}</td>
+                                                    <td className="py-2 text-right text-red-400">${owed.toFixed(2)}</td>
+                                                    <td className="py-2 text-center">
+                                                        <span className={`px-2 py-0.5 rounded text-xs ${loan.status === 'repaid' ? 'bg-green-500/20 text-green-400' :
+                                                                loan.status === 'partial' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                                    'bg-red-500/20 text-red-400'
+                                                            }`}>
+                                                            {loan.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2 text-right">
+                                                        {loan.status !== 'repaid' && (
+                                                            <button
+                                                                onClick={() => openRepaymentForm(loan)}
+                                                                className="text-xs text-blue-400 hover:text-blue-300"
+                                                            >
+                                                                Repay
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-xs text-blue-300">
+                        <p><strong>💡 Tips:</strong></p>
+                        <p>• Add funds via "Add Funds" button on each wallet</p>
+                        <p>• Choose "Loan" as source to track money owed back</p>
+                        <p>• Choose "Revenue" for business income (no repayment needed)</p>
+                        <p>• Record repayments as you pay back loans</p>
                     </div>
                 </div>
             )}
 
             {activeTab === 'allocations' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                    <h3 className="text-white font-semibold mb-2 text-sm">
-                        <Tooltip text={TIPS.allocations}>Allocation Percentages</Tooltip>
-                    </h3>
-                    <p className="text-slate-400 text-xs mb-3">Set how net revenue is distributed. Owner/Partners get the remainder.</p>
-
-                    <div className="space-y-2">
-                        {allocations.filter(a => !a.is_auto_calculated).map(alloc => (
-                            <div key={alloc.id} className="flex items-center gap-3">
-                                <span className="text-slate-300 text-sm w-40">{alloc.setting_name}</span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    step="0.5"
-                                    value={alloc.percentage}
-                                    onChange={(e) => setAllocations(allocations.map(a => a.id === alloc.id ? { ...a, percentage: Number(e.target.value) } : a))}
-                                    onBlur={(e) => updateAllocation(alloc.id, Number(e.target.value))}
-                                    className="w-20 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
-                                />
-                                <span className="text-slate-400 text-sm">%</span>
+                <div className="space-y-3">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-white font-semibold">
+                                <Tooltip text={TIPS.allocations}>Fund Allocations</Tooltip>
+                            </h3>
+                            <div className="text-xs">
+                                <span className="text-slate-400">Partners get:</span>
+                                <span className={`ml-1 font-bold ${ownerPercentage >= 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                    {ownerPercentage.toFixed(1)}%
+                                </span>
                             </div>
-                        ))}
-                        <div className="flex items-center gap-3 border-t border-slate-700 pt-2">
-                            <span className="text-yellow-400 text-sm w-40 font-semibold">
-                                <Tooltip text={TIPS.partnersSplit}>Partners Split</Tooltip>
-                            </span>
-                            <span className="text-yellow-400 font-bold">{ownerPercentage.toFixed(1)}%</span>
-                            <span className="text-slate-500 text-xs">(auto-calculated)</span>
                         </div>
+                        {allocations.length === 0 ? (
+                            <p className="text-slate-400 text-sm">No allocations configured</p>
+                        ) : (
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-slate-400 text-xs">
+                                        <th className="text-left py-1">Fund</th>
+                                        <th className="text-right py-1">
+                                            <Tooltip text={TIPS.allocationPercentage}>Percentage</Tooltip>
+                                        </th>
+                                        <th className="text-right py-1">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allocations.filter(a => !a.is_auto_calculated).map(allocation => (
+                                        <tr key={allocation.id} className="border-t border-slate-700">
+                                            <td className="py-1 text-white">{allocation.fund_name}</td>
+                                            <td className="py-1 text-right">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.5"
+                                                    value={allocation.percentage}
+                                                    onChange={(e) => setAllocations(allocations.map(a => a.id === allocation.id ? { ...a, percentage: e.target.value } : a))}
+                                                    onBlur={(e) => updateAllocation(allocation.id, parseFloat(e.target.value) || 0)}
+                                                    className="w-16 px-1 py-0.5 bg-slate-700 border border-slate-600 rounded text-white text-xs text-right"
+                                                />
+                                            </td>
+                                            <td className="py-1 text-right text-green-400">
+                                                ${(summary.netRevenue * (allocation.percentage / 100)).toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    <tr className="border-t border-slate-700">
+                                        <td className="py-1 text-yellow-400 font-medium">
+                                            <Tooltip text={TIPS.partnersSplit}>→ Partners Split</Tooltip>
+                                        </td>
+                                        <td className="py-1 text-right text-yellow-400 font-medium">{ownerPercentage.toFixed(1)}%</td>
+                                        <td className="py-1 text-right text-yellow-400 font-medium">${summary.ownerAvailable.toFixed(2)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        )}
                     </div>
 
-                    {totalAllocated > 100 && (
-                        <div className="mt-3 p-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-sm">
-                            ⚠️ Allocations exceed 100%! Please reduce.
+                    {funds.length > 0 && (
+                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                            <h3 className="text-white font-semibold mb-3">
+                                <Tooltip text={TIPS.fundBalances}>Fund Balances</Tooltip>
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {funds.map(fund => (
+                                    <div key={fund.id} className="bg-slate-700/50 rounded p-2">
+                                        <p className="text-slate-400 text-xs">{fund.fund_name}</p>
+                                        <p className="text-white font-bold">${(fund.balance || 0).toFixed(2)}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -759,56 +1239,46 @@ export default function AccountingDashboardPage() {
 
             {activeTab === 'expenses' && (
                 <div className="space-y-3">
-                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-white font-semibold text-sm">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-white font-semibold">
                                 <Tooltip text={TIPS.recurringExpenses}>Recurring Expenses</Tooltip>
                             </h3>
-                            <button
-                                onClick={() => setShowRecurringForm(!showRecurringForm)}
-                                className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
-                            >
-                                {showRecurringForm ? 'Cancel' : '+ Add'}
-                            </button>
+                            <button onClick={() => setShowRecurringForm(true)} className="text-xs text-yellow-400 hover:text-yellow-300">+ Add Recurring</button>
                         </div>
 
                         {showRecurringForm && (
-                            <div className="mb-3 p-2 bg-slate-700/50 rounded-lg">
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
-                                    <input type="text" placeholder="Name" value={newRecurring.name}
-                                        onChange={(e) => setNewRecurring({ ...newRecurring, name: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                    <input type="number" placeholder="Amount" step="0.01" value={newRecurring.amount}
-                                        onChange={(e) => setNewRecurring({ ...newRecurring, amount: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                    <select value={newRecurring.category_id}
-                                        onChange={(e) => setNewRecurring({ ...newRecurring, category_id: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs">
-                                        <option value="">Category</option>
-                                        {expenseCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                                    </select>
-                                    <select value={newRecurring.frequency}
-                                        onChange={(e) => setNewRecurring({ ...newRecurring, frequency: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs">
+                            <div className="bg-slate-700/50 rounded-lg p-3 mb-3">
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <input type="text" placeholder="Name" value={newRecurring.name} onChange={(e) => setNewRecurring({ ...newRecurring, name: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                    <input type="number" step="0.01" placeholder="Amount" value={newRecurring.amount} onChange={(e) => setNewRecurring({ ...newRecurring, amount: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                    <select value={newRecurring.frequency} onChange={(e) => setNewRecurring({ ...newRecurring, frequency: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm">
                                         <option value="monthly">Monthly</option>
                                         <option value="yearly">Yearly</option>
+                                        <option value="weekly">Weekly</option>
                                     </select>
-                                    <button onClick={addRecurringExpense}
-                                        className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400">Save</button>
+                                    <select value={newRecurring.category_id} onChange={(e) => setNewRecurring({ ...newRecurring, category_id: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm">
+                                        <option value="">Category...</option>
+                                        {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setShowRecurringForm(false)} className="px-3 py-1 text-sm text-slate-400">Cancel</button>
+                                    <button onClick={addRecurringExpense} className="px-3 py-1 text-sm bg-green-600 text-white rounded">Add</button>
                                 </div>
                             </div>
                         )}
 
                         {recurringExpenses.length === 0 ? (
-                            <p className="text-slate-400 text-sm">No recurring expenses yet.</p>
+                            <p className="text-slate-400 text-sm">No recurring expenses</p>
                         ) : (
-                            <table className="w-full text-xs">
+                            <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="text-slate-400">
+                                    <tr className="text-slate-400 text-xs">
                                         <th className="text-left py-1">Name</th>
                                         <th className="text-left py-1">Category</th>
-                                        <th className="text-left py-1">Freq</th>
                                         <th className="text-right py-1">Amount</th>
+                                        <th className="text-center py-1">Frequency</th>
                                         <th className="text-right py-1">Actions</th>
                                     </tr>
                                 </thead>
@@ -817,15 +1287,13 @@ export default function AccountingDashboardPage() {
                                         <tr key={exp.id} className="border-t border-slate-700">
                                             <td className="py-1 text-white">{exp.name}</td>
                                             <td className="py-1 text-slate-400">{exp.expense_categories?.name || '-'}</td>
-                                            <td className="py-1 text-slate-400">{exp.frequency}</td>
-                                            <td className="py-1 text-right text-red-400">${(exp.amount || 0).toFixed(2)}</td>
+                                            <td className="py-1 text-right text-red-400">${exp.amount.toFixed(2)}</td>
+                                            <td className="py-1 text-center text-slate-400 capitalize">{exp.frequency}</td>
                                             <td className="py-1 text-right">
-                                                <button onClick={() => toggleRecurringExpense(exp.id, exp.is_active)}
-                                                    className="text-yellow-400 hover:text-yellow-300 mr-2">
+                                                <button onClick={() => toggleRecurringExpense(exp.id, exp.is_active)} className="text-yellow-400 hover:text-yellow-300 mr-2">
                                                     {exp.is_active ? 'Off' : 'On'}
                                                 </button>
-                                                <button onClick={() => deleteRecurringExpense(exp.id)}
-                                                    className="text-red-400 hover:text-red-300">Del</button>
+                                                <button onClick={() => deleteRecurringExpense(exp.id)} className="text-red-400 hover:text-red-300">Del</button>
                                             </td>
                                         </tr>
                                     ))}
@@ -834,66 +1302,54 @@ export default function AccountingDashboardPage() {
                         )}
                     </div>
 
-                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-white font-semibold text-sm">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-white font-semibold">
                                 <Tooltip text={TIPS.oneTimeExpenses}>One-Time Expenses</Tooltip>
                             </h3>
-                            <button
-                                onClick={() => setShowExpenseForm(!showExpenseForm)}
-                                className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
-                            >
-                                {showExpenseForm ? 'Cancel' : '+ Add'}
-                            </button>
+                            <button onClick={() => setShowExpenseForm(true)} className="text-xs text-yellow-400 hover:text-yellow-300">+ Add Expense</button>
                         </div>
 
                         {showExpenseForm && (
-                            <div className="mb-3 p-2 bg-slate-700/50 rounded-lg">
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
-                                    <input type="text" placeholder="Description" value={newExpense.description}
-                                        onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                    <input type="number" placeholder="Amount" step="0.01" value={newExpense.amount}
-                                        onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                    <select value={newExpense.category_id}
-                                        onChange={(e) => setNewExpense({ ...newExpense, category_id: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs">
-                                        <option value="">Category</option>
-                                        {expenseCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                            <div className="bg-slate-700/50 rounded-lg p-3 mb-3">
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <input type="text" placeholder="Description" value={newExpense.description} onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                    <input type="number" step="0.01" placeholder="Amount" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                    <input type="date" value={newExpense.expense_date} onChange={(e) => setNewExpense({ ...newExpense, expense_date: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                    <select value={newExpense.category_id} onChange={(e) => setNewExpense({ ...newExpense, category_id: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm">
+                                        <option value="">Category...</option>
+                                        {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
-                                    <input type="date" value={newExpense.expense_date}
-                                        onChange={(e) => setNewExpense({ ...newExpense, expense_date: e.target.value })}
-                                        className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                    <button onClick={addExpense}
-                                        className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400">Save</button>
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setShowExpenseForm(false)} className="px-3 py-1 text-sm text-slate-400">Cancel</button>
+                                    <button onClick={addExpense} className="px-3 py-1 text-sm bg-green-600 text-white rounded">Add</button>
                                 </div>
                             </div>
                         )}
 
                         {expenses.length === 0 ? (
-                            <p className="text-slate-400 text-sm">No expenses yet.</p>
+                            <p className="text-slate-400 text-sm">No expenses this period</p>
                         ) : (
-                            <table className="w-full text-xs">
+                            <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="text-slate-400">
+                                    <tr className="text-slate-400 text-xs">
                                         <th className="text-left py-1">Date</th>
                                         <th className="text-left py-1">Description</th>
                                         <th className="text-left py-1">Category</th>
                                         <th className="text-right py-1">Amount</th>
-                                        <th className="text-right py-1">Actions</th>
+                                        <th className="text-right py-1">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {expenses.map(exp => (
+                                    {expenses.slice(0, 10).map(exp => (
                                         <tr key={exp.id} className="border-t border-slate-700">
-                                            <td className="py-1 text-slate-400">{exp.expense_date}</td>
+                                            <td className="py-1 text-slate-400">{new Date(exp.expense_date).toLocaleDateString()}</td>
                                             <td className="py-1 text-white">{exp.description}</td>
                                             <td className="py-1 text-slate-400">{exp.expense_categories?.name || '-'}</td>
-                                            <td className="py-1 text-right text-red-400">${(exp.amount || 0).toFixed(2)}</td>
+                                            <td className="py-1 text-right text-red-400">${exp.amount.toFixed(2)}</td>
                                             <td className="py-1 text-right">
-                                                <button onClick={() => deleteExpense(exp.id)}
-                                                    className="text-red-400 hover:text-red-300">Del</button>
+                                                <button onClick={() => deleteExpense(exp.id)} className="text-red-400 hover:text-red-300">Del</button>
                                             </td>
                                         </tr>
                                     ))}
@@ -905,78 +1361,58 @@ export default function AccountingDashboardPage() {
             )}
 
             {activeTab === 'transactions' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-white font-semibold text-sm">
-                            <Tooltip text={TIPS.transactions}>Transactions</Tooltip>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-white font-semibold">
+                            <Tooltip text={TIPS.transactions}>Recent Transactions</Tooltip>
                         </h3>
-                        <button
-                            onClick={() => setShowIncomeForm(!showIncomeForm)}
-                            className="px-2 py-1 bg-green-500 text-white rounded text-xs font-medium hover:bg-green-400"
-                        >
-                            {showIncomeForm ? 'Cancel' : '+ Add Income'}
-                        </button>
+                        <button onClick={() => setShowIncomeForm(true)} className="text-xs text-yellow-400 hover:text-yellow-300">+ Add Income</button>
                     </div>
 
                     {showIncomeForm && (
-                        <div className="mb-3 p-2 bg-slate-700/50 rounded-lg">
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
-                                <input type="text" placeholder="Description" value={newIncome.description}
-                                    onChange={(e) => setNewIncome({ ...newIncome, description: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <input type="number" placeholder="Amount" step="0.01" value={newIncome.amount}
-                                    onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <select value={newIncome.category}
-                                    onChange={(e) => setNewIncome({ ...newIncome, category: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs">
-                                    <option value="ad_campaign">Ad Campaign</option>
-                                    <option value="cash_payment">Cash Payment</option>
-                                    <option value="refund_received">Refund Received</option>
+                        <div className="bg-slate-700/50 rounded-lg p-3 mb-3">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                <input type="text" placeholder="Description" value={newIncome.description} onChange={(e) => setNewIncome({ ...newIncome, description: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <input type="number" step="0.01" placeholder="Amount" value={newIncome.amount} onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <input type="date" value={newIncome.transaction_date} onChange={(e) => setNewIncome({ ...newIncome, transaction_date: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <select value={newIncome.category} onChange={(e) => setNewIncome({ ...newIncome, category: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm">
+                                    <option value="other">Other Income</option>
                                     <option value="partner_investment">Partner Investment</option>
-                                    <option value="sponsorship">Sponsorship</option>
-                                    <option value="other">Other</option>
+                                    <option value="refund">Refund Received</option>
+                                    <option value="interest">Interest</option>
                                 </select>
-                                <input type="date" value={newIncome.transaction_date}
-                                    onChange={(e) => setNewIncome({ ...newIncome, transaction_date: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <button onClick={addIncome}
-                                    className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400">Save</button>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => setShowIncomeForm(false)} className="px-3 py-1 text-sm text-slate-400">Cancel</button>
+                                <button onClick={addIncome} className="px-3 py-1 text-sm bg-green-600 text-white rounded">Add</button>
                             </div>
                         </div>
                     )}
 
                     {transactions.length === 0 ? (
-                        <p className="text-slate-400 text-sm">No transactions yet.</p>
+                        <p className="text-slate-400 text-sm">No transactions this period</p>
                     ) : (
-                        <table className="w-full text-xs">
+                        <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-slate-400">
+                                <tr className="text-slate-400 text-xs">
                                     <th className="text-left py-1">Date</th>
-                                    <th className="text-left py-1">Type</th>
                                     <th className="text-left py-1">Description</th>
+                                    <th className="text-left py-1">Category</th>
                                     <th className="text-right py-1">Amount</th>
-                                    <th className="text-right py-1">Actions</th>
+                                    <th className="text-right py-1">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {transactions.map(tx => (
-                                    <tr key={tx.id} className="border-t border-slate-700">
-                                        <td className="py-1 text-slate-400">{tx.transaction_date}</td>
-                                        <td className="py-1">
-                                            <span className={`px-2 py-0.5 rounded text-xs ${tx.type === 'revenue' ? 'bg-green-500/20 text-green-400' :
-                                                tx.type === 'expense' ? 'bg-red-500/20 text-red-400' :
-                                                    tx.type === 'payout' ? 'bg-orange-500/20 text-orange-400' :
-                                                        'bg-slate-500/20 text-slate-400'
-                                                }`}>{tx.type}</span>
-                                        </td>
-                                        <td className="py-1 text-white">{tx.description}</td>
-                                        <td className={`py-1 text-right ${tx.type === 'revenue' ? 'text-green-400' : 'text-red-400'}`}>
-                                            {tx.type === 'revenue' ? '+' : '-'}${Math.abs(tx.net_amount || 0).toFixed(2)}
+                                {transactions.map(txn => (
+                                    <tr key={txn.id} className="border-t border-slate-700">
+                                        <td className="py-1 text-slate-400">{new Date(txn.created_at).toLocaleDateString()}</td>
+                                        <td className="py-1 text-white">{txn.description}</td>
+                                        <td className="py-1 text-slate-400 capitalize">{txn.category?.replace('_', ' ') || '-'}</td>
+                                        <td className={`py-1 text-right ${txn.type === 'revenue' ? 'text-green-400' : 'text-red-400'}`}>
+                                            {txn.type === 'revenue' ? '+' : '-'}${Math.abs(txn.net_amount || txn.gross_amount).toFixed(2)}
                                         </td>
                                         <td className="py-1 text-right">
-                                            <button onClick={() => deleteTransaction(tx.id)}
-                                                className="text-red-400 hover:text-red-300">Del</button>
+                                            <button onClick={() => deleteTransaction(txn.id)} className="text-red-400 hover:text-red-300">Del</button>
                                         </td>
                                     </tr>
                                 ))}
@@ -987,58 +1423,39 @@ export default function AccountingDashboardPage() {
             )}
 
             {activeTab === 'partners' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-white font-semibold text-sm">Partner Profit Sharing</h3>
-                        <button
-                            onClick={() => setShowPartnerForm(!showPartnerForm)}
-                            className="px-2 py-1 bg-yellow-500 text-slate-900 rounded text-xs font-medium hover:bg-yellow-400"
-                        >
-                            {showPartnerForm ? 'Cancel' : '+ Add Partner'}
-                        </button>
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-white font-semibold">Partners</h3>
+                        <button onClick={() => setShowPartnerForm(true)} className="text-xs text-yellow-400 hover:text-yellow-300">+ Add Partner</button>
                     </div>
 
                     {showPartnerForm && (
-                        <div className="mb-3 p-2 bg-slate-700/50 rounded-lg">
-                            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-2">
-                                <input type="text" placeholder="Name" value={newPartner.name}
-                                    onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <input type="email" placeholder="Email" value={newPartner.email}
-                                    onChange={(e) => setNewPartner({ ...newPartner, email: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <input type="number" placeholder="%" step="0.5" value={newPartner.percentage}
-                                    onChange={(e) => setNewPartner({ ...newPartner, percentage: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <select value={newPartner.payment_method}
-                                    onChange={(e) => setNewPartner({ ...newPartner, payment_method: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs">
-                                    <option value="">Payment Method</option>
-                                    <option value="zelle">Zelle</option>
+                        <div className="bg-slate-700/50 rounded-lg p-3 mb-3">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                <input type="text" placeholder="Name" value={newPartner.name} onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <input type="email" placeholder="Email" value={newPartner.email} onChange={(e) => setNewPartner({ ...newPartner, email: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <input type="number" step="0.5" placeholder="Percentage" value={newPartner.percentage} onChange={(e) => setNewPartner({ ...newPartner, percentage: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm" />
+                                <select value={newPartner.payment_method} onChange={(e) => setNewPartner({ ...newPartner, payment_method: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm">
+                                    <option value="">Payment Method...</option>
                                     <option value="venmo">Venmo</option>
                                     <option value="cashapp">Cash App</option>
+                                    <option value="check">Check</option>
                                 </select>
-                                <input type="text" placeholder="Handle/Email" value={newPartner.payment_handle}
-                                    onChange={(e) => setNewPartner({ ...newPartner, payment_handle: e.target.value })}
-                                    className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-xs" />
-                                <button onClick={addPartner}
-                                    className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-400">Save</button>
+                                <input type="text" placeholder="Payment Handle" value={newPartner.payment_handle} onChange={(e) => setNewPartner({ ...newPartner, payment_handle: e.target.value })} className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm col-span-2" />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => setShowPartnerForm(false)} className="px-3 py-1 text-sm text-slate-400">Cancel</button>
+                                <button onClick={addPartner} className="px-3 py-1 text-sm bg-green-600 text-white rounded">Add</button>
                             </div>
                         </div>
                     )}
 
-                    {totalPartnerPercentage !== 100 && partners.length > 0 && (
-                        <div className="mb-3 p-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-xs">
-                            ⚠️ Partner percentages = {totalPartnerPercentage.toFixed(1)}% (should equal 100%)
-                        </div>
-                    )}
-
                     {partners.length === 0 ? (
-                        <p className="text-slate-400 text-sm">No partners yet.</p>
+                        <p className="text-slate-400 text-sm">No partners configured</p>
                     ) : (
-                        <table className="w-full text-xs">
+                        <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-slate-400">
+                                <tr className="text-slate-400 text-xs">
                                     <th className="text-left py-1">Name</th>
                                     <th className="text-left py-1">Email</th>
                                     <th className="text-left py-1">Payment</th>
@@ -1193,6 +1610,126 @@ export default function AccountingDashboardPage() {
                                 <p className="text-slate-400">No users earned money in {taxYear}</p>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ===== ADD FUNDS MODAL ===== */}
+            {showAddFundsForm && selectedWalletForFunds && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg w-full max-w-md">
+                        <div className="p-4 border-b border-slate-700">
+                            <h3 className="text-white font-bold">Add Funds to {selectedWalletForFunds.wallet_name}</h3>
+                            <p className="text-slate-400 text-sm">Current balance: ${selectedWalletForFunds.balance.toFixed(2)}</p>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            <div>
+                                <label className="text-slate-400 text-xs">Amount *</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={addFundsForm.amount}
+                                    onChange={(e) => setAddFundsForm({ ...addFundsForm, amount: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs">Source Type *</label>
+                                <select
+                                    value={addFundsForm.source_type}
+                                    onChange={(e) => setAddFundsForm({ ...addFundsForm, source_type: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                >
+                                    <option value="loan">Loan (will need to repay)</option>
+                                    <option value="revenue">Revenue (business income)</option>
+                                    <option value="deposit">Other Deposit</option>
+                                </select>
+                            </div>
+                            {addFundsForm.source_type === 'loan' && (
+                                <div>
+                                    <label className="text-slate-400 text-xs">Lender Name *</label>
+                                    <input
+                                        type="text"
+                                        value={addFundsForm.lender_name}
+                                        onChange={(e) => setAddFundsForm({ ...addFundsForm, lender_name: e.target.value })}
+                                        className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                        placeholder="e.g., Bobby Evans"
+                                    />
+                                </div>
+                            )}
+                            <div>
+                                <label className="text-slate-400 text-xs">Notes (optional)</label>
+                                <input
+                                    type="text"
+                                    value={addFundsForm.notes}
+                                    onChange={(e) => setAddFundsForm({ ...addFundsForm, notes: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                    placeholder="e.g., Seed funding for payouts"
+                                />
+                            </div>
+                            {addFundsForm.source_type === 'loan' && (
+                                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded p-2 text-xs text-yellow-300">
+                                    💡 This will be tracked as a loan. You'll see it in the loan list and can record repayments later.
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-slate-700 flex gap-2">
+                            <button onClick={() => setShowAddFundsForm(false)} className="flex-1 px-4 py-2 bg-slate-700 text-slate-300 rounded">Cancel</button>
+                            <button onClick={addFundsToWallet} className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-medium">Add Funds</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== REPAYMENT MODAL ===== */}
+            {showRepaymentForm && selectedLoanForRepayment && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-800 border border-slate-700 rounded-lg w-full max-w-md">
+                        <div className="p-4 border-b border-slate-700">
+                            <h3 className="text-white font-bold">Record Repayment</h3>
+                            <p className="text-slate-400 text-sm">Loan from {selectedLoanForRepayment.lender_name}</p>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            <div className="bg-slate-700/50 rounded p-3">
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="text-slate-400">Original Amount:</span>
+                                    <span className="text-white">${selectedLoanForRepayment.original_amount.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span className="text-slate-400">Already Repaid:</span>
+                                    <span className="text-green-400">${(selectedLoanForRepayment.repaid_amount || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm font-bold border-t border-slate-600 pt-1">
+                                    <span className="text-slate-300">Still Owed:</span>
+                                    <span className="text-red-400">${(selectedLoanForRepayment.original_amount - (selectedLoanForRepayment.repaid_amount || 0)).toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs">Repayment Amount *</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={repaymentForm.amount}
+                                    onChange={(e) => setRepaymentForm({ ...repaymentForm, amount: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-slate-400 text-xs">Notes (optional)</label>
+                                <input
+                                    type="text"
+                                    value={repaymentForm.notes}
+                                    onChange={(e) => setRepaymentForm({ ...repaymentForm, notes: e.target.value })}
+                                    className="w-full mt-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                                    placeholder="e.g., Partial repayment from January profits"
+                                />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-700 flex gap-2">
+                            <button onClick={() => setShowRepaymentForm(false)} className="flex-1 px-4 py-2 bg-slate-700 text-slate-300 rounded">Cancel</button>
+                            <button onClick={recordRepayment} className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-medium">Record Repayment</button>
+                        </div>
                     </div>
                 </div>
             )}
