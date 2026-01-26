@@ -252,7 +252,7 @@ export default function AdminLayout({ children }) {
                 { href: '/admin/advertisers', label: 'Advertiser List', icon: '👤' },
                 { href: '/admin/campaigns', label: 'Campaign Dashboard', icon: '📋' },
                 { href: '/admin/cancellations', label: 'Cancellations', icon: '❌' },
-                { href: '/admin/promo-cards', label: 'Promo Cards', icon: '🎴' },
+                { href: '/admin/promo-cards', label: '"House" Promo Cards', icon: '🎴' },
                 { href: '/admin/promo-stats', label: 'Promo Stats', icon: '📊' },
                 { href: '/admin/matrix', label: 'Matrix Overview', icon: '🔷' },
             ]
